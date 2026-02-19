@@ -96,7 +96,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 20),
                 child: Text(
-                  AppLocalizations.get('noWindowsDevices', locale),
+                  AppLocalizations.get('noSyncDevices', locale),
                   style: const TextStyle(color: Colors.grey),
                 ),
               )
