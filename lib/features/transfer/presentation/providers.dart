@@ -184,6 +184,18 @@ class ActiveTransfersNotifier extends StateNotifier<List<Transfer>> {
   void listenToSender(FileSender sender) {
     _senderSub?.cancel();
     _senderSub = sender.progressUpdates.listen(_onTransferUpdate);
+
+    // Handle ID changes: when the server assigns a real transferId,
+    // replace the placeholder entry so we don't get duplicates.
+    sender.onTransferIdChanged = (String oldId, Transfer updated) {
+      final index = state.indexWhere((t) => t.id == oldId);
+      if (index >= 0) {
+        state = [
+          for (int i = 0; i < state.length; i++)
+            if (i == index) updated else state[i],
+        ];
+      }
+    };
   }
 
   /// Adds a new transfer or updates an existing one (matched by id).

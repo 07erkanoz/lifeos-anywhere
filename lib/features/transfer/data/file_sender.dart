@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:anyware/core/logger.dart';
 import 'package:anyware/features/discovery/domain/device.dart';
 import 'package:anyware/features/transfer/domain/transfer.dart';
+import 'package:uuid/uuid.dart';
 
 /// Client-side service that sends files to other devices on the network.
 ///
@@ -31,6 +32,8 @@ class FileSender {
   /// Whether a cancellation has been requested for the current transfer.
   bool _cancelRequested = false;
 
+  static const _uuid = Uuid();
+
   /// Maximum number of retry attempts for failed transfers.
   static const int _maxRetries = 3;
 
@@ -46,6 +49,11 @@ class FileSender {
   /// A broadcast stream that emits [Transfer] objects whenever a send
   /// operation makes progress or changes status.
   Stream<Transfer> get progressUpdates => _progressController.stream;
+
+  /// Called when a transfer's ID changes from a local placeholder to the
+  /// server-assigned ID. Listeners should replace the old ID entry with
+  /// the new transfer data.
+  void Function(String oldId, Transfer updated)? onTransferIdChanged;
 
   /// Sends a file at [filePath] to the [target] device.
   ///
@@ -64,8 +72,13 @@ class FileSender {
     final fileName = file.uri.pathSegments.last;
     final fileSize = await file.length();
 
+    // Use a temporary local ID so that the UI can track this transfer
+    // from the very beginning. Once the server responds with the real
+    // transferId we replace the local ID (the notifier matches by id).
+    final localId = 'send_${_uuid.v4()}';
+
     Transfer transfer = Transfer(
-      id: '',
+      id: localId,
       fileName: fileName,
       fileSize: fileSize,
       senderDevice: localDevice,
@@ -121,9 +134,15 @@ class FileSender {
 
     final reqJson = jsonDecode(reqResponse) as Map<String, dynamic>;
     final accepted = reqJson['accepted'] as bool? ?? false;
-    final transferId = reqJson['transferId'] as String? ?? '';
+    final transferId = reqJson['transferId'] as String? ?? localId;
 
-    transfer = transfer.copyWith(id: transferId);
+    // Replace the local placeholder ID with the server-assigned transferId.
+    // Emit an IdChange so the notifier can update the existing entry in-place
+    // rather than creating a duplicate.
+    if (transferId != localId) {
+      transfer = transfer.copyWith(id: transferId);
+      _emitIdChange(localId, transfer);
+    }
 
     if (!accepted) {
       transfer = transfer.copyWith(status: TransferStatus.rejected);
@@ -458,5 +477,12 @@ class FileSender {
     if (!_progressController.isClosed) {
       _progressController.add(transfer);
     }
+  }
+
+  /// Notifies listeners that a transfer's ID changed from [oldId] to the
+  /// ID in [updated], then emits the updated transfer normally.
+  void _emitIdChange(String oldId, Transfer updated) {
+    onTransferIdChanged?.call(oldId, updated);
+    _emitProgress(updated);
   }
 }
