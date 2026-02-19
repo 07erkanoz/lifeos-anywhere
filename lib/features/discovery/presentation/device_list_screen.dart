@@ -7,6 +7,8 @@ import 'package:file_picker/file_picker.dart';
 
 import 'package:anyware/features/discovery/domain/device.dart';
 import 'package:anyware/features/discovery/presentation/providers.dart';
+import 'package:anyware/features/pairing/presentation/qr_display_dialog.dart';
+import 'package:anyware/features/pairing/presentation/qr_scan_screen.dart';
 import 'package:anyware/features/transfer/presentation/providers.dart';
 import 'package:anyware/features/settings/presentation/providers.dart';
 import 'package:anyware/i18n/app_localizations.dart';
@@ -59,6 +61,25 @@ class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
       appBar: AppBar(
         title: Text(AppLocalizations.get('devices', locale)),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.qr_code),
+            tooltip: AppLocalizations.get('pairDevice', locale),
+            onPressed: () => showDialog<void>(
+              context: context,
+              builder: (_) => QrDisplayDialog(locale: locale),
+            ),
+          ),
+          if (Platform.isAndroid || Platform.isIOS)
+            IconButton(
+              icon: const Icon(Icons.qr_code_scanner),
+              tooltip: AppLocalizations.get('scanQrTitle', locale),
+              onPressed: () => Navigator.push<void>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => QrScanScreen(locale: locale),
+                ),
+              ),
+            ),
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: AppLocalizations.get('scanning', locale),
