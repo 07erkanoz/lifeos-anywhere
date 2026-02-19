@@ -24,6 +24,7 @@
 
     <!-- Camera permission for QR scanning -->
     <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-feature android:name="android.hardware.camera" android:required="false"/>
     <uses-permission android:name="android.permission.VIBRATE"/>
 
     <application
