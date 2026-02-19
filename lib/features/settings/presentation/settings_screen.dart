@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:anyware/core/constants.dart';
 import 'package:anyware/core/tv_detector.dart';
@@ -235,6 +236,24 @@ class SettingsScreen extends ConsumerWidget {
           // =================================================================
           _SectionHeader(
             label: AppLocalizations.get('about', locale),
+          ),
+
+          ListTile(
+            leading: const Icon(Icons.install_mobile_rounded),
+            title: Text(AppLocalizations.get('installOnOtherDevices', locale)),
+            subtitle: Text(
+              AppLocalizations.get('installOnOtherDevicesDesc', locale),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+            trailing: const Icon(Icons.open_in_new, size: 20),
+            onTap: () async {
+              final uri = Uri.parse(AppConstants.websiteUrl);
+              try {
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+              } catch (_) {}
+            },
           ),
 
           ListTile(

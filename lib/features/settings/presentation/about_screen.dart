@@ -108,11 +108,19 @@ class AboutScreen extends StatelessWidget {
             ),
 
             _InfoTile(
+              icon: Icons.install_mobile_rounded,
+              title: AppLocalizations.get('installOnOtherDevices', locale),
+              subtitle: AppLocalizations.get('installOnOtherDevicesDesc', locale),
+              isDark: isDark,
+              onTap: () => _openUrl(AppConstants.websiteUrl),
+            ),
+
+            _InfoTile(
               icon: Icons.public_rounded,
               title: 'GitHub',
               subtitle: 'github.com/07erkanoz/lifeos-anywhere',
               isDark: isDark,
-              onTap: () => _openUrl('https://github.com/07erkanoz/lifeos-anywhere'),
+              onTap: () => _openUrl(AppConstants.githubUrl),
             ),
 
             const SizedBox(height: 32),
