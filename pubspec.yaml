@@ -41,8 +41,9 @@ dependencies:
   launch_at_startup: ^0.5.0
   win32_registry: ^2.1.0
 
-  # File Opening
+  # File Opening & URLs
   open_file: ^3.5.7
+  url_launcher: ^6.3.1
 
   # Drag & Drop (Desktop)
   desktop_drop: ^0.5.0

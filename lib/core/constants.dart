@@ -8,4 +8,6 @@ class AppConstants {
   static const int deviceTimeoutSeconds = 30;
   static const int fileChunkSize = 65536; // 64KB
   static const String protocolVersion = '1.0';
+  static const String websiteUrl = 'https://lifeos.com.tr';
+  static const String githubUrl = 'https://github.com/07erkanoz/lifeos-anywhere';
 }
