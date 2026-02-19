@@ -8,6 +8,9 @@ import 'package:anyware/features/discovery/domain/device.dart';
 /// Periodically sends HTTP GET requests to each device's `/api/ping` endpoint
 /// and records the response time. Maintains a rolling window of recent
 /// measurements to compute average and current latency.
+///
+/// The [HttpClient] is periodically recycled (every 5 minutes) to prevent
+/// stale connection pools from accumulating during long-running sessions.
 class LatencyService {
   LatencyService();
 
@@ -20,11 +23,15 @@ class LatencyService {
   /// Per-device latest latency in ms. -1 means unreachable.
   final Map<String, int> _current = {};
 
-  final HttpClient _httpClient = HttpClient()
+  HttpClient _httpClient = HttpClient()
     ..connectionTimeout = const Duration(seconds: 3)
     ..idleTimeout = const Duration(seconds: 5);
 
   Timer? _timer;
+  Timer? _clientRecycleTimer;
+
+  /// Track how many consecutive total failures (all devices unreachable).
+  int _consecutiveTotalFailures = 0;
 
   final StreamController<Map<String, int>> _controller =
       StreamController<Map<String, int>>.broadcast();
@@ -73,6 +80,13 @@ class LatencyService {
   void startDynamic({Duration interval = const Duration(seconds: 10)}) {
     _timer?.cancel();
     _timer = Timer.periodic(interval, (_) => _measureAll(_activeDevices));
+
+    // Recycle the HttpClient every 5 minutes to clear stale connections.
+    _clientRecycleTimer?.cancel();
+    _clientRecycleTimer = Timer.periodic(
+      const Duration(minutes: 5),
+      (_) => _recycleHttpClient(),
+    );
   }
 
   /// Pings a single device and returns the latency in milliseconds.
@@ -102,12 +116,28 @@ class LatencyService {
   Future<void> _measureAll(List<Device> devices) async {
     if (devices.isEmpty) return;
 
+    int failCount = 0;
+
     final futures = devices.map((device) async {
       final ms = await pingDevice(device);
       _recordMeasurement(device.id, ms);
+      if (ms < 0) failCount++;
     });
 
     await Future.wait(futures);
+
+    // Track consecutive total failures (every device unreachable).
+    if (failCount == devices.length) {
+      _consecutiveTotalFailures++;
+      // If all pings failed 3+ times in a row, recycle the HttpClient
+      // in case its connection pool is corrupted.
+      if (_consecutiveTotalFailures >= 3) {
+        _recycleHttpClient();
+        _consecutiveTotalFailures = 0;
+      }
+    } else {
+      _consecutiveTotalFailures = 0;
+    }
 
     if (!_controller.isClosed) {
       _controller.add(Map.unmodifiable(_current));
@@ -124,9 +154,25 @@ class LatencyService {
     }
   }
 
+  /// Closes the current HttpClient and creates a fresh one.
+  ///
+  /// This prevents stale connection pools from causing timeouts during
+  /// long-running sessions.
+  void _recycleHttpClient() {
+    try {
+      _httpClient.close(force: true);
+    } catch (_) {}
+
+    _httpClient = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 3)
+      ..idleTimeout = const Duration(seconds: 5);
+  }
+
   void stop() {
     _timer?.cancel();
     _timer = null;
+    _clientRecycleTimer?.cancel();
+    _clientRecycleTimer = null;
   }
 
   void dispose() {

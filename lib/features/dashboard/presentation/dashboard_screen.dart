@@ -393,7 +393,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     IconButton(
                       icon: const Icon(Icons.refresh, size: 20),
                       tooltip: AppLocalizations.get('scanning', locale),
-                      onPressed: () => ref.invalidate(devicesProvider),
+                      onPressed: () => ref.read(refreshDiscoveryProvider)(),
                     ),
                   ],
                 ),
@@ -442,7 +442,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         ),
                         const SizedBox(height: 8),
                         OutlinedButton.icon(
-                          onPressed: () => ref.invalidate(devicesProvider),
+                          onPressed: () => ref.read(refreshDiscoveryProvider)(),
                           icon: const Icon(Icons.refresh),
                           label:
                               Text(AppLocalizations.get('retry', locale)),

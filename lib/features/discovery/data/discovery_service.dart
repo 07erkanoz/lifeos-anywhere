@@ -14,6 +14,14 @@ import 'package:network_info_plus/network_info_plus.dart';
 /// [AppConstants.discoveryIntervalSeconds] seconds and listens for other
 /// devices doing the same. Devices that have not been seen for
 /// [AppConstants.deviceTimeoutSeconds] are automatically removed.
+///
+/// Includes automatic recovery mechanisms:
+/// - Periodic multicast group re-join (every 2 minutes) to counter OS/router
+///   silently dropping the membership.
+/// - Consecutive broadcast failure tracking: if 3+ broadcasts fail in a row
+///   the socket is assumed dead and the entire service restarts.
+/// - Socket error listener triggers automatic restart.
+/// - Periodic health checks verify the socket is still functional.
 class DiscoveryService {
   DiscoveryService({required this.localDevice});
 
@@ -25,6 +33,22 @@ class DiscoveryService {
   RawDatagramSocket? _socket;
   Timer? _broadcastTimer;
   Timer? _cleanupTimer;
+  Timer? _rejoinTimer;
+  Timer? _healthCheckTimer;
+
+  /// Consecutive broadcast failures. Reset on every successful send.
+  int _consecutiveBroadcastFailures = 0;
+
+  /// Maximum consecutive failures before triggering a full restart.
+  static const int _maxConsecutiveFailures = 3;
+
+  /// Whether an automatic restart is currently in progress (prevents re-entry).
+  bool _isRestarting = false;
+
+  /// Timestamp of the last successfully received packet. Used by the health
+  /// check to detect "silent death" scenarios where the socket stops
+  /// delivering packets but doesn't report an error.
+  DateTime _lastPacketReceived = DateTime.now();
 
   /// All currently discovered remote devices, keyed by their [Device.id].
   final Map<String, Device> _devices = {};
@@ -49,6 +73,8 @@ class DiscoveryService {
   /// 3. Joins the multicast group.
   /// 4. Begins periodic broadcasting and listening.
   /// 5. Starts a cleanup timer to evict stale devices.
+  /// 6. Starts a periodic multicast re-join timer.
+  /// 7. Starts a health check timer.
   Future<void> start() async {
     if (_socket != null) return;
 
@@ -113,6 +139,10 @@ class DiscoveryService {
 
     _log.info('Multicast joined. Listening on port $boundPort, broadcasting to ${AppConstants.discoveryPort}.');
 
+    // Reset failure counters.
+    _consecutiveBroadcastFailures = 0;
+    _lastPacketReceived = DateTime.now();
+
     // Listen for incoming datagrams.
     _socket!.listen(
       (RawSocketEvent event) {
@@ -121,7 +151,13 @@ class DiscoveryService {
         }
       },
       onError: (Object error) {
-        _log.error('Socket error', error: error);
+        _log.error('Socket listen error — triggering restart', error: error);
+        _scheduleRestart();
+      },
+      onDone: () {
+        _log.warning('Socket stream closed unexpectedly — triggering restart');
+        _socket = null;
+        _scheduleRestart();
       },
     );
 
@@ -137,6 +173,21 @@ class DiscoveryService {
       const Duration(seconds: 5),
       (_) => _cleanupStaleDevices(),
     );
+
+    // Periodically re-join multicast group every 2 minutes.
+    // Some OS/router combos silently drop the IGMP membership after a while.
+    _rejoinTimer = Timer.periodic(
+      const Duration(minutes: 2),
+      (_) => _rejoinMulticast(),
+    );
+
+    // Health check every 30 seconds: if we're broadcasting but haven't
+    // received ANY packet (including our own loopback) in 60 seconds,
+    // the socket is probably dead.
+    _healthCheckTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => _healthCheck(),
+    );
   }
 
   /// Stops the discovery service without disposing streams.
@@ -149,12 +200,29 @@ class DiscoveryService {
     _cleanupTimer?.cancel();
     _cleanupTimer = null;
 
+    _rejoinTimer?.cancel();
+    _rejoinTimer = null;
+
+    _healthCheckTimer?.cancel();
+    _healthCheckTimer = null;
+
     try {
       _socket?.close();
     } catch (_) {
       // Ignore close errors.
     }
     _socket = null;
+  }
+
+  /// Clears discovered devices and emits an empty list.
+  ///
+  /// Use this when the network is lost so the UI immediately reflects
+  /// that no peers are reachable.
+  void clearDevices() {
+    if (_devices.isNotEmpty) {
+      _devices.clear();
+      _emitDevices();
+    }
   }
 
   /// Stops the service and closes the stream controller permanently.
@@ -199,11 +267,80 @@ class DiscoveryService {
     }
   }
 
+  /// Re-joins the multicast group on all interfaces.
+  ///
+  /// Called periodically to counter OS/router silently dropping the IGMP
+  /// membership. This is a common cause of "devices stop seeing each other
+  /// after a while" on LAN networks.
+  Future<void> _rejoinMulticast() async {
+    if (_socket == null) return;
+
+    _log.debug('Periodic multicast re-join...');
+    final multicastAddress =
+        InternetAddress(AppConstants.multicastGroup, type: InternetAddressType.IPv4);
+
+    try {
+      await _joinMulticastOnAllInterfaces(multicastAddress, localDevice.ip);
+    } catch (e) {
+      _log.warning('Multicast re-join failed', error: e);
+    }
+  }
+
+  /// Performs a health check on the discovery socket.
+  ///
+  /// If we haven't received any packet (including our own loopback broadcasts)
+  /// for more than 60 seconds while the service is supposedly running, the
+  /// socket is assumed dead and we trigger a full restart.
+  void _healthCheck() {
+    if (_socket == null) return;
+
+    final silentDuration = DateTime.now().difference(_lastPacketReceived);
+    if (silentDuration.inSeconds > 60) {
+      _log.warning(
+        'Health check: no packets received for ${silentDuration.inSeconds}s '
+        '— socket is likely dead, triggering restart.',
+      );
+      _scheduleRestart();
+    }
+  }
+
+  /// Schedules an automatic restart of the discovery service.
+  ///
+  /// Guards against re-entry so multiple error paths don't trigger
+  /// concurrent restarts.
+  Future<void> _scheduleRestart() async {
+    if (_isRestarting) return;
+    _isRestarting = true;
+
+    _log.info('Automatic restart scheduled...');
+
+    try {
+      stop();
+      // Short delay to let the old socket release the port.
+      await Future<void>.delayed(const Duration(seconds: 2));
+      await start();
+      _log.info('Automatic restart completed successfully.');
+    } catch (e) {
+      _log.error('Automatic restart failed', error: e);
+      // Try again in 10 seconds.
+      Future<void>.delayed(const Duration(seconds: 10), () {
+        _isRestarting = false;
+        _scheduleRestart();
+      });
+      return;
+    }
+
+    _isRestarting = false;
+  }
+
   /// Sends a single UDP multicast datagram containing the local device JSON.
   ///
   /// Broadcasts to both the multicast group AND the subnet broadcast address
   /// (255.255.255.255) for maximum compatibility. Some network configurations
   /// and firewalls block multicast but allow broadcast.
+  ///
+  /// Tracks consecutive failures. If [_maxConsecutiveFailures] is reached,
+  /// triggers a full socket restart.
   void _broadcast() {
     if (_socket == null) return;
 
@@ -223,8 +360,21 @@ class DiscoveryService {
         InternetAddress('255.255.255.255'),
         AppConstants.discoveryPort,
       );
+
+      // Reset failure counter on success.
+      _consecutiveBroadcastFailures = 0;
     } catch (e) {
-      _log.warning('Broadcast failed', error: e);
+      _consecutiveBroadcastFailures++;
+      _log.warning(
+        'Broadcast failed ($_consecutiveBroadcastFailures/$_maxConsecutiveFailures)',
+        error: e,
+      );
+
+      if (_consecutiveBroadcastFailures >= _maxConsecutiveFailures) {
+        _log.error('Too many consecutive broadcast failures — socket is dead, restarting.');
+        _consecutiveBroadcastFailures = 0;
+        _scheduleRestart();
+      }
     }
   }
 
@@ -232,10 +382,15 @@ class DiscoveryService {
   void _handleIncoming() {
     if (_socket == null) return;
 
-    Datagram? datagram = _socket!.receive();
-    while (datagram != null) {
-      _processPacket(datagram);
-      datagram = _socket!.receive();
+    try {
+      Datagram? datagram = _socket!.receive();
+      while (datagram != null) {
+        _lastPacketReceived = DateTime.now();
+        _processPacket(datagram);
+        datagram = _socket!.receive();
+      }
+    } catch (e) {
+      _log.error('Error reading from socket', error: e);
     }
   }
 
@@ -246,11 +401,8 @@ class DiscoveryService {
       final json = jsonDecode(jsonString) as Map<String, dynamic>;
       final device = Device.fromJson(json);
 
-      _log.debug('Received packet from ${datagram.address.address} - device: ${device.name} (${device.id})');
-
       // Ignore our own broadcasts.
       if (device.id == localDevice.id) {
-        _log.debug('Ignoring own broadcast.');
         return;
       }
 

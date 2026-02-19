@@ -63,15 +63,14 @@ class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
             icon: const Icon(Icons.refresh),
             tooltip: AppLocalizations.get('scanning', locale),
             onPressed: () {
-              ref.invalidate(devicesProvider);
+              ref.read(refreshDiscoveryProvider)();
             },
           ),
         ],
       ),
       body: RefreshIndicator(
         onRefresh: () async {
-          ref.invalidate(devicesProvider);
-          await Future<void>.delayed(const Duration(milliseconds: 500));
+          await ref.read(refreshDiscoveryProvider)();
         },
         child: ListView(
           padding: const EdgeInsets.only(top: 8, bottom: 24),
@@ -158,7 +157,7 @@ class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
                       ),
                       const SizedBox(height: 16),
                       OutlinedButton.icon(
-                        onPressed: () => ref.invalidate(devicesProvider),
+                        onPressed: () => ref.read(refreshDiscoveryProvider)(),
                         icon: const Icon(Icons.refresh),
                         label: Text(AppLocalizations.get('retry', locale)),
                       ),

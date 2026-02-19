@@ -49,6 +49,9 @@ class FileServer {
   /// All transfers this server knows about, keyed by transfer id.
   final Map<String, Transfer> _transfers = {};
 
+  /// Timer that periodically cleans up completed/failed transfers from memory.
+  Timer? _cleanupTimer;
+
   final Uuid _uuid = const Uuid();
 
   // Stream controllers --------------------------------------------------
@@ -92,10 +95,20 @@ class FileServer {
       port,
       shared: true,
     );
+
+    // Periodically clean up finished transfers to prevent memory leaks
+    // during long-running sessions.
+    _cleanupTimer?.cancel();
+    _cleanupTimer = Timer.periodic(
+      const Duration(minutes: 10),
+      (_) => _cleanupFinishedTransfers(),
+    );
   }
 
   /// Stops the server gracefully.
   Future<void> stop() async {
+    _cleanupTimer?.cancel();
+    _cleanupTimer = null;
     await _server?.close(force: true);
     _server = null;
   }
@@ -106,6 +119,31 @@ class FileServer {
     _transfers.clear();
     _incomingRequestController.close();
     _progressController.close();
+  }
+
+  /// Removes transfers that finished (completed / failed / cancelled) more
+  /// than 30 minutes ago. Keeps active transfers and recent completions so
+  /// the UI can still display them.
+  void _cleanupFinishedTransfers() {
+    final now = DateTime.now();
+    final staleIds = <String>[];
+
+    for (final entry in _transfers.entries) {
+      final t = entry.value;
+      if (!t.isActive) {
+        final age = now.difference(t.createdAt);
+        if (age.inMinutes > 30) {
+          staleIds.add(entry.key);
+        }
+      }
+    }
+
+    if (staleIds.isNotEmpty) {
+      for (final id in staleIds) {
+        _transfers.remove(id);
+      }
+      _log.debug('Cleaned up ${staleIds.length} finished transfers from memory.');
+    }
   }
 
   // Routing -------------------------------------------------------------

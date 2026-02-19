@@ -166,9 +166,22 @@ final discoveryServiceProvider = FutureProvider<DiscoveryService>((ref) async {
             await Future<void>.delayed(const Duration(seconds: 1));
             await service.start();
             AppLogger('DiscoveryProvider').info('Discovery restarted successfully.');
+          } else if (hasNetwork && !service.isRunning) {
+            // Network came back after being lost — start discovery.
+            AppLogger('DiscoveryProvider').info('Network restored, starting discovery...');
+
+            final newIp = await _getBestLocalIp();
+            if (newIp.isNotEmpty) {
+              service.localDevice = service.localDevice.copyWith(ip: newIp);
+            }
+
+            await service.start();
+            AppLogger('DiscoveryProvider').info('Discovery started after network restore.');
           } else if (!hasNetwork) {
             AppLogger('DiscoveryProvider').warning('Network lost, stopping discovery.');
             service.stop();
+            // Clear the device list immediately so UI shows no devices.
+            service.clearDevices();
           }
         } catch (e) {
           AppLogger('DiscoveryProvider').error('Network change handling error', error: e);
@@ -210,6 +223,35 @@ final devicesProvider = StreamProvider<List<Device>>((ref) async* {
   await for (final devices in service.devicesStream) {
     yield filterSelf(devices);
   }
+});
+
+/// Provides a method to manually restart the discovery service.
+///
+/// Used by the refresh button in the UI. Calling this stops the current
+/// service, clears stale data, re-resolves the local IP, and restarts.
+final refreshDiscoveryProvider = Provider<Future<void> Function()>((ref) {
+  return () async {
+    try {
+      final service = await ref.read(discoveryServiceProvider.future);
+
+      AppLogger('DiscoveryProvider').info('Manual refresh triggered.');
+
+      // Update local IP in case the network changed.
+      final newIp = await _getBestLocalIp();
+      if (newIp.isNotEmpty) {
+        service.localDevice = service.localDevice.copyWith(ip: newIp);
+      }
+
+      // Full restart: stop → delay → start.
+      service.stop();
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      await service.start();
+
+      AppLogger('DiscoveryProvider').info('Manual refresh completed.');
+    } catch (e) {
+      AppLogger('DiscoveryProvider').error('Manual refresh failed', error: e);
+    }
+  };
 });
 
 // ---------------------------------------------------------------------------
