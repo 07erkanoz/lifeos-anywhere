@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:anyware/core/logger.dart';
 import 'package:http/http.dart' as http;
@@ -10,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:anyware/core/constants.dart';
 import 'package:anyware/features/discovery/domain/device.dart';
+import 'package:anyware/features/settings/data/settings_repository.dart';
 
 /// Represents a clipboard entry with metadata.
 class ClipboardEntry {
@@ -56,17 +58,42 @@ enum ClipboardContentType { text, image }
 /// Provider for the clipboard service.
 final clipboardServiceProvider = Provider((ref) => ClipboardService());
 
-/// Provider for clipboard history.
+/// Provider for clipboard history (persisted via SharedPreferences).
 final clipboardHistoryProvider =
     StateNotifierProvider<ClipboardHistoryNotifier, List<ClipboardEntry>>(
-  (ref) => ClipboardHistoryNotifier(),
+  (ref) {
+    final prefs = ref.watch(sharedPreferencesProvider);
+    return ClipboardHistoryNotifier(prefs);
+  },
 );
 
-/// Manages clipboard history (last 20 entries).
+/// Manages clipboard history with persistence (last 50 entries).
 class ClipboardHistoryNotifier extends StateNotifier<List<ClipboardEntry>> {
-  ClipboardHistoryNotifier() : super([]);
+  ClipboardHistoryNotifier(this._prefs) : super([]) {
+    _load();
+  }
 
-  static const int _maxHistory = 20;
+  final SharedPreferences _prefs;
+  static const String _historyKey = 'clipboard_history';
+  static const int _maxHistory = 50;
+
+  void _load() {
+    final raw = _prefs.getString(_historyKey);
+    if (raw == null || raw.isEmpty) return;
+    try {
+      final list = jsonDecode(raw) as List<dynamic>;
+      state = list
+          .map((e) => ClipboardEntry.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } catch (_) {
+      state = [];
+    }
+  }
+
+  void _save() {
+    final json = jsonEncode(state.map((e) => e.toJson()).toList());
+    _prefs.setString(_historyKey, json);
+  }
 
   void addEntry(ClipboardEntry entry) {
     // Avoid duplicates (same text within last 2 seconds).
@@ -79,15 +106,18 @@ class ClipboardHistoryNotifier extends StateNotifier<List<ClipboardEntry>> {
     }
 
     state = [entry, ...state].take(_maxHistory).toList();
+    _save();
   }
 
   void clear() {
     state = [];
+    _save();
   }
 
   void removeAt(int index) {
     if (index >= 0 && index < state.length) {
       state = [...state]..removeAt(index);
+      _save();
     }
   }
 }

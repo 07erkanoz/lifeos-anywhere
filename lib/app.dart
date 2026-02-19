@@ -20,6 +20,7 @@ import 'package:anyware/features/transfer/domain/transfer.dart';
 import 'package:anyware/features/settings/presentation/settings_screen.dart';
 import 'package:anyware/i18n/app_localizations.dart';
 import 'package:anyware/widgets/tv_sidebar.dart';
+import 'package:anyware/features/clipboard/presentation/clipboard_screen.dart';
 import 'package:anyware/features/sync/presentation/sync_screen.dart';
 import 'package:anyware/features/sync/data/sync_service.dart';
 
@@ -99,9 +100,10 @@ class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
     final screens = <Widget>[
       _useSidebar ? const DashboardScreen() : const DeviceListScreen(),
       const TransferScreen(),
+      const ClipboardScreen(),
     ];
 
-    if (Platform.isWindows) {
+    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
       screens.add(const SyncScreen());
     }
 
@@ -123,7 +125,9 @@ class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
 
   @override
   void onWindowClose() async {
-    if (Platform.isWindows) {
+    final isDesktop =
+        Platform.isWindows || Platform.isLinux || Platform.isMacOS;
+    if (isDesktop) {
       // If minimize-to-tray is enabled, just hide the window.
       final settings = ref.read(settingsProvider);
       if (settings.minimizeToTray) {
@@ -273,11 +277,13 @@ class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
     final navLabels = [
       AppLocalizations.get('devices', locale),
       AppLocalizations.get('transfers', locale),
+      AppLocalizations.get('clipboard', locale),
       AppLocalizations.get('settings', locale),
     ];
     final navIcons = [
       Icons.devices_rounded,
       Icons.swap_horiz_rounded,
+      Icons.content_paste_rounded,
       Icons.settings_rounded,
     ];
 

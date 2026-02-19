@@ -37,13 +37,17 @@ class TvSidebar extends StatelessWidget {
         label: AppLocalizations.get('transfers', locale),
       ),
       _SidebarItem(
+        icon: Icons.content_paste_rounded,
+        label: AppLocalizations.get('clipboard', locale),
+      ),
+      _SidebarItem(
         icon: Icons.settings_rounded,
         label: AppLocalizations.get('settings', locale),
       ),
     ];
 
-    if (Platform.isWindows) {
-      items.insert(2, _SidebarItem(
+    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+      items.insert(3, _SidebarItem(
         icon: Icons.sync,
         label: AppLocalizations.get('sync', locale),
       ));

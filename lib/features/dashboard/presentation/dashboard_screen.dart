@@ -213,13 +213,24 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       final service = ref.read(clipboardServiceProvider);
       final settings = ref.read(settingsProvider);
       final localDevice = await ref.read(localDeviceProvider.future);
+      final senderName = settings.deviceName.isNotEmpty
+          ? settings.deviceName
+          : localDevice.name;
       await service.sendClipboard(
         target,
         text,
-        senderName: settings.deviceName.isNotEmpty
-            ? settings.deviceName
-            : localDevice.name,
+        senderName: senderName,
         senderDeviceId: localDevice.id,
+      );
+
+      // Record sent clipboard entry in history.
+      ref.read(clipboardHistoryProvider.notifier).addEntry(
+        ClipboardEntry(
+          text: text,
+          senderName: senderName,
+          senderDeviceId: localDevice.id,
+          timestamp: DateTime.now(),
+        ),
       );
 
       if (!mounted) return;

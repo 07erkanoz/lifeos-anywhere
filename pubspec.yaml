@@ -35,7 +35,7 @@ dependencies:
   uuid: ^4.5.1
   wakelock_plus: ^1.3.1
 
-  # Windows Desktop
+  # Desktop (Windows, Linux, macOS)
   window_manager: ^0.5.0
   tray_manager: ^0.5.0
   launch_at_startup: ^0.5.0

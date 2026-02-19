@@ -7,6 +7,7 @@ import 'package:anyware/features/platform/windows/notification_service.dart';
 import 'package:anyware/features/settings/presentation/providers.dart';
 import 'package:anyware/features/settings/data/settings_repository.dart';
 import 'package:anyware/features/transfer/data/file_sender.dart';
+import 'package:anyware/features/clipboard/data/clipboard_service.dart';
 import 'package:anyware/features/transfer/data/file_server.dart';
 import 'package:anyware/features/transfer/data/transfer_history.dart';
 import 'package:anyware/features/transfer/data/transfer_queue.dart';
@@ -44,6 +45,22 @@ final fileServerProvider = FutureProvider.autoDispose<FileServer>((ref) async {
     downloadPath: downloadPath,
     overwriteFiles: overwriteFiles,
   );
+
+  // Wire clipboard receive events to persistent history.
+  server.onClipboardReceived = (Map<String, dynamic> data) {
+    final entry = ClipboardEntry(
+      text: data['text'] as String? ?? '',
+      imagePath: data['imagePath'] as String?,
+      senderName: data['sender'] as String? ?? 'Unknown',
+      senderDeviceId: data['senderDeviceId'] as String? ?? '',
+      timestamp: DateTime.tryParse(data['timestamp'] as String? ?? '') ??
+          DateTime.now(),
+      type: (data['type'] as String?) == 'image'
+          ? ClipboardContentType.image
+          : ClipboardContentType.text,
+    );
+    ref.read(clipboardHistoryProvider.notifier).addEntry(entry);
+  };
 
   try {
     await server.start(AppConstants.defaultPort);

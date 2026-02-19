@@ -12,6 +12,7 @@ import 'package:window_manager/window_manager.dart';
 import 'package:anyware/app.dart';
 import 'package:anyware/core/tv_detector.dart';
 import 'package:anyware/features/discovery/presentation/device_list_screen.dart';
+import 'package:anyware/features/platform/tray_service.dart';
 import 'package:anyware/features/platform/windows/notification_service.dart';
 import 'package:anyware/features/platform/windows/windows_service.dart';
 import 'package:anyware/features/settings/data/settings_repository.dart';
@@ -104,6 +105,33 @@ Future<void> main(List<String> args) async {
       await WindowsNotificationService.instance.init();
     } catch (e) {
       _log.error('WindowsNotificationService.init failed', error: e);
+    }
+  }
+
+  // --- Linux / macOS desktop initialisation ---
+  if (Platform.isLinux || Platform.isMacOS) {
+    await windowManager.ensureInitialized();
+
+    const windowSize = Size(720, 680);
+    await windowManager.setSize(windowSize);
+    await windowManager.setMinimumSize(const Size(560, 560));
+    await windowManager.center();
+    await windowManager.setTitle('LifeOS AnyWhere');
+    await windowManager.setPreventClose(true);
+
+    // Load settings for tray configuration.
+    final settingsRepo = SettingsRepository(prefs);
+    final AppSettings settings = await settingsRepo.load();
+
+    // Initialize platform-agnostic system tray (Linux/macOS).
+    if (settings.minimizeToTray) {
+      final tray = AppTrayService();
+      try {
+        await tray.initTray();
+        await tray.setupCloseToTray();
+      } catch (e) {
+        _log.error('AppTrayService.init failed', error: e);
+      }
     }
   }
 

@@ -51,8 +51,14 @@ jobs:
           mkdir -p "${PKG_DIR}/usr/share/applications"
           mkdir -p "${PKG_DIR}/usr/share/icons/hicolor/256x256/apps"
 
+          # Copy app icon for desktop integration
+          cp logo.png "${PKG_DIR}/usr/share/icons/hicolor/256x256/apps/com.lifeos.anyware.png"
+
           # Copy the entire bundle
           cp -r "${BUNDLE_DIR}/." "${PKG_DIR}/opt/${PKG_NAME}/"
+
+          # Copy logo for system tray icon
+          cp logo.png "${PKG_DIR}/opt/${PKG_NAME}/logo.png"
 
           # Create symlink for PATH access
           ln -sf "/opt/${PKG_NAME}/lifeos_anywhere" "${PKG_DIR}/usr/bin/lifeos_anywhere"

@@ -25,8 +25,11 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     final settings = ref.watch(settingsProvider);
     final locale = settings.locale;
 
-    // Filter only Windows devices (sync to PC)
-    final windowsDevices = devices.where((d) => d.platform == 'windows').toList();
+    // Filter desktop devices that support sync (Windows, Linux, macOS).
+    final windowsDevices = devices.where((d) =>
+        d.platform == 'windows' ||
+        d.platform == 'linux' ||
+        d.platform == 'macos').toList();
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
 

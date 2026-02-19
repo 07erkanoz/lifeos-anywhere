@@ -4,7 +4,7 @@ import 'package:anyware/core/logger.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'package:anyware/core/constants.dart';
-import 'package:anyware/features/platform/windows/tray_service.dart';
+import 'package:anyware/features/platform/tray_service.dart';
 import 'package:anyware/features/platform/windows/startup_service.dart';
 import 'package:anyware/features/platform/windows/context_menu_service.dart';
 import 'package:anyware/features/settings/domain/settings.dart';
@@ -25,13 +25,13 @@ class WindowsService with WindowListener {
 
   static final _log = AppLogger('WindowsService');
 
-  final WindowsTrayService _trayService = WindowsTrayService();
+  final AppTrayService _trayService = AppTrayService();
   final WindowsStartupService _startupService = WindowsStartupService();
   final WindowsContextMenuService _contextMenuService =
       WindowsContextMenuService();
 
   /// Exposes the tray service for external access if needed.
-  WindowsTrayService get trayService => _trayService;
+  AppTrayService get trayService => _trayService;
 
   /// Exposes the startup service for external access if needed.
   WindowsStartupService get startupService => _startupService;
