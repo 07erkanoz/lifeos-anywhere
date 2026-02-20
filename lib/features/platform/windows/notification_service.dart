@@ -57,6 +57,14 @@ class WindowsNotificationService {
     );
   }
 
+  /// Shows a summary notification when a sync batch completes.
+  void notifySyncCompleted(int fileCount, String deviceName, String jobName) {
+    _show(
+      title: 'LifeOS AnyWhere',
+      body: '\u2705 $jobName: $fileCount files \u2192 $deviceName',
+    );
+  }
+
   void _show({required String title, required String body}) {
     if (!Platform.isWindows || !_initialized) return;
 

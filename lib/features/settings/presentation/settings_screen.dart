@@ -430,50 +430,40 @@ class SettingsScreen extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                Text(
+                  AppLocalizations.get('commonPaths', locale),
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                const SizedBox(height: 8),
+                ...commonPaths.asMap().entries.map(
+                  (entry) => ListTile(
+                    autofocus: entry.key == 0,
+                    leading: const Icon(Icons.folder_outlined, size: 20),
+                    title: Text(
+                      entry.value,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    onTap: () => Navigator.of(context).pop(entry.value),
+                  ),
+                ),
+                const SizedBox(height: 12),
                 TextField(
                   controller: controller,
-                  autofocus: true,
                   decoration: InputDecoration(
                     hintText: AppLocalizations.get('folderPathHint', locale),
                     labelText: AppLocalizations.get('enterPath', locale),
                   ),
                   onSubmitted: (value) => Navigator.of(context).pop(value),
                 ),
-                const SizedBox(height: 16),
-                Text(
-                  AppLocalizations.get('commonPaths', locale),
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
-                const SizedBox(height: 8),
-                ...commonPaths.map(
-                  (path) => InkWell(
-                    onTap: () => Navigator.of(context).pop(path),
-                    borderRadius: BorderRadius.circular(8),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 10,
-                        horizontal: 8,
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.folder_outlined, size: 20),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              path,
-                              style: Theme.of(context).textTheme.bodyMedium,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
               ],
             ),
           ),
           actions: [
             TextButton(
+              autofocus: false,
               onPressed: () => Navigator.of(context).pop(),
               child: Text(AppLocalizations.get('cancel', locale)),
             ),

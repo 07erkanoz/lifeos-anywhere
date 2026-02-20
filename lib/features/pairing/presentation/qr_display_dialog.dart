@@ -5,6 +5,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:anyware/core/constants.dart';
 import 'package:anyware/core/theme.dart';
 import 'package:anyware/features/discovery/presentation/providers.dart';
+import 'package:anyware/i18n/app_localizations.dart';
 
 class QrDisplayDialog extends ConsumerWidget {
   const QrDisplayDialog({super.key, required this.locale});
@@ -38,7 +39,7 @@ class QrDisplayDialog extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'Pair Device', // TODO: Add translation keys
+              AppLocalizations.get('pairDevice', locale),
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -61,7 +62,7 @@ class QrDisplayDialog extends ConsumerWidget {
             ),
             const SizedBox(height: 24),
             Text(
-              'Scan this code with the mobile app to pair instantly.', // TODO: Add translation keys
+              AppLocalizations.get('scanQr', locale),
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: isDark ? AppColors.textSecondary : Colors.grey[600],
@@ -89,7 +90,7 @@ class QrDisplayDialog extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                child: const Text('Close'), // TODO: Add translation keys
+                child: Text(AppLocalizations.get('close', locale)),
               ),
             ),
           ],

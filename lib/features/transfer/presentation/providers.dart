@@ -12,6 +12,7 @@ import 'package:anyware/features/transfer/data/file_server.dart';
 import 'package:anyware/features/transfer/data/transfer_history.dart';
 import 'package:anyware/features/transfer/data/transfer_queue.dart';
 import 'package:anyware/features/transfer/domain/transfer.dart';
+import 'package:anyware/features/sync/data/sync_service.dart';
 import 'package:anyware/core/logger.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -60,6 +61,29 @@ final fileServerProvider = FutureProvider.autoDispose<FileServer>((ref) async {
           : ClipboardContentType.text,
     );
     ref.read(clipboardHistoryProvider.notifier).addEntry(entry);
+  };
+
+  // Wire sync file receive events to sync service (no per-file notification).
+  server.onSyncFileReceived = (String relativePath, String senderName, String savedPath) {
+    try {
+      ref.read(syncServiceProvider.notifier).onFileReceived(
+            relativePath,
+            senderName,
+            savedPath,
+          );
+    } catch (e) {
+      _log.warning('Sync onFileReceived error: $e');
+    }
+  };
+
+  // Wire summary notification callback for completed sync batches.
+  ref.read(syncServiceProvider.notifier).onSyncBatchCompleted =
+      (String jobName, int fileCount, String deviceName) {
+    if (Platform.isWindows) {
+      WindowsNotificationService.instance.notifySyncCompleted(
+        fileCount, deviceName, jobName,
+      );
+    }
   };
 
   try {
@@ -174,6 +198,11 @@ class ActiveTransfersNotifier extends StateNotifier<List<Transfer>> {
   StreamSubscription<Transfer>? _serverSub;
   StreamSubscription<Transfer>? _senderSub;
 
+  /// Local IDs that have been replaced by server-assigned IDs.
+  /// Stream events arriving with these stale IDs are ignored to
+  /// prevent duplicate entries caused by the async race condition.
+  final Set<String> _replacedIds = {};
+
   /// Start listening to server progress updates.
   void listenToServer(FileServer server) {
     _serverSub?.cancel();
@@ -187,14 +216,34 @@ class ActiveTransfersNotifier extends StateNotifier<List<Transfer>> {
 
     // Handle ID changes: when the server assigns a real transferId,
     // replace the placeholder entry so we don't get duplicates.
+    // Also remove any server-side entry that already has the new ID
+    // to prevent two entries with the same transferId.
     sender.onTransferIdChanged = (String oldId, Transfer updated) {
-      final index = state.indexWhere((t) => t.id == oldId);
-      if (index >= 0) {
-        state = [
-          for (int i = 0; i < state.length; i++)
-            if (i == index) updated else state[i],
-        ];
+      // Mark the old local ID as replaced so that any late-arriving
+      // stream events with the stale ID are silently dropped.
+      _replacedIds.add(oldId);
+
+      // First, remove any existing entry with the NEW transferId
+      // (could have been added by the server's progressUpdates stream).
+      // Then replace the old placeholder entry.
+      final newState = <Transfer>[];
+      bool replaced = false;
+      for (final t in state) {
+        if (t.id == updated.id && t.id != oldId) {
+          // Skip the server-side duplicate entry with the same transferId.
+          continue;
+        }
+        if (t.id == oldId) {
+          newState.add(updated);
+          replaced = true;
+        } else {
+          newState.add(t);
+        }
       }
+      if (!replaced) {
+        newState.add(updated);
+      }
+      state = newState;
     };
   }
 
@@ -229,6 +278,10 @@ class ActiveTransfersNotifier extends StateNotifier<List<Transfer>> {
   // Private ---------------------------------------------------------------
 
   void _onTransferUpdate(Transfer transfer) {
+    // Ignore stream events for IDs that have already been replaced by
+    // a server-assigned transferId (race condition prevention).
+    if (_replacedIds.contains(transfer.id)) return;
+
     final index = state.indexWhere((t) => t.id == transfer.id);
 
     // Determine previous status for notification triggers.

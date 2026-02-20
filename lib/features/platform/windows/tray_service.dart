@@ -4,6 +4,8 @@ import 'package:path/path.dart' as p;
 import 'package:tray_manager/tray_manager.dart';
 import 'package:window_manager/window_manager.dart';
 
+import 'package:anyware/i18n/app_localizations.dart';
+
 /// Manages the system tray icon and its context menu on Windows.
 ///
 /// Provides functionality to minimize the application to the system tray
@@ -23,8 +25,11 @@ class WindowsTrayService with TrayListener {
   /// Initializes the system tray icon, tooltip, context menu, and event handlers.
   ///
   /// Only functional on Windows. On other platforms this is a no-op.
-  Future<void> initTray() async {
+  /// [locale] is used to localize the context menu labels.
+  Future<void> initTray({String? locale}) async {
     if (!Platform.isWindows) return;
+
+    final lang = locale ?? AppLocalizations.detectLocale();
 
     // Resolve the tray icon path relative to the executable.
     // In debug mode the working dir is the project root, so we use the source path.
@@ -42,17 +47,17 @@ class WindowsTrayService with TrayListener {
     // Set the tooltip shown on hover.
     await trayManager.setToolTip('LifeOS AnyWhere');
 
-    // Build the context menu.
+    // Build the context menu with localized labels.
     final menu = Menu(
       items: [
         MenuItem(
           key: 'show',
-          label: 'Goster / Show',
+          label: AppLocalizations.get('trayShow', lang),
         ),
         MenuItem.separator(),
         MenuItem(
           key: 'exit',
-          label: 'Cikis / Exit',
+          label: AppLocalizations.get('trayExit', lang),
         ),
       ],
     );

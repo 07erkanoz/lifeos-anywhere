@@ -17,6 +17,8 @@ class GlassmorphismCard extends StatelessWidget {
     this.onTap,
     this.width,
     this.height,
+    this.autofocus = false,
+    this.onFocusChange,
   });
 
   final Widget child;
@@ -27,6 +29,8 @@ class GlassmorphismCard extends StatelessWidget {
   final VoidCallback? onTap;
   final double? width;
   final double? height;
+  final bool autofocus;
+  final ValueChanged<bool>? onFocusChange;
 
   @override
   Widget build(BuildContext context) {
@@ -47,6 +51,8 @@ class GlassmorphismCard extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
+          autofocus: autofocus,
+          onFocusChange: onFocusChange,
           onTap: onTap,
           borderRadius: BorderRadius.circular(borderRadius),
           child: Padding(

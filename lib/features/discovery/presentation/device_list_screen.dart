@@ -7,10 +7,13 @@ import 'package:file_picker/file_picker.dart';
 
 import 'package:anyware/features/discovery/domain/device.dart';
 import 'package:anyware/features/discovery/presentation/providers.dart';
+import 'package:anyware/features/pairing/presentation/manual_ip_dialog.dart';
+import 'package:anyware/features/pairing/presentation/qr_display_dialog.dart';
+import 'package:anyware/features/pairing/presentation/qr_scan_screen.dart';
 import 'package:anyware/features/transfer/presentation/providers.dart';
 import 'package:anyware/features/settings/presentation/providers.dart';
 import 'package:anyware/i18n/app_localizations.dart';
-import 'package:anyware/widgets/tv_focus_wrapper.dart';
+import 'package:anyware/core/tv_detector.dart';
 
 /// Provider that holds file paths shared via Explorer context menu (--share).
 /// When set, the device list screen will show a device picker dialog.
@@ -59,6 +62,40 @@ class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
       appBar: AppBar(
         title: Text(AppLocalizations.get('devices', locale)),
         actions: [
+          // QR button: scan on mobile, show on desktop
+          if (Platform.isAndroid || Platform.isIOS)
+            IconButton(
+              icon: const Icon(Icons.qr_code_scanner),
+              tooltip: AppLocalizations.get('scanQrTitle', locale),
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => QrScanScreen(locale: locale),
+                  ),
+                );
+              },
+            )
+          else
+            IconButton(
+              icon: const Icon(Icons.qr_code_rounded),
+              tooltip: AppLocalizations.get('pairDevice', locale),
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (_) => QrDisplayDialog(locale: locale),
+                );
+              },
+            ),
+          IconButton(
+            icon: const Icon(Icons.add_link),
+            tooltip: AppLocalizations.get('addManually', locale),
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (_) => ManualIpDialog(locale: locale),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: AppLocalizations.get('scanning', locale),
@@ -104,32 +141,22 @@ class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
                 if (devices.isEmpty) {
                   return _EmptyDevicesView(locale: locale);
                 }
-                return FocusTraversalGroup(
-                  policy: OrderedTraversalPolicy(),
-                  child: Column(
-                    children: [
-                      for (int i = 0; i < devices.length; i++)
-                        FocusTraversalOrder(
-                          order: NumericFocusOrder(i.toDouble()),
-                          child: TvFocusWrapper(
-                            autofocus: i == 0,
-                            onSelect: () =>
-                                _pickAndSendFile(context, ref, devices[i]),
-                            child: _DeviceDropTarget(
-                              device: devices[i],
-                              locale: locale,
-                              isDragging: _isDragging,
-                              onSendFile: () =>
-                                  _pickAndSendFile(context, ref, devices[i]),
-                              onFilesDropped: (paths) {
-                                _dropHandledByCard = true;
-                                _sendFilesToDevice(context, ref, devices[i], paths);
-                              },
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
+                return Column(
+                  children: [
+                    for (int i = 0; i < devices.length; i++)
+                      _DeviceDropTarget(
+                        device: devices[i],
+                        locale: locale,
+                        isDragging: _isDragging,
+                        autofocus: i == 0,
+                        onSendFile: () =>
+                            _pickAndSendFile(context, ref, devices[i]),
+                        onFilesDropped: (paths) {
+                          _dropHandledByCard = true;
+                          _sendFilesToDevice(context, ref, devices[i], paths);
+                        },
+                      ),
+                  ],
                 );
               },
               loading: () => const Padding(
@@ -401,6 +428,7 @@ class _DeviceDropTarget extends StatefulWidget {
     required this.isDragging,
     required this.onSendFile,
     required this.onFilesDropped,
+    this.autofocus = false,
   });
 
   final Device device;
@@ -408,6 +436,7 @@ class _DeviceDropTarget extends StatefulWidget {
   final bool isDragging;
   final VoidCallback onSendFile;
   final void Function(List<String> paths) onFilesDropped;
+  final bool autofocus;
 
   @override
   State<_DeviceDropTarget> createState() => _DeviceDropTargetState();
@@ -436,6 +465,7 @@ class _DeviceDropTargetState extends State<_DeviceDropTarget> {
           onSendFile: widget.onSendFile,
           isDropHovering: _isHovering,
           isDragging: widget.isDragging,
+          autofocus: widget.autofocus,
         ),
       );
     }
@@ -446,6 +476,7 @@ class _DeviceDropTargetState extends State<_DeviceDropTarget> {
       onSendFile: widget.onSendFile,
       isDropHovering: false,
       isDragging: false,
+      autofocus: widget.autofocus,
     );
   }
 }
@@ -609,6 +640,7 @@ class _DeviceCard extends StatelessWidget {
     required this.onSendFile,
     this.isDropHovering = false,
     this.isDragging = false,
+    this.autofocus = false,
   });
 
   final Device device;
@@ -616,6 +648,7 @@ class _DeviceCard extends StatelessWidget {
   final VoidCallback onSendFile;
   final bool isDropHovering;
   final bool isDragging;
+  final bool autofocus;
 
   @override
   Widget build(BuildContext context) {
@@ -636,6 +669,7 @@ class _DeviceCard extends StatelessWidget {
             ? colorScheme.primary.withValues(alpha: 0.08)
             : null,
         child: InkWell(
+          autofocus: autofocus,
           borderRadius: BorderRadius.circular(14),
           onTap: onSendFile,
           child: Padding(

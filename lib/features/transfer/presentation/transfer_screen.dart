@@ -1,14 +1,16 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mime/mime.dart';
 import 'package:open_file/open_file.dart';
 
+import 'package:anyware/core/tv_detector.dart';
 import 'package:anyware/features/transfer/domain/transfer.dart';
 import 'package:anyware/features/transfer/presentation/providers.dart';
 import 'package:anyware/features/settings/presentation/providers.dart';
 import 'package:anyware/i18n/app_localizations.dart';
-import 'package:anyware/widgets/tv_focus_wrapper.dart';
 
 class TransferScreen extends ConsumerWidget {
   const TransferScreen({super.key});
@@ -44,27 +46,116 @@ class TransferScreen extends ConsumerWidget {
       ),
       body: sorted.isEmpty
           ? _EmptyTransfersView(locale: locale)
-          : FocusTraversalGroup(
-              policy: OrderedTraversalPolicy(),
-              child: ListView.builder(
-                padding: const EdgeInsets.only(top: 8, bottom: 24),
-                itemCount: sorted.length,
-                itemBuilder: (context, index) {
-                  final transfer = sorted[index];
-                  return FocusTraversalOrder(
-                    order: NumericFocusOrder(index.toDouble()),
-                    child: TvFocusWrapper(
-                      autofocus: index == 0,
-                      child: _TransferCard(
-                        transfer: transfer,
-                        locale: locale,
-                      ),
-                    ),
-                  );
-                },
-              ),
+          : ListView.builder(
+              padding: const EdgeInsets.only(top: 8, bottom: 24),
+              itemCount: sorted.length,
+              itemBuilder: (context, index) {
+                final transfer = sorted[index];
+                return _TransferCard(
+                  transfer: transfer,
+                  locale: locale,
+                  autofocus: index == 0,
+                );
+              },
             ),
     );
+  }
+}
+
+/// Show a TV-friendly bottom sheet with file actions when a completed transfer
+/// card is selected via D-pad.
+void _showTransferActions(
+  BuildContext context,
+  Transfer transfer,
+  String locale,
+) {
+  showModalBottomSheet<void>(
+    context: context,
+    builder: (ctx) {
+      return SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                transfer.fileName,
+                style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            ListTile(
+              autofocus: true,
+              leading: const Icon(Icons.open_in_new_rounded),
+              title: Text(AppLocalizations.get('openFile', locale)),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _openFileStatic(transfer.filePath!);
+              },
+            ),
+            if (Platform.isWindows ||
+                Platform.isLinux ||
+                Platform.isMacOS) ...[
+              ListTile(
+                leading: const Icon(Icons.folder_open_rounded),
+                title: Text(AppLocalizations.get('openFolder', locale)),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  _openFolderStatic(transfer.filePath!);
+                },
+              ),
+            ],
+            const SizedBox(height: 8),
+          ],
+        ),
+      );
+    },
+  );
+}
+
+/// Platform channel for Android-native file opening.
+const _platformChannel = MethodChannel('com.lifeos.anyware/platform');
+
+/// Opens a file using the platform's default handler.
+///
+/// On Android, uses a native Intent via MethodChannel (the `open_file` package
+/// silently fails on modern Android). On other platforms, falls back to
+/// [OpenFile.open].
+Future<void> _openFileStatic(String path) async {
+  try {
+    if (Platform.isAndroid) {
+      final mimeType = lookupMimeType(path) ?? '*/*';
+      await _platformChannel.invokeMethod('openFile', {
+        'path': path,
+        'mimeType': mimeType,
+      });
+    } else {
+      final mimeType = lookupMimeType(path) ?? 'application/octet-stream';
+      OpenFile.open(path, type: mimeType);
+    }
+  } catch (e) {
+    // ignore — file may not have a handler
+  }
+}
+
+Future<void> _openFolderStatic(String path) async {
+  try {
+    if (Platform.isWindows) {
+      Process.run('explorer', ['/select,', path]);
+    } else if (Platform.isMacOS) {
+      Process.run('open', ['-R', path]);
+    } else if (Platform.isLinux) {
+      final dir = File(path).parent.path;
+      Process.run('xdg-open', [dir]);
+    } else if (Platform.isAndroid) {
+      await _platformChannel.invokeMethod('openFolder', {
+        'path': path,
+      });
+    }
+  } catch (e) {
+    // ignore
   }
 }
 
@@ -132,10 +223,12 @@ class _TransferCard extends StatelessWidget {
   const _TransferCard({
     required this.transfer,
     required this.locale,
+    this.autofocus = false,
   });
 
   final Transfer transfer;
   final String locale;
+  final bool autofocus;
 
   @override
   Widget build(BuildContext context) {
@@ -147,10 +240,11 @@ class _TransferCard extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
       child: InkWell(
+        autofocus: autofocus,
         borderRadius: BorderRadius.circular(12),
         onTap: transfer.status == TransferStatus.completed &&
                 transfer.filePath != null
-            ? () => _openFile(transfer.filePath!)
+            ? () => _showTransferActions(context, transfer, locale)
             : null,
         child: Padding(
           padding: const EdgeInsets.all(14),
@@ -398,24 +492,11 @@ class _TransferCard extends StatelessWidget {
   // ── Helpers ──
 
   void _openFile(String path) {
-    try {
-      OpenFile.open(path);
-    } catch (_) {}
+    _openFileStatic(path);
   }
 
   void _openFolder(String path) {
-    try {
-      final dir = File(path).parent.path;
-      if (Platform.isWindows) {
-        Process.run('explorer', ['/select,', path]);
-      } else if (Platform.isMacOS) {
-        Process.run('open', ['-R', path]);
-      } else if (Platform.isLinux) {
-        Process.run('xdg-open', [dir]);
-      } else {
-        OpenFile.open(dir);
-      }
-    } catch (_) {}
+    _openFolderStatic(path);
   }
 
   String _formatDateTime(DateTime dt) {

@@ -49,6 +49,10 @@ class FileServer {
   /// All transfers this server knows about, keyed by transfer id.
   final Map<String, Transfer> _transfers = {};
 
+  /// Deduplication: maps "fileName|senderId|fileSize" → (transferId, timestamp).
+  /// Prevents duplicate transfers when the sender retries the send-request.
+  final Map<String, _DedupeEntry> _recentRequests = {};
+
   /// Timer that periodically cleans up completed/failed transfers from memory.
   Timer? _cleanupTimer;
 
@@ -144,6 +148,11 @@ class FileServer {
       }
       _log.debug('Cleaned up ${staleIds.length} finished transfers from memory.');
     }
+
+    // Also clean up stale deduplication entries (older than 60 seconds).
+    _recentRequests.removeWhere(
+      (_, entry) => now.difference(entry.timestamp).inSeconds > 60,
+    );
   }
 
   // Routing -------------------------------------------------------------
@@ -159,12 +168,17 @@ class FileServer {
     router.post('/api/clipboard', _handleClipboard);
     router.post('/api/sync/upload', _handleSyncUpload);
     router.post('/api/sync/delete', _handleSyncDelete);
+    router.get('/api/sync/check', _handleSyncCheck);
 
     return router;
   }
 
   /// Callback for clipboard receive events so the UI can update history.
   void Function(Map<String, dynamic> clipboardData)? onClipboardReceived;
+
+  /// Callback for sync file receive events so the UI can update sync state.
+  void Function(String relativePath, String senderName, String savedPath)?
+      onSyncFileReceived;
 
   /// POST /api/clipboard
   ///
@@ -238,17 +252,30 @@ class FileServer {
   /// Receives a file directly (Multipart) and saves it to the Sync directory.
   /// Preserves the relative path sent in `X-Sync-Path`.
   Future<shelf.Response> _handleSyncUpload(shelf.Request request) async {
-    if (request.mimeType == null || !request.mimeType!.startsWith('multipart/form-data')) {
+    final contentType = request.headers['content-type'] ?? '';
+    if (!contentType.contains('multipart/form-data')) {
       return shelf.Response.badRequest(body: 'Expected multipart request');
     }
 
     try {
-      final boundary = request.mimeType!.split('boundary=')[1];
+      // Extract boundary from content-type header.
+      // Format: multipart/form-data; boundary=----WebKitFormBoundary...
+      final boundaryMatch = RegExp(r'boundary=(.+)$').firstMatch(contentType);
+      if (boundaryMatch == null) {
+        return shelf.Response.badRequest(body: 'Missing boundary in content-type');
+      }
+      var boundary = boundaryMatch.group(1)!.trim();
+      // Remove surrounding quotes if present.
+      if (boundary.startsWith('"') && boundary.endsWith('"')) {
+        boundary = boundary.substring(1, boundary.length - 1);
+      }
       final transformer = MimeMultipartTransformer(boundary);
       final parts = transformer.bind(request.read());
 
-      final senderName = request.headers['X-Device-Name'] ?? 'Unknown';
-      final relativePath = request.headers['X-Sync-Path'];
+      final senderName = Uri.decodeFull(request.headers['X-Device-Name'] ?? 'Unknown');
+      final relativePath = request.headers['X-Sync-Path'] != null
+          ? Uri.decodeFull(request.headers['X-Sync-Path']!)
+          : null;
 
       if (relativePath == null) {
         return shelf.Response.badRequest(body: 'Missing X-Sync-Path header');
@@ -279,6 +306,13 @@ class FileServer {
       }
 
       _log.info('Synced file $relativePath from $senderName');
+
+      if (Platform.isAndroid) {
+        _scanMediaFile(targetPath);
+      }
+
+      // Notify listeners (sync UI + notifications).
+      onSyncFileReceived?.call(relativePath, senderName, targetPath);
 
       return shelf.Response.ok(
         jsonEncode({'status': 'synced', 'path': targetPath}),
@@ -339,6 +373,56 @@ class FileServer {
     }
   }
 
+  /// GET /api/sync/check?path=<relPath>&sender=<name>
+  ///
+  /// Returns file metadata (exists, size, lastModified) for smart sync.
+  /// The sender queries this before uploading to decide if the file needs syncing.
+  Future<shelf.Response> _handleSyncCheck(shelf.Request request) async {
+    try {
+      final relativePath = request.url.queryParameters['path'];
+      final senderName = request.url.queryParameters['sender'] ?? 'Unknown';
+
+      if (relativePath == null || relativePath.isEmpty) {
+        return shelf.Response.badRequest(
+          body: jsonEncode({'error': 'Missing path parameter'}),
+          headers: _jsonHeaders,
+        );
+      }
+
+      final syncBaseDir = p.join(downloadPath, 'Sync', senderName);
+      final targetPath = p.normalize(p.join(syncBaseDir, relativePath));
+
+      // Prevent directory traversal.
+      if (!p.isWithin(syncBaseDir, targetPath)) {
+        return shelf.Response.forbidden('Invalid file path');
+      }
+
+      final file = File(targetPath);
+      if (!file.existsSync()) {
+        return shelf.Response.ok(
+          jsonEncode({'exists': false}),
+          headers: _jsonHeaders,
+        );
+      }
+
+      final stat = file.statSync();
+      return shelf.Response.ok(
+        jsonEncode({
+          'exists': true,
+          'size': stat.size,
+          'lastModified': stat.modified.toIso8601String(),
+        }),
+        headers: _jsonHeaders,
+      );
+    } catch (e) {
+      _log.error('Sync check error: $e', error: e);
+      return shelf.Response.internalServerError(
+        body: jsonEncode({'error': 'Sync check failed: $e'}),
+        headers: _jsonHeaders,
+      );
+    }
+  }
+
   /// GET /api/ping
   ///
   /// Lightweight health check endpoint. Returns immediately with a simple OK.
@@ -389,7 +473,32 @@ class FileServer {
       final senderVersion =
           json['senderVersion'] as String? ?? AppConstants.protocolVersion;
 
+      // Deduplication: if the same file from the same sender was requested
+      // recently AND the transfer is still active (pending/accepted/transferring),
+      // return the existing transferId to avoid duplicate entries.
+      // If the previous transfer already completed or failed, allow a fresh one.
+      final dedupeKey = '$fileName|$senderId|$fileSize';
+      final existing = _recentRequests[dedupeKey];
+      if (existing != null &&
+          DateTime.now().difference(existing.timestamp).inSeconds < 30) {
+        final existingTransfer = _transfers[existing.transferId];
+        if (existingTransfer != null && existingTransfer.isActive) {
+          _log.info(
+            'Duplicate send-request for "$fileName" from $senderId — '
+            'returning existing transferId ${existing.transferId}',
+          );
+          return shelf.Response.ok(
+            jsonEncode({
+              'accepted': existingTransfer.status != TransferStatus.rejected,
+              'transferId': existing.transferId,
+            }),
+            headers: _jsonHeaders,
+          );
+        }
+      }
+
       final transferId = _uuid.v4();
+      _recentRequests[dedupeKey] = _DedupeEntry(transferId, DateTime.now());
 
       final senderDevice = Device(
         id: senderId,
@@ -469,7 +578,11 @@ class FileServer {
       );
     }
 
-    if (transfer.status != TransferStatus.accepted) {
+    // Reject upload only if the transfer was explicitly rejected or cancelled.
+    // All other states are allowed: accepted (normal), pending (race),
+    // transferring (retry), completed (re-send same file), failed (retry).
+    if (transfer.status == TransferStatus.rejected ||
+        transfer.status == TransferStatus.cancelled) {
       return shelf.Response.forbidden(
         jsonEncode({'error': 'Transfer not accepted'}),
         headers: _jsonHeaders,
@@ -492,9 +605,15 @@ class FileServer {
         dir.createSync(recursive: true);
       }
 
-      // Determine a non-colliding file path.
-      savePath = _uniqueFilePath(downloadPath, transfer.fileName);
-      tempPath = '$savePath.lifeos_tmp';
+      // Determine the save path. For folder transfers the fileName contains
+      // a relative path (e.g. "MyProject/src/main.dart") — subdirectories
+      // are created as needed and the structure is preserved.
+      savePath = _resolveFilePath(downloadPath, transfer.fileName);
+      // Write the temp file in the system temp directory to avoid Scoped
+      // Storage permission issues. It will be moved to the final location
+      // after the transfer completes successfully.
+      final systemTempDir = Directory.systemTemp.path;
+      tempPath = p.join(systemTempDir, '${transferId}.lifeos_tmp');
       final tempFile = File(tempPath);
       final sink = tempFile.openWrite();
 
@@ -533,7 +652,19 @@ class FileServer {
       }
 
       // Atomic rename: temp file → final path.
-      await tempFile.rename(savePath);
+      // On Android with Scoped Storage, rename across directories may fail.
+      // Fall back to copy + delete in that case.
+      try {
+        await tempFile.rename(savePath);
+      } catch (_) {
+        await tempFile.copy(savePath);
+        await tempFile.delete();
+      }
+
+      // Notify Android's MediaScanner so the file appears in file managers.
+      if (Platform.isAndroid) {
+        _scanMediaFile(savePath);
+      }
 
       _transfers[transferId] = _transfers[transferId]!.copyWith(
         status: TransferStatus.completed,
@@ -613,6 +744,42 @@ class FileServer {
     }
   }
 
+  /// Resolves the final save path for a transfer.
+  ///
+  /// If [fileName] contains path separators (i.e. it is a relative path from
+  /// a folder transfer like "MyProject/src/main.dart"), subdirectories are
+  /// created and the full structure is preserved. For folder transfers files
+  /// are always overwritten to mirror the source.
+  ///
+  /// For plain file names (single-file transfer), delegates to [_uniqueFilePath].
+  String _resolveFilePath(String baseDir, String fileName) {
+    // Normalize separators (sender may be on a different OS).
+    final normalized = fileName.replaceAll(r'\', '/');
+
+    if (normalized.contains('/')) {
+      // Folder transfer — fileName is a relative path.
+      final targetPath = p.normalize(p.join(baseDir, normalized));
+
+      // Security: prevent directory traversal attacks.
+      if (!p.isWithin(baseDir, targetPath)) {
+        _log.warning('Blocked directory traversal attempt: $fileName');
+        return _uniqueFilePath(baseDir, p.basename(fileName));
+      }
+
+      // Create intermediate directories.
+      final targetDir = p.dirname(targetPath);
+      final dir = Directory(targetDir);
+      if (!dir.existsSync()) {
+        dir.createSync(recursive: true);
+      }
+
+      return targetPath;
+    }
+
+    // Single-file transfer — use the existing collision-avoiding logic.
+    return _uniqueFilePath(baseDir, fileName);
+  }
+
   /// Returns a file path inside [directory] for [fileName].
   ///
   /// When [overwriteFiles] is `true`, returns the path directly (overwriting
@@ -642,7 +809,25 @@ class FileServer {
     return result;
   }
 
+  /// Triggers Android's MediaScanner so newly saved files appear in file
+  /// managers, gallery, etc.
+  void _scanMediaFile(String path) {
+    try {
+      const platform = MethodChannel('com.lifeos.anyware/platform');
+      platform.invokeMethod('scanFile', {'path': path});
+    } catch (e) {
+      _log.warning('MediaScanner failed for $path: $e');
+    }
+  }
+
   static const Map<String, String> _jsonHeaders = {
     'Content-Type': 'application/json',
   };
+}
+
+/// Internal helper for send-request deduplication.
+class _DedupeEntry {
+  _DedupeEntry(this.transferId, this.timestamp);
+  final String transferId;
+  final DateTime timestamp;
 }

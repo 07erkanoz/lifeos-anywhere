@@ -38,14 +38,24 @@ Future<void> main(List<String> args) async {
 
   // --- Android-specific initialisation ---
   if (Platform.isAndroid) {
-    // TV detection.
-    await TvDetector.isAndroidTV();
-    if (TvDetector.isTVCached) {
-      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.leanBack);
-    }
+    try {
+      // TV detection.
+      await TvDetector.isAndroidTV();
+      if (TvDetector.isTVCached) {
+        await SystemChrome.setEnabledSystemUIMode(SystemUiMode.leanBack);
+      }
 
-    // Request storage permission at startup so file transfers work.
-    await _requestAndroidStoragePermission();
+      // Request storage permission at startup so file transfers work.
+      // On TV, only request classic storage permission (MANAGE_EXTERNAL_STORAGE
+      // opens a settings screen that may not exist on TV, causing a hang).
+      if (TvDetector.isTVCached) {
+        await _requestTvStoragePermission();
+      } else {
+        await _requestAndroidStoragePermission();
+      }
+    } catch (e) {
+      _log.error('Android initialization error', error: e);
+    }
   }
 
   // File path from --share argument (Explorer context menu).
@@ -127,7 +137,7 @@ Future<void> main(List<String> args) async {
     if (settings.minimizeToTray) {
       final tray = AppTrayService();
       try {
-        await tray.initTray();
+        await tray.initTray(locale: settings.locale);
         await tray.setupCloseToTray();
       } catch (e) {
         _log.error('AppTrayService.init failed', error: e);
@@ -152,6 +162,34 @@ Future<void> main(List<String> args) async {
       child: const App(),
     ),
   );
+}
+
+/// Requests storage permission on Android TV.
+///
+/// First tries MANAGE_EXTERNAL_STORAGE (needed for Android 11+ to write to
+/// public Download folder). Falls back to classic READ/WRITE_EXTERNAL_STORAGE.
+Future<void> _requestTvStoragePermission() async {
+  try {
+    // Try MANAGE_EXTERNAL_STORAGE first — needed on Android 11+ TVs.
+    final manageStatus = await Permission.manageExternalStorage.status;
+    if (!manageStatus.isGranted) {
+      final result = await Permission.manageExternalStorage.request();
+      if (result.isGranted) return;
+    } else {
+      return;
+    }
+  } catch (e) {
+    _log.warning('TV MANAGE_EXTERNAL_STORAGE request failed: $e');
+  }
+  try {
+    // Fallback: classic storage permission.
+    final status = await Permission.storage.status;
+    if (!status.isGranted) {
+      await Permission.storage.request();
+    }
+  } catch (e) {
+    _log.warning('TV storage permission request failed: $e');
+  }
 }
 
 /// Requests storage permissions on Android.

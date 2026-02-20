@@ -38,10 +38,22 @@ class SettingsRepository {
       settings = settings.copyWith(deviceName: deviceName);
     }
 
-    // Populate download path if empty.
+    // Populate download path if empty, or re-evaluate if not writable.
     if (settings.downloadPath.isEmpty) {
       final downloadPath = await _getDefaultDownloadPath();
       settings = settings.copyWith(downloadPath: downloadPath);
+    } else if (Platform.isAndroid) {
+      // Verify the saved download path is still writable.
+      // On Android TV or after permission changes, the previously saved path
+      // (e.g. /storage/emulated/0/Download) may no longer be writable.
+      final writable = await _isPathWritable(settings.downloadPath);
+      if (!writable) {
+        final downloadPath = await _getDefaultDownloadPath();
+        if (downloadPath != settings.downloadPath && downloadPath.isNotEmpty) {
+          settings = settings.copyWith(downloadPath: downloadPath);
+          await save(settings);
+        }
+      }
     }
 
     return settings;
@@ -111,6 +123,22 @@ class SettingsRepository {
     return 'LifeOS Device';
   }
 
+  /// Checks whether the given path is writable by creating a temp file.
+  Future<bool> _isPathWritable(String path) async {
+    try {
+      final dir = Directory(path);
+      if (!await dir.exists()) {
+        await dir.create(recursive: true);
+      }
+      final testFile = File('$path/.lifeos_write_test');
+      await testFile.writeAsString('test');
+      await testFile.delete();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Gets the default download path for the current platform.
   Future<String> _getDefaultDownloadPath() async {
     try {
@@ -124,11 +152,21 @@ class SettingsRepository {
       if (Platform.isAndroid) {
         // Prefer the public Download folder so received files are visible
         // in file managers and accessible by other apps.
+        // Only use it if we can actually write to it (MANAGE_EXTERNAL_STORAGE).
         final publicDownload = Directory('/storage/emulated/0/Download');
-        if (await publicDownload.exists()) {
+        try {
+          if (!await publicDownload.exists()) {
+            await publicDownload.create(recursive: true);
+          }
+          // Test write access by creating and deleting a temp file.
+          final testFile = File('${publicDownload.path}/.lifeos_test');
+          await testFile.writeAsString('test');
+          await testFile.delete();
           return publicDownload.path;
+        } catch (_) {
+          // No write access — fall through to app-private directory.
         }
-        // Fallback: external storage root.
+        // Fallback: app-specific external directory (always writable).
         final externalDir = await getExternalStorageDirectory();
         if (externalDir != null) {
           return externalDir.path;

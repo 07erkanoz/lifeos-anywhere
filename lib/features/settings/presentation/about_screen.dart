@@ -115,14 +115,6 @@ class AboutScreen extends StatelessWidget {
               onTap: () => _openUrl(AppConstants.websiteUrl),
             ),
 
-            _InfoTile(
-              icon: Icons.public_rounded,
-              title: 'GitHub',
-              subtitle: 'github.com/07erkanoz/lifeos-anywhere',
-              isDark: isDark,
-              onTap: () => _openUrl(AppConstants.githubUrl),
-            ),
-
             const SizedBox(height: 32),
 
             // Footer

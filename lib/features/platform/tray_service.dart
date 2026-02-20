@@ -5,6 +5,7 @@ import 'package:tray_manager/tray_manager.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'package:anyware/core/logger.dart';
+import 'package:anyware/i18n/app_localizations.dart';
 
 /// Platform-agnostic system tray service.
 ///
@@ -38,8 +39,11 @@ class AppTrayService with TrayListener {
       Platform.isWindows || Platform.isLinux || Platform.isMacOS;
 
   /// Initializes the system tray icon, tooltip, context menu, and event handlers.
-  Future<void> initTray() async {
+  /// [locale] is used to localize the context menu labels.
+  Future<void> initTray({String? locale}) async {
     if (!isSupported) return;
+
+    final lang = locale ?? AppLocalizations.detectLocale();
 
     try {
       final iconPath = _resolveIconPath();
@@ -53,17 +57,17 @@ class AppTrayService with TrayListener {
         await trayManager.setToolTip('LifeOS AnyWhere');
       }
 
-      // Build context menu.
+      // Build context menu with localized labels.
       final menu = Menu(
         items: [
           MenuItem(
             key: 'show',
-            label: 'Show LifeOS AnyWhere',
+            label: AppLocalizations.get('trayShow', lang),
           ),
           MenuItem.separator(),
           MenuItem(
             key: 'exit',
-            label: 'Exit',
+            label: AppLocalizations.get('trayExit', lang),
           ),
         ],
       );

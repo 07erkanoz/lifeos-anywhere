@@ -84,35 +84,42 @@ class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
   int _selectedIndex = 0;
   bool _localeInitialized = false;
 
-  /// TV / masaüstü platformlarda sidebar kullan.
+  /// Android TV mi?
+  bool get _isTV => Platform.isAndroid && TvDetector.isTVCached;
+
+  /// Masaüstü platformlarda sidebar kullan (TV hariç — TV bottom nav kullanır).
   bool get _useSidebar =>
-      Platform.isWindows ||
-      Platform.isLinux ||
-      Platform.isMacOS ||
-      (Platform.isAndroid && TvDetector.isTVCached);
+      Platform.isWindows || Platform.isLinux || Platform.isMacOS;
 
-  /// Ekran listesi: Sidebar varsa DashboardScreen (dosya gönderim entegre),
-  /// yoksa DeviceListScreen.
-  /// Ekran listesi: Sidebar varsa DashboardScreen (dosya gönderim entegre),
-  /// yoksa DeviceListScreen.
-  /// Windows'ta SyncScreen eklenir.
+  /// Ekran listesi.
   List<Widget> get _screens {
-    final screens = <Widget>[
-      _useSidebar ? const DashboardScreen() : const DeviceListScreen(),
-      const TransferScreen(),
-      const ClipboardScreen(),
-    ];
-
-    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-      screens.add(const SyncScreen());
+    // TV: basit — Dashboard, Transfers, Settings
+    if (_isTV) {
+      return const <Widget>[
+        DashboardScreen(),
+        TransferScreen(),
+        SettingsScreen(),
+      ];
     }
-
-    screens.add(const SettingsScreen());
-    return screens;
+    // Masaüstü sidebar: Dashboard, Transfers, Clipboard, Sync, Settings
+    if (_useSidebar) {
+      return const <Widget>[
+        DashboardScreen(),
+        TransferScreen(),
+        ClipboardScreen(),
+        SyncScreen(),
+        SettingsScreen(),
+      ];
+    }
+    // Mobil: DeviceList, Transfers, Clipboard, Sync, Settings
+    return const <Widget>[
+      DeviceListScreen(),
+      TransferScreen(),
+      ClipboardScreen(),
+      SyncScreen(),
+      SettingsScreen(),
+    ];
   }
-
-  // Sidebar → İçerik focus geçişi için.
-  final FocusNode _contentFocusNode = FocusNode();
 
   @override
   void initState() {
@@ -135,11 +142,36 @@ class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
         return;
       }
 
-      // Otherwise, perform a full shutdown.
+      // If sync is active, show a warning dialog before closing.
+      final syncState = ref.read(syncServiceProvider);
+      if (syncState.hasActiveJobs && mounted) {
+        final locale = settings.locale;
+        final shouldClose = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: Text(AppLocalizations.get('folderSync', locale)),
+            content: Text(AppLocalizations.get('syncExitWarning', locale)),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: Text(AppLocalizations.get('syncExitCancel', locale)),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: Text(AppLocalizations.get('syncExitConfirm', locale)),
+              ),
+            ],
+          ),
+        );
+
+        if (shouldClose != true) return;
+      }
+
+      // Perform a full shutdown.
       try {
         ref.read(discoveryServiceProvider).valueOrNull?.stop();
         try {
-          ref.read(syncServiceProvider.notifier).stopSync();
+          ref.read(syncServiceProvider.notifier).stopAll();
         } catch (_) {}
         await ref.read(fileServerProvider).valueOrNull?.stop();
       } catch (e) {
@@ -155,7 +187,6 @@ class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
   @override
   void dispose() {
     windowManager.removeListener(this);
-    _contentFocusNode.dispose();
     super.dispose();
   }
 
@@ -174,11 +205,6 @@ class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
     if (_selectedIndex != 1) {
       setState(() => _selectedIndex = 1);
     }
-  }
-
-  /// Sidebar'dan içerik alanına focus geçişi.
-  void _navigateToContent() {
-    _contentFocusNode.requestFocus();
   }
 
   @override
@@ -209,12 +235,12 @@ class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
       },
       child: _useSidebar
           ? _buildSidebarLayout(locale)
-          : _buildMobileLayout(locale),
+          : _buildBottomNavLayout(locale),
     );
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Sidebar düzeni (TV, Windows, Linux, macOS)
+  // Sidebar düzeni (Windows, Linux, macOS)
   // ─────────────────────────────────────────────────────────────────────────
 
   Widget _buildSidebarLayout(String locale) {
@@ -233,32 +259,14 @@ class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
                   selectedIndex: _selectedIndex,
                   onIndexChanged: (i) => setState(() => _selectedIndex = i),
                   locale: locale,
-                  onNavigateToContent: _navigateToContent,
+                  isTv: false,
                 ),
 
                 // İçerik alanı
                 Expanded(
-                  child: Focus(
-                    focusNode: _contentFocusNode,
-                    onKeyEvent: (node, event) {
-                      // Sol ok: içerikten sidebar'a geri dön
-                      if (event is KeyDownEvent &&
-                          event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-                        final primaryFocus = FocusManager.instance.primaryFocus;
-                        if (primaryFocus != null) {
-                          final result = primaryFocus
-                              .focusInDirection(TraversalDirection.left);
-                          if (!result) {
-                            return KeyEventResult.handled;
-                          }
-                        }
-                      }
-                      return KeyEventResult.ignored;
-                    },
-                    child: IndexedStack(
-                      index: _selectedIndex,
-                      children: _screens,
-                    ),
+                  child: IndexedStack(
+                    index: _selectedIndex,
+                    children: _screens,
                   ),
                 ),
               ],
@@ -270,22 +278,42 @@ class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Mobil düzen (Android telefon, iOS)
+  // Bottom nav düzeni (Android telefon, iOS, Android TV)
   // ─────────────────────────────────────────────────────────────────────────
 
-  Widget _buildMobileLayout(String locale) {
-    final navLabels = [
-      AppLocalizations.get('devices', locale),
-      AppLocalizations.get('transfers', locale),
-      AppLocalizations.get('clipboard', locale),
-      AppLocalizations.get('settings', locale),
-    ];
-    final navIcons = [
-      Icons.devices_rounded,
-      Icons.swap_horiz_rounded,
-      Icons.content_paste_rounded,
-      Icons.settings_rounded,
-    ];
+  Widget _buildBottomNavLayout(String locale) {
+    final List<String> navLabels;
+    final List<IconData> navIcons;
+
+    if (_isTV) {
+      // TV: 3 sekme — Cihazlar, Transferler, Ayarlar
+      navLabels = [
+        AppLocalizations.get('devices', locale),
+        AppLocalizations.get('transfers', locale),
+        AppLocalizations.get('settings', locale),
+      ];
+      navIcons = [
+        Icons.devices_rounded,
+        Icons.swap_horiz_rounded,
+        Icons.settings_rounded,
+      ];
+    } else {
+      // Mobil: 5 sekme
+      navLabels = [
+        AppLocalizations.get('devices', locale),
+        AppLocalizations.get('transfers', locale),
+        AppLocalizations.get('clipboard', locale),
+        AppLocalizations.get('folderSync', locale),
+        AppLocalizations.get('settings', locale),
+      ];
+      navIcons = [
+        Icons.devices_rounded,
+        Icons.swap_horiz_rounded,
+        Icons.content_paste_rounded,
+        Icons.sync_rounded,
+        Icons.settings_rounded,
+      ];
+    }
 
     return Scaffold(
       body: IndexedStack(

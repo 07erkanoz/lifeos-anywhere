@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:anyware/core/logger.dart';
 import 'package:anyware/features/discovery/domain/device.dart';
 import 'package:anyware/features/transfer/domain/transfer.dart';
+import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 
 /// Client-side service that sends files to other devices on the network.
@@ -57,10 +58,14 @@ class FileSender {
 
   /// Sends a file at [filePath] to the [target] device.
   ///
+  /// When [relativePath] is provided (e.g. from a folder send), it is used as
+  /// the file name sent to the receiver, preserving the directory structure.
+  /// The receiver will create subdirectories as needed.
+  ///
   /// Includes automatic retry with exponential backoff (up to 3 attempts).
   /// Large files are streamed in chunks to avoid memory issues and support
   /// connection resilience.
-  Future<Transfer> sendFile(Device target, String filePath) async {
+  Future<Transfer> sendFile(Device target, String filePath, {String? relativePath}) async {
     _cancelRequested = false;
     _activeRequest = null;
 
@@ -69,7 +74,9 @@ class FileSender {
       throw FileSystemException('File not found', filePath);
     }
 
-    final fileName = file.uri.pathSegments.last;
+    // Use relativePath for folder transfers (preserves directory structure),
+    // otherwise just the bare filename.
+    final fileName = relativePath ?? file.uri.pathSegments.last;
     final fileSize = await file.length();
 
     // Use a temporary local ID so that the UI can track this transfer
@@ -367,6 +374,11 @@ class FileSender {
   }
 
   /// Sends all files inside [folderPath] (recursively) to the [target] device.
+  ///
+  /// Preserves the directory structure by computing relative paths from the
+  /// folder's parent directory. For example, sending `/home/user/MyProject`
+  /// will produce relative paths like `MyProject/src/main.dart`, so the
+  /// receiver recreates the full folder hierarchy.
   Future<List<Transfer>> sendFolder(Device target, String folderPath) async {
     final dir = Directory(folderPath);
     if (!dir.existsSync()) {
@@ -382,17 +394,27 @@ class FileSender {
       throw FileSystemException('Folder is empty', folderPath);
     }
 
+    // Use the parent of the selected folder as the base, so the folder name
+    // itself is included in the relative path (e.g. MyProject/src/main.dart).
+    final parentDir = p.dirname(folderPath);
     final results = <Transfer>[];
 
     for (final file in files) {
       if (_cancelRequested) break;
       try {
-        final transfer = await sendFile(target, file.path);
+        // Compute relative path preserving directory structure.
+        // Normalize to forward slashes for cross-platform compatibility.
+        final relPath = p.relative(file.path, from: parentDir)
+            .replaceAll(r'\', '/');
+
+        final transfer = await sendFile(target, file.path, relativePath: relPath);
         results.add(transfer);
       } catch (e) {
+        final relPath = p.relative(file.path, from: parentDir)
+            .replaceAll(r'\', '/');
         results.add(Transfer(
           id: '',
-          fileName: file.uri.pathSegments.last,
+          fileName: relPath,
           fileSize: 0,
           senderDevice: localDevice,
           receiverDevice: target,

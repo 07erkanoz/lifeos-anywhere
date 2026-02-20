@@ -15,6 +15,9 @@ import 'package:anyware/features/discovery/domain/device.dart';
 import 'package:anyware/features/discovery/data/latency_service.dart';
 import 'package:anyware/features/discovery/presentation/providers.dart';
 import 'package:anyware/features/discovery/presentation/device_list_screen.dart';
+import 'package:anyware/features/pairing/presentation/manual_ip_dialog.dart';
+import 'package:anyware/features/pairing/presentation/qr_display_dialog.dart';
+import 'package:anyware/features/pairing/presentation/qr_scan_screen.dart';
 import 'package:anyware/features/transfer/domain/transfer.dart';
 import 'package:anyware/features/transfer/presentation/providers.dart';
 import 'package:anyware/features/settings/presentation/providers.dart';
@@ -41,12 +44,14 @@ class DashboardScreen extends ConsumerStatefulWidget {
 }
 
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
-  final FocusNode _contentFocusNode = FocusNode();
   bool _isDragging = false;
 
   /// Set to true when a card-level DropTarget handles the drop.
   /// Prevents the parent DropTarget from also processing the same drop.
   bool _dropHandledByCard = false;
+
+  /// Timestamp of last drop-initiated send to debounce duplicate drops.
+  DateTime? _lastDropSendTime;
 
   /// Cached device list used by drop-on-card detection & device picker.
   List<Device> _currentDevices = [];
@@ -92,13 +97,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   @override
   void dispose() {
     _intentSub?.cancel();
-    _contentFocusNode.dispose();
     super.dispose();
-  }
-
-  /// Dışarıdan focus isteği (sidebar → içerik geçişi) için çağrılır.
-  void requestFocus() {
-    _contentFocusNode.requestFocus();
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -370,10 +369,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       _currentDevices = devices;
     });
 
-    final content = FocusTraversalGroup(
-      child: Focus(
-        focusNode: _contentFocusNode,
-        child: CustomScrollView(
+    final content = CustomScrollView(
           slivers: [
             // ─── Başlık: Keşfedilen Cihazlar ───
             SliverToBoxAdapter(
@@ -390,10 +386,49 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         color: isDark ? AppColors.textPrimary : Colors.black87,
                       ),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.refresh, size: 20),
-                      tooltip: AppLocalizations.get('scanning', locale),
-                      onPressed: () => ref.read(refreshDiscoveryProvider)(),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // QR button: scan on mobile, show on desktop
+                        if (Platform.isAndroid || Platform.isIOS)
+                          IconButton(
+                            icon: const Icon(Icons.qr_code_scanner, size: 20),
+                            tooltip: AppLocalizations.get('scanQrTitle', locale),
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => QrScanScreen(locale: locale),
+                                ),
+                              );
+                            },
+                          )
+                        else
+                          IconButton(
+                            icon: const Icon(Icons.qr_code_rounded, size: 20),
+                            tooltip: AppLocalizations.get('pairDevice', locale),
+                            onPressed: () {
+                              showDialog(
+                                context: context,
+                                builder: (_) => QrDisplayDialog(locale: locale),
+                              );
+                            },
+                          ),
+                        IconButton(
+                          icon: const Icon(Icons.add_link, size: 20),
+                          tooltip: AppLocalizations.get('addManually', locale),
+                          onPressed: () {
+                            showDialog(
+                              context: context,
+                              builder: (_) => ManualIpDialog(locale: locale),
+                            );
+                          },
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.refresh, size: 20),
+                          tooltip: AppLocalizations.get('scanning', locale),
+                          onPressed: () => ref.read(refreshDiscoveryProvider)(),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -424,6 +459,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         onTap: () => _showSendOptions(devices[index], locale),
                         onFilesDropped: (paths) {
                           _dropHandledByCard = true;
+                          // Debounce: ignore if another drop just happened (<500ms).
+                          final now = DateTime.now();
+                          if (_lastDropSendTime != null &&
+                              now.difference(_lastDropSendTime!).inMilliseconds < 500) {
+                            return;
+                          }
+                          _lastDropSendTime = now;
                           _sendFilesToDevice(devices[index], paths);
                         },
                       ),
@@ -515,9 +557,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             // Alt boşluk
             const SliverToBoxAdapter(child: SizedBox(height: 32)),
           ],
-        ),
-      ),
-    );
+        );
 
     // Masaüstü platformlarda sürükle-bırak desteği.
     if (isDesktop) {
@@ -526,14 +566,25 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         onDragExited: (_) => setState(() => _isDragging = false),
         onDragDone: (details) {
           setState(() => _isDragging = false);
-          // If a card-level DropTarget already handled this drop, skip.
-          if (_dropHandledByCard) {
-            _dropHandledByCard = false;
-            return;
-          }
           final paths = details.files.map((f) => f.path).toList();
           if (paths.isEmpty) return;
-          _showDevicePickerDialog(paths, locale);
+          // Use a microtask delay to let the card-level DropTarget fire first.
+          // Without this, the parent's onDragDone may run before the child's,
+          // causing the flag check to fail and the file to be sent twice.
+          Future.microtask(() {
+            if (_dropHandledByCard) {
+              _dropHandledByCard = false;
+              return;
+            }
+            // Debounce: ignore if a card-level drop just sent (<500ms).
+            final now = DateTime.now();
+            if (_lastDropSendTime != null &&
+                now.difference(_lastDropSendTime!).inMilliseconds < 500) {
+              return;
+            }
+            _lastDropSendTime = now;
+            _showDevicePickerDialog(paths, locale);
+          });
         },
         child: Stack(
           children: [
@@ -665,33 +716,23 @@ class _DeviceGlassCardState extends State<_DeviceGlassCard> {
 
     Widget card = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 6),
-      child: Focus(
-        autofocus: widget.autofocus,
-        onFocusChange: (focused) => setState(() => _isFocused = focused),
-        onKeyEvent: (node, event) {
-          if (event is KeyDownEvent &&
-              (event.logicalKey == LogicalKeyboardKey.enter ||
-                  event.logicalKey == LogicalKeyboardKey.select)) {
-            widget.onTap();
-            return KeyEventResult.handled;
-          }
-          return KeyEventResult.ignored;
-        },
-        child: NeonGlowContainer(
-          isGlowing: _isFocused || _isDropHovering,
-          glowColor: _statusColor,
-          borderRadius: 16,
-          child: AnimatedScale(
-            scale: (_isFocused || _isDropHovering) ? 1.03 : 1.0,
-            duration: const Duration(milliseconds: 200),
-            child: GlassmorphismCard(
-              width: cardWidth,
-              onTap: widget.onTap,
-              borderColor: (_isFocused || _isDropHovering)
-                  ? _statusColor.withValues(alpha: 0.5)
-                  : null,
-              padding: const EdgeInsets.all(14),
-              child: Column(
+      child: NeonGlowContainer(
+        isGlowing: _isFocused || _isDropHovering,
+        glowColor: _statusColor,
+        borderRadius: 16,
+        child: AnimatedScale(
+          scale: (_isFocused || _isDropHovering) ? 1.03 : 1.0,
+          duration: const Duration(milliseconds: 200),
+          child: GlassmorphismCard(
+            width: cardWidth,
+            onTap: widget.onTap,
+            autofocus: widget.autofocus,
+            onFocusChange: (focused) => setState(() => _isFocused = focused),
+            borderColor: (_isFocused || _isDropHovering)
+                ? _statusColor.withValues(alpha: 0.5)
+                : null,
+            padding: const EdgeInsets.all(14),
+            child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Üst satır: Platform ikonu + durum/gönder etiketi
@@ -793,8 +834,7 @@ class _DeviceGlassCardState extends State<_DeviceGlassCard> {
             ),
           ),
         ),
-      ),
-    );
+      );
 
     // Masaüstünde her kart ayrı DropTarget — dosya kartın üstüne bırakılabilir.
     if (isDesktop) {

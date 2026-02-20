@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -8,136 +7,151 @@ import 'package:anyware/i18n/app_localizations.dart';
 /// Referans TV tasarımındaki sol sidebar navigasyonu.
 ///
 /// D-pad ile yukarı/aşağı gezinme, Enter ile seçim. Sağ ok tuşuyla
-/// içerik alanına geçiş yapılır.
+/// Flutter'ın directional focus traversal'ı ile içerik alanına geçiş yapılır.
 class TvSidebar extends StatelessWidget {
   const TvSidebar({
     super.key,
     required this.selectedIndex,
     required this.onIndexChanged,
     required this.locale,
-    this.onNavigateToContent,
+    this.isTv = false,
   });
 
   final int selectedIndex;
   final ValueChanged<int> onIndexChanged;
   final String locale;
-  final VoidCallback? onNavigateToContent;
+
+  /// True on Android TV – shows only essential items.
+  final bool isTv;
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final items = [
-      _SidebarItem(
-        icon: Icons.dashboard_rounded,
-        label: AppLocalizations.get('devices', locale),
-      ),
-      _SidebarItem(
-        icon: Icons.swap_horiz_rounded,
-        label: AppLocalizations.get('transfers', locale),
-      ),
-      _SidebarItem(
-        icon: Icons.content_paste_rounded,
-        label: AppLocalizations.get('clipboard', locale),
-      ),
-      _SidebarItem(
-        icon: Icons.settings_rounded,
-        label: AppLocalizations.get('settings', locale),
-      ),
-    ];
-
-    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-      items.insert(3, _SidebarItem(
-        icon: Icons.sync,
-        label: AppLocalizations.get('sync', locale),
-      ));
+    final List<_SidebarItem> items;
+    if (isTv) {
+      // TV: sadece Cihazlar, Transferler, Ayarlar
+      items = [
+        _SidebarItem(
+          icon: Icons.dashboard_rounded,
+          label: AppLocalizations.get('devices', locale),
+        ),
+        _SidebarItem(
+          icon: Icons.swap_horiz_rounded,
+          label: AppLocalizations.get('transfers', locale),
+        ),
+        _SidebarItem(
+          icon: Icons.settings_rounded,
+          label: AppLocalizations.get('settings', locale),
+        ),
+      ];
+    } else {
+      items = [
+        _SidebarItem(
+          icon: Icons.dashboard_rounded,
+          label: AppLocalizations.get('devices', locale),
+        ),
+        _SidebarItem(
+          icon: Icons.swap_horiz_rounded,
+          label: AppLocalizations.get('transfers', locale),
+        ),
+        _SidebarItem(
+          icon: Icons.content_paste_rounded,
+          label: AppLocalizations.get('clipboard', locale),
+        ),
+        _SidebarItem(
+          icon: Icons.sync_rounded,
+          label: AppLocalizations.get('folderSync', locale),
+        ),
+        _SidebarItem(
+          icon: Icons.settings_rounded,
+          label: AppLocalizations.get('settings', locale),
+        ),
+      ];
     }
 
-    return FocusTraversalGroup(
-      child: Container(
-        width: 200,
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.darkSidebar : const Color(0xFFF0F0F5),
-          border: Border(
-            right: BorderSide(
-              color: isDark ? AppColors.glassBorder : Colors.grey.shade300,
-              width: 1,
-            ),
+    return Container(
+      width: 200,
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSidebar : const Color(0xFFF0F0F5),
+        border: Border(
+          right: BorderSide(
+            color: isDark ? AppColors.glassBorder : Colors.grey.shade300,
+            width: 1,
           ),
         ),
-        child: Column(
-          children: [
-            // Logo alanı
-            const SizedBox(height: 24),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: Image.asset(
-                      'assets/icons/logo.png',
-                      width: 36,
-                      height: 36,
-                      fit: BoxFit.contain,
-                    ),
+      ),
+      child: Column(
+        children: [
+          // Logo alanı
+          const SizedBox(height: 24),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Image.asset(
+                    'assets/icons/logo.png',
+                    width: 36,
+                    height: 36,
+                    fit: BoxFit.contain,
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'LifeOS',
-                          style: TextStyle(
-                            color: isDark
-                                ? AppColors.textPrimary
-                                : Colors.black87,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            height: 1.2,
-                          ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'LifeOS',
+                        style: TextStyle(
+                          color: isDark
+                              ? AppColors.textPrimary
+                              : Colors.black87,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          height: 1.2,
                         ),
-                        Text(
-                          'AnyWhere',
-                          style: TextStyle(
-                            color: AppColors.neonBlue,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            height: 1.2,
-                          ),
+                      ),
+                      Text(
+                        'AnyWhere',
+                        style: TextStyle(
+                          color: AppColors.neonBlue,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          height: 1.2,
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-            const SizedBox(height: 32),
+          ),
+          const SizedBox(height: 32),
 
-            // Navigasyon öğeleri
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                itemCount: items.length,
-                itemBuilder: (context, index) {
-                  final item = items[index];
-                  final isSelected = selectedIndex == index;
+          // Navigasyon öğeleri
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              itemCount: items.length,
+              itemBuilder: (context, index) {
+                final item = items[index];
+                final isSelected = selectedIndex == index;
 
-                  return _SidebarNavItem(
-                    icon: item.icon,
-                    label: item.label,
-                    isSelected: isSelected,
-                    isDark: isDark,
-                    autofocus: index == 0,
-                    onTap: () => onIndexChanged(index),
-                    onRight: onNavigateToContent,
-                  );
-                },
-              ),
+                return _SidebarNavItem(
+                  icon: item.icon,
+                  label: item.label,
+                  isSelected: isSelected,
+                  isDark: isDark,
+                  autofocus: index == 0,
+                  onTap: () => onIndexChanged(index),
+                );
+              },
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -157,7 +171,6 @@ class _SidebarNavItem extends StatefulWidget {
     required this.isSelected,
     required this.isDark,
     required this.onTap,
-    this.onRight,
     this.autofocus = false,
   });
 
@@ -166,7 +179,6 @@ class _SidebarNavItem extends StatefulWidget {
   final bool isSelected;
   final bool isDark;
   final VoidCallback onTap;
-  final VoidCallback? onRight;
   final bool autofocus;
 
   @override
@@ -187,9 +199,12 @@ class _SidebarNavItemState extends State<_SidebarNavItem> {
         onFocusChange: (focused) => setState(() => _isFocused = focused),
         onKeyEvent: (node, event) {
           if (event is KeyDownEvent) {
+            // Sağ ok: Flutter'ın directional focus ile içerik alanına geç
             if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
-              widget.onRight?.call();
-              return KeyEventResult.handled;
+              final moved = node.focusInDirection(TraversalDirection.right);
+              return moved
+                  ? KeyEventResult.handled
+                  : KeyEventResult.ignored;
             }
             if (event.logicalKey == LogicalKeyboardKey.enter ||
                 event.logicalKey == LogicalKeyboardKey.select) {
