@@ -248,7 +248,9 @@ class DiscoveryService {
     // 1. Always try a plain join first (works on most platforms).
     try {
       _socket!.joinMulticast(multicastAddress);
-    } catch (_) {}
+    } catch (e) {
+      _log.debug('Plain multicast join failed (may be normal): $e');
+    }
 
     // 2. Then try joining on each specific interface for better coverage.
     try {
@@ -258,12 +260,12 @@ class DiscoveryService {
       for (final iface in interfaces) {
         try {
           _socket!.joinMulticast(multicastAddress, iface);
-        } catch (_) {
-          // Interface may not support multicast — skip.
+        } catch (e) {
+          _log.debug('Multicast join on ${iface.name} failed: $e');
         }
       }
-    } catch (_) {
-      // Could not enumerate interfaces — the plain join above should suffice.
+    } catch (e) {
+      _log.warning('Could not enumerate network interfaces: $e');
     }
   }
 
@@ -416,8 +418,8 @@ class DiscoveryService {
 
       // Always emit so UI stays in sync (lastSeen, name, ip changes, etc.).
       _emitDevices();
-    } catch (_) {
-      // Malformed packet — ignore.
+    } catch (e) {
+      _log.debug('Malformed discovery packet from ${datagram.address.address}: $e');
     }
   }
 

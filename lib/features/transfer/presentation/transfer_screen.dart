@@ -6,11 +6,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mime/mime.dart';
 import 'package:open_file/open_file.dart';
 
-import 'package:anyware/core/tv_detector.dart';
 import 'package:anyware/features/transfer/domain/transfer.dart';
 import 'package:anyware/features/transfer/presentation/providers.dart';
 import 'package:anyware/features/settings/presentation/providers.dart';
 import 'package:anyware/i18n/app_localizations.dart';
+import 'package:anyware/widgets/desktop_content_shell.dart';
 
 class TransferScreen extends ConsumerWidget {
   const TransferScreen({super.key});
@@ -30,34 +30,46 @@ class TransferScreen extends ConsumerWidget {
         return b.createdAt.compareTo(a.createdAt);
       });
 
+    final actions = <Widget>[
+      if (hasFinished)
+        TextButton.icon(
+          onPressed: () {
+            ref.read(activeTransfersProvider.notifier).clearFinished();
+          },
+          icon: const Icon(Icons.clear_all, size: 20),
+          label: Text(AppLocalizations.get('clearCompleted', locale)),
+        ),
+    ];
+
+    final body = sorted.isEmpty
+        ? _EmptyTransfersView(locale: locale)
+        : ListView.builder(
+            padding: const EdgeInsets.only(top: 8, bottom: 24),
+            itemCount: sorted.length,
+            itemBuilder: (context, index) {
+              final transfer = sorted[index];
+              return _TransferCard(
+                transfer: transfer,
+                locale: locale,
+                autofocus: index == 0,
+              );
+            },
+          );
+
+    if (DesktopShellScope.of(context)) {
+      return DesktopContentShell(
+        title: AppLocalizations.get('transferHistory', locale),
+        actions: actions,
+        child: body,
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: Text(AppLocalizations.get('transferHistory', locale)),
-        actions: [
-          if (hasFinished)
-            TextButton.icon(
-              onPressed: () {
-                ref.read(activeTransfersProvider.notifier).clearFinished();
-              },
-              icon: const Icon(Icons.clear_all, size: 20),
-              label: Text(AppLocalizations.get('clearCompleted', locale)),
-            ),
-        ],
+        actions: actions,
       ),
-      body: sorted.isEmpty
-          ? _EmptyTransfersView(locale: locale)
-          : ListView.builder(
-              padding: const EdgeInsets.only(top: 8, bottom: 24),
-              itemCount: sorted.length,
-              itemBuilder: (context, index) {
-                final transfer = sorted[index];
-                return _TransferCard(
-                  transfer: transfer,
-                  locale: locale,
-                  autofocus: index == 0,
-                );
-              },
-            ),
+      body: body,
     );
   }
 }
@@ -237,16 +249,19 @@ class _TransferCard extends StatelessWidget {
     final statusColor = _statusColor(transfer.status, colorScheme);
     final isIncoming = transfer.receiverDevice != null;
 
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
-      child: InkWell(
-        autofocus: autofocus,
-        borderRadius: BorderRadius.circular(12),
-        onTap: transfer.status == TransferStatus.completed &&
-                transfer.filePath != null
-            ? () => _showTransferActions(context, transfer, locale)
-            : null,
-        child: Padding(
+    return GestureDetector(
+      onSecondaryTapUp: (details) =>
+          _showTransferContextMenu(context, details.globalPosition),
+      child: Card(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+        child: InkWell(
+          autofocus: autofocus,
+          borderRadius: BorderRadius.circular(12),
+          onTap: transfer.status == TransferStatus.completed &&
+                  transfer.filePath != null
+              ? () => _showTransferActions(context, transfer, locale)
+              : null,
+          child: Padding(
           padding: const EdgeInsets.all(14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -486,7 +501,76 @@ class _TransferCard extends StatelessWidget {
           ),
         ),
       ),
+    ),
     );
+  }
+
+  // ── Context menu ──
+
+  void _showTransferContextMenu(BuildContext context, Offset position) {
+    final items = <PopupMenuEntry<String>>[];
+
+    if (transfer.status == TransferStatus.completed &&
+        transfer.filePath != null) {
+      items.addAll([
+        PopupMenuItem(
+          value: 'openFile',
+          child: Row(children: [
+            const Icon(Icons.open_in_new_rounded, size: 18),
+            const SizedBox(width: 10),
+            Text(AppLocalizations.get('openFile', locale)),
+          ]),
+        ),
+        if (Platform.isWindows || Platform.isLinux || Platform.isMacOS)
+          PopupMenuItem(
+            value: 'openFolder',
+            child: Row(children: [
+              const Icon(Icons.folder_open_rounded, size: 18),
+              const SizedBox(width: 10),
+              Text(AppLocalizations.get('openFolder', locale)),
+            ]),
+          ),
+        PopupMenuItem(
+          value: 'copyPath',
+          child: Row(children: [
+            const Icon(Icons.copy_rounded, size: 18),
+            const SizedBox(width: 10),
+            Text(AppLocalizations.get('copyPath', locale)),
+          ]),
+        ),
+      ]);
+    }
+
+    if (items.isEmpty) return;
+
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        position.dx, position.dy, position.dx, position.dy,
+      ),
+      items: items,
+    ).then((value) {
+      if (value == null) return;
+      switch (value) {
+        case 'openFile':
+          _openFileStatic(transfer.filePath!);
+          break;
+        case 'openFolder':
+          _openFolderStatic(transfer.filePath!);
+          break;
+        case 'copyPath':
+          Clipboard.setData(ClipboardData(text: transfer.filePath!));
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(AppLocalizations.get('copied', locale)),
+                duration: const Duration(seconds: 1),
+              ),
+            );
+          }
+          break;
+      }
+    });
   }
 
   // ── Helpers ──

@@ -128,11 +128,12 @@ class WindowsService with WindowListener {
 
   /// Called when the user clicks the window close button.
   ///
-  /// If the tray service is active, the window is hidden instead of closed,
-  /// allowing the app to keep running in the system tray.
+  /// If the tray service is active and the user is NOT explicitly exiting via
+  /// the tray menu, the window is hidden instead of closed, allowing the app
+  /// to keep running in the system tray.
   @override
   void onWindowClose() {
-    if (_trayService.isInitialized) {
+    if (_trayService.isInitialized && !AppTrayService.exitRequested) {
       windowManager.hide();
     }
   }

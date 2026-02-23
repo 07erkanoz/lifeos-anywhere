@@ -3,10 +3,10 @@ import 'package:flutter/services.dart';
 
 import 'package:anyware/core/theme.dart';
 
-/// TV D-pad navigasyonu için odak göstergesi widget'ı.
+/// Focus indicator widget for TV D-pad navigation.
 ///
-/// Odaklandığında neon parıltı efekti ve hafif ölçek animasyonu uygular.
-/// Referans TV tasarımındaki premium glow efektine uygun.
+/// Applies a neon glow effect and a subtle scale animation when focused.
+/// Matches the premium glow effect in the reference TV design.
 class TvFocusWrapper extends StatefulWidget {
   const TvFocusWrapper({
     super.key,

@@ -118,9 +118,13 @@ class Device {
   }
 
   /// Whether this device has been seen recently (within timeout).
+  ///
+  /// Uses 15 seconds (5x the 3-second broadcast interval) to prevent
+  /// flickering between online/offline states caused by occasional
+  /// packet loss on the network.
   bool get isOnline {
     final now = DateTime.now();
-    return now.difference(lastSeen).inSeconds < 10;
+    return now.difference(lastSeen).inSeconds < 15;
   }
 
   @override

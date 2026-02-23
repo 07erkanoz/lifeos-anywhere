@@ -6,12 +6,16 @@ import 'package:file_picker/file_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'package:flutter/services.dart';
+
 import 'package:anyware/core/constants.dart';
 import 'package:anyware/core/tv_detector.dart';
+import 'package:anyware/features/discovery/presentation/providers.dart';
 import 'package:anyware/features/settings/presentation/providers.dart';
 import 'package:anyware/features/settings/presentation/help_screen.dart';
 import 'package:anyware/features/settings/presentation/about_screen.dart';
 import 'package:anyware/i18n/app_localizations.dart';
+import 'package:anyware/widgets/desktop_content_shell.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -24,13 +28,9 @@ class SettingsScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(AppLocalizations.get('settings', locale)),
-      ),
-      body: FocusTraversalGroup(
-        policy: OrderedTraversalPolicy(),
-        child: ListView(
+    final body = FocusTraversalGroup(
+      policy: OrderedTraversalPolicy(),
+      child: ListView(
         padding: const EdgeInsets.only(top: 8, bottom: 32),
         children: [
           // =================================================================
@@ -111,6 +111,23 @@ class SettingsScreen extends ConsumerWidget {
             value: settings.overwriteFiles,
             onChanged: (_) => notifier.toggleOverwriteFiles(),
           ),
+
+          // Auto sync on LAN
+          SwitchListTile(
+            secondary: const Icon(Icons.sync_outlined),
+            title: Text(AppLocalizations.get('autoSyncOnLan', locale)),
+            subtitle: Text(
+              AppLocalizations.get('autoSyncOnLanDesc', locale),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+            value: settings.autoSyncOnLan,
+            onChanged: (_) => notifier.toggleAutoSyncOnLan(),
+          ),
+
+          // Web Portal info
+          _WebPortalTile(locale: locale),
 
           const Divider(indent: 16, endIndent: 16, height: 24),
 
@@ -284,7 +301,21 @@ class SettingsScreen extends ConsumerWidget {
           ),
         ],
       ),
+    );
+
+    if (DesktopShellScope.of(context)) {
+      return DesktopContentShell(
+        title: AppLocalizations.get('settings', locale),
+        maxWidth: 720,
+        child: body,
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(AppLocalizations.get('settings', locale)),
       ),
+      body: body,
     );
   }
 
@@ -506,6 +537,49 @@ class SettingsScreen extends ConsumerWidget {
 // ---------------------------------------------------------------------------
 // Section header widget
 // ---------------------------------------------------------------------------
+
+class _WebPortalTile extends ConsumerWidget {
+  const _WebPortalTile({required this.locale});
+
+  final String locale;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final deviceAsync = ref.watch(localDeviceProvider);
+    final ip = deviceAsync.valueOrNull?.ip ?? '...';
+    final port = AppConstants.defaultPort;
+    final url = 'http://$ip:$port/portal';
+
+    return ListTile(
+      leading: const Icon(Icons.language),
+      title: Text(AppLocalizations.get('webPortal', locale)),
+      subtitle: Text(
+        url,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: Theme.of(context).colorScheme.primary,
+        ),
+      ),
+      trailing: IconButton(
+        icon: const Icon(Icons.copy, size: 20),
+        tooltip: AppLocalizations.get('copiedToClipboard', locale),
+        onPressed: () {
+          Clipboard.setData(ClipboardData(text: url));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(AppLocalizations.get('copiedToClipboard', locale)),
+              duration: const Duration(seconds: 1),
+            ),
+          );
+        },
+      ),
+      onTap: () async {
+        try {
+          await launchUrl(Uri.parse(url));
+        } catch (_) {}
+      },
+    );
+  }
+}
 
 class _SectionHeader extends StatelessWidget {
   const _SectionHeader({required this.label});

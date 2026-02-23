@@ -13,6 +13,13 @@ class AppSettings {
   /// Maximum upload speed in KB/s. 0 means unlimited.
   final int maxUploadSpeedKBps;
 
+  /// Automatically start sync jobs when a matching device is discovered on LAN.
+  final bool autoSyncOnLan;
+
+  /// Custom folder for incoming sync files. Empty means default
+  /// `<downloadPath>/Sync/<senderName>/`.
+  final String syncReceiveFolder;
+
   const AppSettings({
     required this.deviceName,
     required this.downloadPath,
@@ -25,6 +32,8 @@ class AppSettings {
     this.minimizeToTray = true,
     this.showInExplorerMenu = true,
     this.maxUploadSpeedKBps = 0,
+    this.autoSyncOnLan = false,
+    this.syncReceiveFolder = '',
   });
 
   factory AppSettings.defaults() {
@@ -40,6 +49,8 @@ class AppSettings {
       minimizeToTray: true,
       showInExplorerMenu: true,
       maxUploadSpeedKBps: 0,
+      autoSyncOnLan: false,
+      syncReceiveFolder: '',
     );
   }
 
@@ -56,6 +67,8 @@ class AppSettings {
       minimizeToTray: json['minimizeToTray'] as bool? ?? true,
       showInExplorerMenu: json['showInExplorerMenu'] as bool? ?? true,
       maxUploadSpeedKBps: json['maxUploadSpeedKBps'] as int? ?? 0,
+      autoSyncOnLan: json['autoSyncOnLan'] as bool? ?? false,
+      syncReceiveFolder: json['syncReceiveFolder'] as String? ?? '',
     );
   }
 
@@ -72,6 +85,8 @@ class AppSettings {
       'minimizeToTray': minimizeToTray,
       'showInExplorerMenu': showInExplorerMenu,
       'maxUploadSpeedKBps': maxUploadSpeedKBps,
+      'autoSyncOnLan': autoSyncOnLan,
+      'syncReceiveFolder': syncReceiveFolder,
     };
   }
 
@@ -87,6 +102,8 @@ class AppSettings {
     bool? minimizeToTray,
     bool? showInExplorerMenu,
     int? maxUploadSpeedKBps,
+    bool? autoSyncOnLan,
+    String? syncReceiveFolder,
   }) {
     return AppSettings(
       deviceName: deviceName ?? this.deviceName,
@@ -100,6 +117,8 @@ class AppSettings {
       minimizeToTray: minimizeToTray ?? this.minimizeToTray,
       showInExplorerMenu: showInExplorerMenu ?? this.showInExplorerMenu,
       maxUploadSpeedKBps: maxUploadSpeedKBps ?? this.maxUploadSpeedKBps,
+      autoSyncOnLan: autoSyncOnLan ?? this.autoSyncOnLan,
+      syncReceiveFolder: syncReceiveFolder ?? this.syncReceiveFolder,
     );
   }
 
@@ -131,7 +150,9 @@ class AppSettings {
           launchAtStartup == other.launchAtStartup &&
           minimizeToTray == other.minimizeToTray &&
           showInExplorerMenu == other.showInExplorerMenu &&
-          maxUploadSpeedKBps == other.maxUploadSpeedKBps;
+          maxUploadSpeedKBps == other.maxUploadSpeedKBps &&
+          autoSyncOnLan == other.autoSyncOnLan &&
+          syncReceiveFolder == other.syncReceiveFolder;
 
   @override
   int get hashCode => Object.hash(
@@ -146,8 +167,44 @@ class AppSettings {
         minimizeToTray,
         showInExplorerMenu,
         maxUploadSpeedKBps,
+        autoSyncOnLan,
+        syncReceiveFolder,
       );
 
   @override
-  String toString() => 'AppSettings(deviceName: $deviceName, theme: $theme, locale: $locale)';
+  String toString() => 'AppSettings(deviceName: $deviceName, theme: $theme, locale: $locale, autoSyncOnLan: $autoSyncOnLan)';
+
+  /// Validates settings and returns a list of validation error messages.
+  /// Returns an empty list if all settings are valid.
+  List<String> validate() {
+    final errors = <String>[];
+
+    if (deviceName.trim().isEmpty) {
+      errors.add('Device name cannot be empty');
+    }
+    if (deviceName.length > 50) {
+      errors.add('Device name must be 50 characters or less');
+    }
+    if (maxFileSize < 0) {
+      errors.add('Max file size cannot be negative');
+    }
+    if (maxUploadSpeedKBps < 0) {
+      errors.add('Upload speed limit cannot be negative');
+    }
+    if (!const {'light', 'dark', 'system'}.contains(theme)) {
+      errors.add('Invalid theme: $theme');
+    }
+
+    return errors;
+  }
+
+  /// Returns a sanitized copy with invalid values replaced by safe defaults.
+  AppSettings sanitized() {
+    return copyWith(
+      deviceName: deviceName.trim().isEmpty ? 'My Device' : deviceName.trim(),
+      maxFileSize: maxFileSize < 0 ? 0 : maxFileSize,
+      maxUploadSpeedKBps: maxUploadSpeedKBps < 0 ? 0 : maxUploadSpeedKBps,
+      theme: const {'light', 'dark', 'system'}.contains(theme) ? theme : 'system',
+    );
+  }
 }

@@ -148,6 +148,20 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
     // persist the preference so it takes effect on next launch.
   }
 
+  /// Updates the custom folder for receiving sync files.
+  Future<void> updateSyncReceiveFolder(String path) async {
+    await _initialLoadCompleter.future;
+    state = state.copyWith(syncReceiveFolder: path);
+    await _persist();
+  }
+
+  /// Toggles automatic sync when a matching device is discovered on LAN.
+  Future<void> toggleAutoSyncOnLan() async {
+    await _initialLoadCompleter.future;
+    state = state.copyWith(autoSyncOnLan: !state.autoSyncOnLan);
+    await _persist();
+  }
+
   /// Toggles the "Send with AnyWhere" option in the OS file explorer context
   /// menu (Windows shell extension).
   Future<void> toggleExplorerMenu() async {

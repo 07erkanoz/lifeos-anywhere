@@ -6,8 +6,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:anyware/core/theme.dart';
 import 'package:anyware/features/clipboard/data/clipboard_service.dart';
+import 'package:anyware/features/discovery/presentation/providers.dart';
 import 'package:anyware/features/settings/presentation/providers.dart';
 import 'package:anyware/i18n/app_localizations.dart';
+import 'package:anyware/widgets/desktop_content_shell.dart';
 
 /// Dedicated Pano (Clipboard) screen showing clipboard sharing history
 /// as modern note-style cards with one-tap copy and delete actions.
@@ -21,56 +23,218 @@ class ClipboardScreen extends ConsumerWidget {
     final entries = ref.watch(clipboardHistoryProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    final isDesktopShell = DesktopShellScope.of(context);
+
+    final actions = <Widget>[
+      IconButton(
+        icon: const Icon(Icons.content_paste_go_rounded),
+        tooltip: AppLocalizations.get('clipboardPasteAndSend', locale),
+        onPressed: () => _pasteAndSend(context, ref, locale),
+      ),
+      if (entries.isNotEmpty)
+        TextButton.icon(
+          onPressed: () {
+            ref.read(clipboardHistoryProvider.notifier).clear();
+          },
+          icon: const Icon(Icons.clear_all_rounded, size: 20),
+          label: Text(AppLocalizations.get('clearAll', locale)),
+        ),
+    ];
+
+    final body = entries.isEmpty
+        ? _EmptyClipboardView(
+            locale: locale,
+            isDark: isDark,
+            onSend: () => _pasteAndSend(context, ref, locale),
+          )
+        : ListView.builder(
+            padding: EdgeInsets.only(
+              top: 8,
+              bottom: isDesktopShell ? 24 : 80, // extra padding for FAB on mobile
+              left: 16,
+              right: 16,
+            ),
+            itemCount: entries.length,
+            itemBuilder: (context, index) {
+              final entry = entries[index];
+              return _ClipboardCard(
+                entry: entry,
+                locale: locale,
+                isDark: isDark,
+                onCopy: () {
+                  Clipboard.setData(ClipboardData(text: entry.text));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        AppLocalizations.get('copied', locale),
+                      ),
+                      backgroundColor: AppColors.neonGreen,
+                      duration: const Duration(seconds: 1),
+                    ),
+                  );
+                },
+                onDelete: () {
+                  ref
+                      .read(clipboardHistoryProvider.notifier)
+                      .removeAt(index);
+                },
+              );
+            },
+          );
+
+    if (isDesktopShell) {
+      return DesktopContentShell(
+        title: AppLocalizations.get('clipboard', locale),
+        actions: actions,
+        child: body,
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: Text(AppLocalizations.get('clipboard', locale)),
-        actions: [
-          if (entries.isNotEmpty)
-            TextButton.icon(
-              onPressed: () {
-                ref.read(clipboardHistoryProvider.notifier).clear();
-              },
-              icon: const Icon(Icons.clear_all_rounded, size: 20),
-              label: Text(AppLocalizations.get('clearAll', locale)),
-            ),
-        ],
+        actions: actions,
       ),
-      body: entries.isEmpty
-          ? _EmptyClipboardView(locale: locale, isDark: isDark)
-          : ListView.builder(
-              padding: const EdgeInsets.only(
-                top: 8,
-                bottom: 24,
-                left: 16,
-                right: 16,
-              ),
-              itemCount: entries.length,
-              itemBuilder: (context, index) {
-                final entry = entries[index];
-                return _ClipboardCard(
-                  entry: entry,
-                  locale: locale,
-                  isDark: isDark,
-                  onCopy: () {
-                    Clipboard.setData(ClipboardData(text: entry.text));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          AppLocalizations.get('copied', locale),
-                        ),
-                        backgroundColor: AppColors.neonGreen,
-                        duration: const Duration(seconds: 1),
-                      ),
-                    );
-                  },
-                  onDelete: () {
-                    ref
-                        .read(clipboardHistoryProvider.notifier)
-                        .removeAt(index);
-                  },
-                );
-              },
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _pasteAndSend(context, ref, locale),
+        backgroundColor: AppColors.neonGreen,
+        foregroundColor: Colors.black,
+        icon: const Icon(Icons.send_rounded),
+        label: Text(
+          AppLocalizations.get('clipboardSend', locale),
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+      ),
+      body: body,
+    );
+  }
+  /// Reads the device clipboard and sends it to the paired sync target device.
+  Future<void> _pasteAndSend(
+    BuildContext context, WidgetRef ref, String locale,
+  ) async {
+    try {
+      final data = await Clipboard.getData(Clipboard.kTextPlain);
+      final text = data?.text;
+
+      if (text == null || text.isEmpty) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(AppLocalizations.get('clipboardEmpty', locale)),
+              duration: const Duration(seconds: 2),
             ),
+          );
+        }
+        return;
+      }
+
+      // Find paired target device.
+      final target = ref.read(clipboardSyncTargetProvider);
+      if (target == null) {
+        // No target — try first available device.
+        final devices = ref.read(devicesProvider).valueOrNull ?? [];
+        if (devices.isEmpty) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(AppLocalizations.get('noDevices', locale)),
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          }
+          return;
+        }
+        // Show device picker if multiple.
+        if (devices.length == 1) {
+          if (!context.mounted) return;
+          await _sendClipboardTo(context, ref, locale, text, devices.first);
+        } else {
+          if (!context.mounted) return;
+          _showDevicePicker(context, ref, locale, text, devices);
+        }
+      } else {
+        if (!context.mounted) return;
+        await _sendClipboardTo(context, ref, locale, text, target);
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Clipboard error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _sendClipboardTo(
+    BuildContext context, WidgetRef ref, String locale,
+    String text, dynamic target,
+  ) async {
+    final localDevice = ref.read(localDeviceProvider).valueOrNull;
+    final clipboardService = ref.read(clipboardServiceProvider);
+
+    await clipboardService.sendClipboard(
+      target,
+      text,
+      senderName: localDevice?.name ?? 'Unknown',
+      senderDeviceId: localDevice?.id ?? '',
+    );
+
+    // Add to local history.
+    ref.read(clipboardHistoryProvider.notifier).addEntry(
+      ClipboardEntry(
+        text: text,
+        senderName: localDevice?.name ?? 'This Device',
+        senderDeviceId: localDevice?.id ?? '',
+        timestamp: DateTime.now(),
+      ),
+    );
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${AppLocalizations.get('clipboardSentTo', locale)} ${target.name}',
+          ),
+          backgroundColor: AppColors.neonGreen,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  void _showDevicePicker(
+    BuildContext context, WidgetRef ref, String locale,
+    String text, List<dynamic> devices,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                AppLocalizations.get('syncSelectDevice', locale),
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+              ),
+            ),
+            for (final device in devices)
+              ListTile(
+                leading: const Icon(Icons.devices),
+                title: Text(device.name),
+                subtitle: Text(device.ip),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  _sendClipboardTo(context, ref, locale, text, device);
+                },
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -83,49 +247,90 @@ class _EmptyClipboardView extends StatelessWidget {
   const _EmptyClipboardView({
     required this.locale,
     required this.isDark,
+    required this.onSend,
   });
 
   final String locale;
   final bool isDark;
+  final VoidCallback onSend;
 
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              color: AppColors.neonBlue.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: AppColors.neonBlue.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.content_paste_rounded,
+                size: 40,
+                color: AppColors.neonBlue.withValues(alpha: 0.6),
+              ),
             ),
-            child: Icon(
-              Icons.content_paste_rounded,
-              size: 40,
-              color: AppColors.neonBlue.withValues(alpha: 0.6),
+            const SizedBox(height: 20),
+            Text(
+              AppLocalizations.get('clipboardNoEntries', locale),
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: isDark ? AppColors.textPrimary : Colors.black87,
+              ),
             ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            AppLocalizations.get('clipboardNoEntries', locale),
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: isDark ? AppColors.textPrimary : Colors.black87,
+            const SizedBox(height: 8),
+            Text(
+              AppLocalizations.get('clipboardNoEntriesDesc', locale),
+              style: TextStyle(
+                fontSize: 14,
+                color: isDark ? AppColors.textSecondary : Colors.grey.shade600,
+              ),
+              textAlign: TextAlign.center,
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            AppLocalizations.get('clipboardNoEntriesDesc', locale),
-            style: TextStyle(
-              fontSize: 14,
-              color: isDark ? AppColors.textSecondary : Colors.grey.shade600,
+            const SizedBox(height: 28),
+            // ── Prominent send CTA button ──
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton.icon(
+                onPressed: onSend,
+                icon: const Icon(Icons.content_paste_go_rounded, size: 22),
+                label: Text(
+                  AppLocalizations.get('clipboardPasteAndSend', locale),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.neonGreen,
+                  foregroundColor: Colors.black,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  elevation: isDark ? 0 : 2,
+                ),
+              ),
             ),
-            textAlign: TextAlign.center,
-          ),
-        ],
+            const SizedBox(height: 12),
+            Text(
+              AppLocalizations.get('clipboardSendHint', locale),
+              style: TextStyle(
+                fontSize: 12,
+                color: isDark
+                    ? AppColors.textSecondary.withValues(alpha: 0.7)
+                    : Colors.grey.shade500,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -299,7 +504,7 @@ class _ClipboardCard extends StatelessWidget {
           height: 100,
           width: double.infinity,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _imageFallback(),
+          errorBuilder: (_, _, _) => _imageFallback(),
         ),
       );
     }

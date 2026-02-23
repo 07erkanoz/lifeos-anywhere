@@ -7,6 +7,7 @@ import 'package:window_manager/window_manager.dart';
 /// Manages Windows toast notifications for file transfer events.
 ///
 /// Only functional on Windows. On other platforms all methods are no-ops.
+/// Callers are responsible for providing localised strings.
 class WindowsNotificationService {
   WindowsNotificationService._();
 
@@ -33,36 +34,11 @@ class WindowsNotificationService {
     }
   }
 
-  /// Shows a notification when an incoming transfer starts.
-  void notifyTransferStarted(String fileName, String senderName) {
-    _show(
-      title: 'LifeOS AnyWhere',
-      body: '$senderName \u2192 $fileName',
-    );
-  }
-
-  /// Shows a notification when a transfer completes successfully.
-  void notifyTransferCompleted(String fileName) {
-    _show(
-      title: 'LifeOS AnyWhere',
-      body: '\u2705 $fileName',
-    );
-  }
-
-  /// Shows a notification when a transfer fails.
-  void notifyTransferFailed(String fileName) {
-    _show(
-      title: 'LifeOS AnyWhere',
-      body: '\u274c $fileName',
-    );
-  }
-
-  /// Shows a summary notification when a sync batch completes.
-  void notifySyncCompleted(int fileCount, String deviceName, String jobName) {
-    _show(
-      title: 'LifeOS AnyWhere',
-      body: '\u2705 $jobName: $fileCount files \u2192 $deviceName',
-    );
+  /// Shows a toast notification with the given [title] and [body].
+  ///
+  /// Callers are responsible for providing localised strings.
+  void notify({required String title, required String body}) {
+    _show(title: title, body: body);
   }
 
   void _show({required String title, required String body}) {

@@ -7,6 +7,12 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.media.MediaScannerConnection
 import android.net.Uri
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
+import android.net.wifi.WifiManager
+import android.net.wifi.WifiNetworkSpecifier
 import android.os.Build
 import android.provider.Settings
 import android.webkit.MimeTypeMap
@@ -18,6 +24,7 @@ import java.io.File
 
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.lifeos.anyware/platform"
+    private var hotspotReservation: WifiManager.LocalOnlyHotspotReservation? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -178,6 +185,129 @@ class MainActivity : FlutterActivity() {
                     "clearDirectShareTargets" -> {
                         DirectShareService.clearShortcuts(applicationContext)
                         result.success(true)
+                    }
+                    "startHotspot" -> {
+                        try {
+                            val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                wifiManager.startLocalOnlyHotspot(object : WifiManager.LocalOnlyHotspotCallback() {
+                                    override fun onStarted(reservation: WifiManager.LocalOnlyHotspotReservation?) {
+                                        hotspotReservation = reservation
+                                        val config = reservation?.wifiConfiguration
+                                        val ssid = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                                            reservation?.softApConfiguration?.ssid ?: config?.SSID ?: "LifeOS-Hotspot"
+                                        } else {
+                                            @Suppress("DEPRECATION")
+                                            config?.SSID ?: "LifeOS-Hotspot"
+                                        }
+                                        val password = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                                            reservation?.softApConfiguration?.passphrase ?: config?.preSharedKey ?: ""
+                                        } else {
+                                            @Suppress("DEPRECATION")
+                                            config?.preSharedKey ?: ""
+                                        }
+                                        runOnUiThread {
+                                            result.success(mapOf(
+                                                "ssid" to ssid.replace("\"", ""),
+                                                "password" to password.replace("\"", ""),
+                                                "ip" to "192.168.43.1"
+                                            ))
+                                        }
+                                    }
+
+                                    override fun onStopped() {
+                                        hotspotReservation = null
+                                    }
+
+                                    override fun onFailed(reason: Int) {
+                                        val reasonText = when (reason) {
+                                            WifiManager.LocalOnlyHotspotCallback.ERROR_NO_CHANNEL -> "No channel available"
+                                            WifiManager.LocalOnlyHotspotCallback.ERROR_GENERIC -> "Generic error"
+                                            WifiManager.LocalOnlyHotspotCallback.ERROR_INCOMPATIBLE_MODE -> "Incompatible mode (is WiFi tethering already on?)"
+                                            WifiManager.LocalOnlyHotspotCallback.ERROR_TETHERING_DISALLOWED -> "Tethering disallowed by system"
+                                            else -> "Unknown error ($reason)"
+                                        }
+                                        runOnUiThread {
+                                            result.error("HOTSPOT_FAILED", "Hotspot failed: $reasonText", null)
+                                        }
+                                    }
+                                }, null)
+                            } else {
+                                result.error("UNSUPPORTED", "Hotspot requires Android 8.0+", null)
+                            }
+                        } catch (e: SecurityException) {
+                            result.error("PERMISSION_DENIED", "Location permission required: ${e.message}", null)
+                        } catch (e: Exception) {
+                            result.error("HOTSPOT_ERROR", "Hotspot error: ${e.message}", null)
+                        }
+                    }
+                    "stopHotspot" -> {
+                        try {
+                            hotspotReservation?.close()
+                            hotspotReservation = null
+                            result.success(true)
+                        } catch (e: Exception) {
+                            result.error("HOTSPOT_STOP_ERROR", "Failed to stop hotspot: ${e.message}", null)
+                        }
+                    }
+                    "connectToWifi" -> {
+                        val ssid = call.argument<String>("ssid")
+                        val password = call.argument<String>("password")
+                        if (ssid == null) {
+                            result.error("INVALID_ARGS", "ssid is required", null)
+                            return@setMethodCallHandler
+                        }
+                        try {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                                // Android 10+ : WifiNetworkSpecifier + ConnectivityManager
+                                val specifierBuilder = WifiNetworkSpecifier.Builder()
+                                    .setSsid(ssid)
+                                if (!password.isNullOrEmpty()) {
+                                    specifierBuilder.setWpa2Passphrase(password)
+                                }
+                                val specifier = specifierBuilder.build()
+
+                                val request = NetworkRequest.Builder()
+                                    .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+                                    .setNetworkSpecifier(specifier)
+                                    .build()
+
+                                val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+                                cm.requestNetwork(request, object : ConnectivityManager.NetworkCallback() {
+                                    override fun onAvailable(network: Network) {
+                                        cm.bindProcessToNetwork(network)
+                                        runOnUiThread {
+                                            result.success(true)
+                                        }
+                                    }
+                                    override fun onUnavailable() {
+                                        runOnUiThread {
+                                            result.success(false)
+                                        }
+                                    }
+                                })
+                            } else {
+                                // Android 9 and below: legacy WifiManager
+                                @Suppress("DEPRECATION")
+                                val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+                                @Suppress("DEPRECATION")
+                                val conf = android.net.wifi.WifiConfiguration().apply {
+                                    SSID = "\"$ssid\""
+                                    preSharedKey = "\"$password\""
+                                }
+                                @Suppress("DEPRECATION")
+                                val netId = wifiManager.addNetwork(conf)
+                                if (netId != -1) {
+                                    @Suppress("DEPRECATION")
+                                    wifiManager.enableNetwork(netId, true)
+                                    result.success(true)
+                                } else {
+                                    result.success(false)
+                                }
+                            }
+                        } catch (e: Exception) {
+                            result.error("WIFI_ERROR", "WiFi connect error: ${e.message}", null)
+                        }
                     }
                     else -> result.notImplemented()
                 }

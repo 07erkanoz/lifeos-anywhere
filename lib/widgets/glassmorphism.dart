@@ -1,12 +1,15 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import 'package:anyware/core/theme.dart';
 
-/// Referans TV tasarımındaki cam efektli (glassmorphism) kart widget'ı.
+/// Glassmorphism card widget matching the reference TV design.
 ///
-/// Yarı-saydam arka plan + ince kenarlık ile premium görünüm sağlar.
-/// [BackdropFilter] yerine performans-dostu yaklaşım kullanır.
-class GlassmorphismCard extends StatelessWidget {
+/// Provides a premium look with a semi-transparent background + thin border.
+/// On light theme, adds subtle shadow depth. On dark theme, uses glass border.
+/// Desktop: hover effect changes border/shadow on mouse-over.
+class GlassmorphismCard extends StatefulWidget {
   const GlassmorphismCard({
     super.key,
     required this.child,
@@ -33,41 +36,79 @@ class GlassmorphismCard extends StatelessWidget {
   final ValueChanged<bool>? onFocusChange;
 
   @override
+  State<GlassmorphismCard> createState() => _GlassmorphismCardState();
+}
+
+class _GlassmorphismCardState extends State<GlassmorphismCard> {
+  bool _isHovered = false;
+
+  static final bool _isDesktop =
+      Platform.isWindows || Platform.isLinux || Platform.isMacOS;
+
+  @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = backgroundColor ??
-        (isDark ? AppColors.darkCard : Colors.white);
-    final bColor = borderColor ??
-        (isDark ? AppColors.glassBorder : Colors.grey.shade200);
+    final bgColor = widget.backgroundColor ??
+        (isDark ? AppColors.darkCard : AppColors.lightCard);
+    final bColor = widget.borderColor ??
+        (isDark
+            ? (_isHovered ? AppColors.glassBorderFocused : AppColors.glassBorder)
+            : (_isHovered
+                ? AppColors.lightCardBorderHover
+                : AppColors.lightCardBorder));
 
-    return Container(
-      width: width,
-      height: height,
+    final lightShadow = <BoxShadow>[
+      BoxShadow(
+        color: Colors.black.withValues(alpha: _isHovered ? 0.07 : 0.04),
+        blurRadius: _isHovered ? 12 : 8,
+        offset: const Offset(0, 2),
+      ),
+      BoxShadow(
+        color: Colors.black.withValues(alpha: 0.02),
+        blurRadius: 2,
+        offset: const Offset(0, 1),
+      ),
+    ];
+
+    final card = AnimatedContainer(
+      duration: const Duration(milliseconds: 150),
+      curve: Curves.easeOut,
+      width: widget.width,
+      height: widget.height,
       decoration: BoxDecoration(
         color: bgColor,
-        borderRadius: BorderRadius.circular(borderRadius),
-        border: Border.all(color: bColor, width: 1),
+        borderRadius: BorderRadius.circular(widget.borderRadius),
+        border: Border.all(color: bColor, width: isDark ? 1 : 0.5),
+        boxShadow: isDark ? null : lightShadow,
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          autofocus: autofocus,
-          onFocusChange: onFocusChange,
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(borderRadius),
+          autofocus: widget.autofocus,
+          onFocusChange: widget.onFocusChange,
+          onTap: widget.onTap,
+          borderRadius: BorderRadius.circular(widget.borderRadius),
           child: Padding(
-            padding: padding,
-            child: child,
+            padding: widget.padding,
+            child: widget.child,
           ),
         ),
       ),
     );
+
+    if (!_isDesktop) return card;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: card,
+    );
   }
 }
 
-/// Neon parıltı efektli kapsayıcı — TV focus durumlarında kullanılır.
+/// Neon glow effect container — used for TV focus states.
 ///
-/// [glowColor] renginde yumuşak gölge efekti oluşturur.
+/// Creates a soft shadow effect in the [glowColor] color.
 class NeonGlowContainer extends StatelessWidget {
   const NeonGlowContainer({
     super.key,
@@ -117,7 +158,7 @@ class NeonGlowContainer extends StatelessWidget {
   }
 }
 
-/// Cihaz durum etiketi — Connected / Active / Paired
+/// Device status badge — Connected / Active / Paired
 class StatusBadge extends StatelessWidget {
   const StatusBadge({
     super.key,
@@ -125,7 +166,7 @@ class StatusBadge extends StatelessWidget {
     required this.color,
   });
 
-  /// Hazır fabrika yöntemleri
+  /// Convenience factory methods
   factory StatusBadge.connected({String? label}) => StatusBadge(
         label: label ?? 'Connected',
         color: AppColors.statusConnected,
@@ -174,7 +215,7 @@ class StatusBadge extends StatelessWidget {
   }
 }
 
-/// Neon parıltılı ilerleme çubuğu — transfer ekranında kullanılır.
+/// Neon glow progress bar — used in the transfer screen.
 class NeonProgressBar extends StatelessWidget {
   const NeonProgressBar({
     super.key,

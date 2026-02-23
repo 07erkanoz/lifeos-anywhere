@@ -61,8 +61,16 @@ class _ManualIpDialogState extends ConsumerState<ManualIpDialog> {
       final request = await httpClient.getUrl(
         Uri.http('$ip:$port', '/api/info'),
       );
-      final response = await request.close();
-      final body = await response.transform(utf8.decoder).join();
+      final response = await request.close().timeout(
+        const Duration(seconds: 5),
+        onTimeout: () {
+          httpClient.close(force: true);
+          throw Exception('Connection timed out');
+        },
+      );
+      final body = await response.transform(utf8.decoder).join().timeout(
+        const Duration(seconds: 5),
+      );
       httpClient.close();
 
       if (response.statusCode != 200) {

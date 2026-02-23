@@ -4,6 +4,7 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   desktop_drop
+  flutter_webrtc
   local_notifier
   open_file_linux
   screen_retriever_linux

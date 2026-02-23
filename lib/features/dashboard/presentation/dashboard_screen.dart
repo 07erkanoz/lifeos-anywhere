@@ -16,26 +16,27 @@ import 'package:anyware/features/discovery/data/latency_service.dart';
 import 'package:anyware/features/discovery/presentation/providers.dart';
 import 'package:anyware/features/discovery/presentation/device_list_screen.dart';
 import 'package:anyware/features/pairing/presentation/manual_ip_dialog.dart';
-import 'package:anyware/features/pairing/presentation/qr_display_dialog.dart';
-import 'package:anyware/features/pairing/presentation/qr_scan_screen.dart';
+import 'package:anyware/features/pairing/presentation/qr_options_dialog.dart';
 import 'package:anyware/features/transfer/domain/transfer.dart';
 import 'package:anyware/features/transfer/presentation/providers.dart';
 import 'package:anyware/features/settings/presentation/providers.dart';
 import 'package:anyware/i18n/app_localizations.dart';
 import 'package:anyware/widgets/glassmorphism.dart';
+import 'package:anyware/widgets/desktop_content_shell.dart';
 import 'package:anyware/features/clipboard/data/clipboard_service.dart';
 import 'package:anyware/features/sharing/data/sharing_service.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
+import 'package:anyware/features/timeline/presentation/timeline_screen.dart';
 
 final _log = AppLogger('Dashboard');
 
-/// Referans görseldeki birleşik dashboard ekranı.
+/// Unified dashboard screen matching the reference design.
 ///
-/// Üst alan: Keşfedilen cihazlar (yatay kart listesi)
-/// Alt alan: Son transferler ve ilerleme durumları
+/// Top area: Discovered devices (horizontal card list)
+/// Bottom area: Recent transfers and progress statuses
 ///
-/// Dosya gönderim işlevleri (dosya seçme, sürükle-bırak, device picker)
-/// tamamen bu ekranda entegre edilmiştir.
+/// File sending features (file picker, drag-and-drop, device picker)
+/// are fully integrated into this screen.
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
@@ -101,11 +102,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Dosya gönderme yardımcı metotları (DeviceListScreen'den taşındı)
+  // File sending helper methods (moved from DeviceListScreen)
   // ─────────────────────────────────────────────────────────────────────────
 
-  /// Cihaza tıklandığında dosya mı klasör mü gönderileceğini soran
-  /// menü açar, ardından seçilen içeriği gönderir.
+  /// Opens a menu asking whether to send files or folders when a device
+  /// is tapped, then sends the selected content.
   Future<void> _showSendOptions(Device target, String locale) async {
     if (!mounted) return;
 
@@ -148,7 +149,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     }
   }
 
-  /// Dosya seçme diyaloğu açıp seçilen dosyaları hedef cihaza gönderir.
+  /// Opens a file picker dialog and sends the selected files to the target device.
   Future<void> _pickAndSendFiles(Device target) async {
     final result = await FilePicker.platform.pickFiles(allowMultiple: true);
     if (result == null || result.files.isEmpty) return;
@@ -162,7 +163,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     await _sendFilesToDevice(target, paths);
   }
 
-  /// Klasör seçme diyaloğu açıp klasördeki tüm dosyaları hedef cihaza gönderir.
+  /// Opens a folder picker dialog and sends all files in the folder to the target device.
   Future<void> _pickAndSendFolder(Device target) async {
     final folderPath = await FilePicker.platform.getDirectoryPath();
     if (folderPath == null || folderPath.isEmpty) return;
@@ -181,7 +182,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     }
   }
 
-  /// Dosyaları hedef cihaza kuyruğa ekleyerek gönderir.
+  /// Enqueues and sends files to the target device.
   Future<void> _sendFilesToDevice(Device target, List<String> filePaths) async {
     try {
       final queue = await ref.read(transferQueueProvider.future);
@@ -194,7 +195,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     }
   }
 
-  /// Panodaki metni hedef cihaza gönderir.
+  /// Sends clipboard text to the target device.
   Future<void> _sendClipboard(Device target) async {
     final locale = AppLocalizations.detectLocale();
     try {
@@ -247,8 +248,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     }
   }
 
-  /// Birden fazla cihaz varsa seçim diyaloğu gösterir, tek cihaz varsa
-  /// direkt gönderir.
+  /// Shows a device picker dialog if multiple devices are available,
+  /// sends directly if there is only one device.
   Future<void> _showDevicePickerDialog(
     List<String> filePaths,
     String locale,
@@ -265,7 +266,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       return;
     }
 
-    // Tek cihaz varsa direkt gönder.
+    // If only one device, send directly.
     if (devices.length == 1) {
       await _sendFilesToDevice(devices.first, filePaths);
       return;
@@ -369,73 +370,66 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       _currentDevices = devices;
     });
 
+    final isDesktopShell = DesktopShellScope.of(context);
+
+    final headerActions = <Widget>[
+      IconButton(
+        icon: const Icon(Icons.qr_code_rounded, size: 20),
+        tooltip: AppLocalizations.get('qrOptions', locale),
+        onPressed: () {
+          showDialog(
+            context: context,
+            builder: (_) => QrOptionsDialog(locale: locale),
+          );
+        },
+      ),
+      IconButton(
+        icon: const Icon(Icons.add_link, size: 20),
+        tooltip: AppLocalizations.get('addManually', locale),
+        onPressed: () {
+          showDialog(
+            context: context,
+            builder: (_) => ManualIpDialog(locale: locale),
+          );
+        },
+      ),
+      IconButton(
+        icon: const Icon(Icons.refresh, size: 20),
+        tooltip: AppLocalizations.get('scanning', locale),
+        onPressed: () => ref.read(refreshDiscoveryProvider)(),
+      ),
+    ];
+
     final content = CustomScrollView(
           slivers: [
-            // ─── Başlık: Keşfedilen Cihazlar ───
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      AppLocalizations.get('discoveredDevices', locale),
-                      style: TextStyle(
-                        fontSize: isTV ? 22 : 18,
-                        fontWeight: FontWeight.w700,
-                        color: isDark ? AppColors.textPrimary : Colors.black87,
+            // ─── Header: Discovered Devices ───
+            if (!isDesktopShell)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        AppLocalizations.get('discoveredDevices', locale),
+                        style: TextStyle(
+                          fontSize: isTV ? 22 : 18,
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? AppColors.textPrimary : Colors.black87,
+                        ),
                       ),
-                    ),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // QR button: scan on mobile, show on desktop
-                        if (Platform.isAndroid || Platform.isIOS)
-                          IconButton(
-                            icon: const Icon(Icons.qr_code_scanner, size: 20),
-                            tooltip: AppLocalizations.get('scanQrTitle', locale),
-                            onPressed: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => QrScanScreen(locale: locale),
-                                ),
-                              );
-                            },
-                          )
-                        else
-                          IconButton(
-                            icon: const Icon(Icons.qr_code_rounded, size: 20),
-                            tooltip: AppLocalizations.get('pairDevice', locale),
-                            onPressed: () {
-                              showDialog(
-                                context: context,
-                                builder: (_) => QrDisplayDialog(locale: locale),
-                              );
-                            },
-                          ),
-                        IconButton(
-                          icon: const Icon(Icons.add_link, size: 20),
-                          tooltip: AppLocalizations.get('addManually', locale),
-                          onPressed: () {
-                            showDialog(
-                              context: context,
-                              builder: (_) => ManualIpDialog(locale: locale),
-                            );
-                          },
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.refresh, size: 20),
-                          tooltip: AppLocalizations.get('scanning', locale),
-                          onPressed: () => ref.read(refreshDiscoveryProvider)(),
-                        ),
-                      ],
-                    ),
-                  ],
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: headerActions,
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
+            if (isDesktopShell)
+              const SliverToBoxAdapter(child: SizedBox(height: 8)),
 
-            // ─── Cihaz Kartları (Yatay) ───
+            // ─── Device Cards (Horizontal) ───
             SliverToBoxAdapter(
               child: SizedBox(
                 height: isTV ? 220 : 180,
@@ -496,7 +490,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               ),
             ),
 
-            // ─── Başlık: Son Transferler ───
+            // ─── Header: Recent Transfers ───
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
@@ -512,23 +506,39 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                             isDark ? AppColors.textPrimary : Colors.black87,
                       ),
                     ),
-                    if (transfers.isNotEmpty)
-                      TextButton(
-                        onPressed: () {
-                          ref
-                              .read(activeTransfersProvider.notifier)
-                              .clearFinished();
-                        },
-                        child: Text(
-                          AppLocalizations.get('clearCompleted', locale),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.timeline_rounded, size: 20),
+                          tooltip: AppLocalizations.get('timeline', locale),
+                          onPressed: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const TimelineScreen(),
+                              ),
+                            );
+                          },
                         ),
-                      ),
+                        if (transfers.isNotEmpty)
+                          TextButton(
+                            onPressed: () {
+                              ref
+                                  .read(activeTransfersProvider.notifier)
+                                  .clearFinished();
+                            },
+                            child: Text(
+                              AppLocalizations.get('clearCompleted', locale),
+                            ),
+                          ),
+                      ],
+                    ),
                   ],
                 ),
               ),
             ),
 
-            // ─── Transfer Listesi ───
+            // ─── Transfer List ───
             if (transfers.isEmpty)
               SliverToBoxAdapter(
                 child: _EmptyTransfers(locale: locale, isDark: isDark),
@@ -554,12 +564,28 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 ),
               ),
 
-            // Alt boşluk
+            // Bottom spacing
             const SliverToBoxAdapter(child: SizedBox(height: 32)),
           ],
         );
 
-    // Masaüstü platformlarda sürükle-bırak desteği.
+    // Wrap with DesktopContentShell when in desktop shell mode.
+    Widget screen = content;
+
+    if (isDesktopShell) {
+      final deviceCount = _currentDevices.length;
+      screen = DesktopContentShell(
+        title: AppLocalizations.get('devices', locale),
+        subtitle: deviceCount > 0
+            ? '$deviceCount ${AppLocalizations.get('devicesFound', locale)}'
+            : null,
+        actions: headerActions,
+        maxWidth: 1100,
+        child: content,
+      );
+    }
+
+    // Drag-and-drop support on desktop platforms.
     if (isDesktop) {
       return DropTarget(
         onDragEntered: (_) => setState(() => _isDragging = true),
@@ -568,15 +594,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           setState(() => _isDragging = false);
           final paths = details.files.map((f) => f.path).toList();
           if (paths.isEmpty) return;
-          // Use a microtask delay to let the card-level DropTarget fire first.
-          // Without this, the parent's onDragDone may run before the child's,
-          // causing the flag check to fail and the file to be sent twice.
           Future.microtask(() {
             if (_dropHandledByCard) {
               _dropHandledByCard = false;
               return;
             }
-            // Debounce: ignore if a card-level drop just sent (<500ms).
             final now = DateTime.now();
             if (_lastDropSendTime != null &&
                 now.difference(_lastDropSendTime!).inMilliseconds < 500) {
@@ -588,19 +610,19 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         },
         child: Stack(
           children: [
-            content,
+            screen,
             if (_isDragging) _DragOverlay(locale: locale),
           ],
         ),
       );
     }
 
-    return content;
+    return screen;
   }
 }
 
 // =============================================================================
-// Sürükle-bırak overlay
+// Drag-and-drop overlay
 // =============================================================================
 
 class _DragOverlay extends StatelessWidget {
@@ -658,7 +680,7 @@ class _DragOverlay extends StatelessWidget {
 }
 
 // =============================================================================
-// Cihaz Cam Efektli Kart
+// Device Glass Effect Card
 // =============================================================================
 
 class _DeviceGlassCard extends StatefulWidget {
@@ -735,7 +757,7 @@ class _DeviceGlassCardState extends State<_DeviceGlassCard> {
             child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Üst satır: Platform ikonu + durum/gönder etiketi
+                  // Top row: Platform icon + status/send label
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -760,7 +782,7 @@ class _DeviceGlassCardState extends State<_DeviceGlassCard> {
                   ),
                   const Spacer(),
 
-                  // Cihaz adı
+                  // Device name
                   Text(
                     widget.device.name,
                     style: TextStyle(
@@ -775,7 +797,7 @@ class _DeviceGlassCardState extends State<_DeviceGlassCard> {
                   ),
                   const SizedBox(height: 2),
 
-                  // Platform etiketi
+                  // Platform label
                   Text(
                     '${widget.device.platformLabel} · ${widget.device.isOnline ? AppLocalizations.get("online", widget.locale) : AppLocalizations.get("offline", widget.locale)}',
                     style: TextStyle(
@@ -787,7 +809,7 @@ class _DeviceGlassCardState extends State<_DeviceGlassCard> {
                   ),
                   const SizedBox(height: 8),
 
-                  // Alt satır: IP + latency + gönder butonu
+                  // Bottom row: IP + latency + send button
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -836,7 +858,7 @@ class _DeviceGlassCardState extends State<_DeviceGlassCard> {
         ),
       );
 
-    // Masaüstünde her kart ayrı DropTarget — dosya kartın üstüne bırakılabilir.
+    // On desktop each card is a separate DropTarget — files can be dropped onto the card.
     if (isDesktop) {
       card = DropTarget(
         onDragEntered: (_) => setState(() => _isDropHovering = true),
@@ -857,7 +879,7 @@ class _DeviceGlassCardState extends State<_DeviceGlassCard> {
 }
 
 // =============================================================================
-// Transfer Kartı — Premium tasarım
+// Transfer Card — Premium design
 // =============================================================================
 
 class _TransferCard extends StatelessWidget {
@@ -888,7 +910,7 @@ class _TransferCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              // Dosya ikonu
+              // File icon
               Container(
                 width: 36,
                 height: 36,
@@ -908,7 +930,7 @@ class _TransferCard extends StatelessWidget {
               ),
               const SizedBox(width: 12),
 
-              // Cihaz adı + dosya adı
+              // Device name + file name
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -938,11 +960,11 @@ class _TransferCard extends StatelessWidget {
                 ),
               ),
 
-              // İptal / tamamlandı
+              // Cancel / completed
               if (isActive)
                 OutlinedButton.icon(
                   onPressed: () {
-                    // Transfer iptal
+                    // Cancel transfer
                   },
                   icon: const Icon(Icons.close, size: 14),
                   label: Text(
@@ -968,14 +990,14 @@ class _TransferCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
 
-          // İlerleme çubuğu
+          // Progress bar
           NeonProgressBar(
             progress: transfer.progress,
             color: progressColor,
           ),
           const SizedBox(height: 6),
 
-          // Alt satır: boyut bilgisi + durum
+          // Bottom row: size info + status
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -1035,7 +1057,7 @@ class _TransferCard extends StatelessWidget {
 }
 
 // =============================================================================
-// Boş durum widget'ları
+// Empty state widgets
 // =============================================================================
 
 class _EmptyDevices extends StatelessWidget {

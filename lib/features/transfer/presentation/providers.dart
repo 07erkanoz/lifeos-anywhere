@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:anyware/core/background_service.dart';
 import 'package:anyware/core/constants.dart';
 import 'package:anyware/features/discovery/presentation/providers.dart';
 import 'package:anyware/features/platform/windows/notification_service.dart';
 import 'package:anyware/features/settings/presentation/providers.dart';
 import 'package:anyware/features/settings/data/settings_repository.dart';
+import 'package:anyware/features/settings/domain/settings.dart';
 import 'package:anyware/features/transfer/data/file_sender.dart';
 import 'package:anyware/features/clipboard/data/clipboard_service.dart';
 import 'package:anyware/features/transfer/data/file_server.dart';
@@ -13,7 +15,9 @@ import 'package:anyware/features/transfer/data/transfer_history.dart';
 import 'package:anyware/features/transfer/data/transfer_queue.dart';
 import 'package:anyware/features/transfer/domain/transfer.dart';
 import 'package:anyware/features/sync/data/sync_service.dart';
+import 'package:anyware/features/discovery/domain/device.dart';
 import 'package:anyware/core/logger.dart';
+import 'package:anyware/i18n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 final _log = AppLogger('TransferProviders');
@@ -33,10 +37,12 @@ final fileServerProvider = FutureProvider.autoDispose<FileServer>((ref) async {
 
   String downloadPath = '';
   bool overwriteFiles = false;
+  String syncReceiveFolder = '';
   try {
     final settings = await settingsRepo.load();
     downloadPath = settings.downloadPath;
     overwriteFiles = settings.overwriteFiles;
+    syncReceiveFolder = settings.syncReceiveFolder;
   } catch (_) {
     // Will be empty; FileServer creates dirs as needed.
   }
@@ -45,6 +51,7 @@ final fileServerProvider = FutureProvider.autoDispose<FileServer>((ref) async {
     localDevice: device,
     downloadPath: downloadPath,
     overwriteFiles: overwriteFiles,
+    syncReceiveFolder: syncReceiveFolder,
   );
 
   // Wire clipboard receive events to persistent history.
@@ -64,27 +71,86 @@ final fileServerProvider = FutureProvider.autoDispose<FileServer>((ref) async {
   };
 
   // Wire sync file receive events to sync service (no per-file notification).
-  server.onSyncFileReceived = (String relativePath, String senderName, String savedPath) {
+  server.onSyncFileReceived = (String relativePath, String senderName,
+      String savedPath, String senderDeviceId, int fileSize,
+      String? jobId, String? jobName) {
+    _log.info('Sync file received: $relativePath from $senderName '
+        '(deviceId: $senderDeviceId, size: $fileSize, '
+        'jobId: $jobId, jobName: $jobName)');
     try {
       ref.read(syncServiceProvider.notifier).onFileReceived(
             relativePath,
             senderName,
             savedPath,
+            senderDeviceId,
+            fileSize,
+            jobId,
+            jobName,
           );
-    } catch (e) {
-      _log.warning('Sync onFileReceived error: $e');
+    } catch (e, stack) {
+      _log.warning('Sync onFileReceived error: $e\n$stack');
     }
+  };
+
+  // Wire sync setup request handler (handshake protocol).
+  server.onSyncSetupRequest = (request) {
+    _log.info('Sync setup request received: '
+        'jobId=${request.jobId}, from=${request.senderDeviceName}');
+    return ref.read(syncServiceProvider.notifier)
+        .handleSyncSetupRequest(request);
+  };
+
+  // Wire pairing folder lookup for sync handlers.
+  server.getSyncReceiveFolderForJob = (jobId) {
+    return ref.read(syncServiceProvider.notifier)
+        .getPairingForJob(jobId)?.receiveFolder;
+  };
+
+  // Wire remote pairing removal handler.
+  server.onRemotePairingRemoved = (jobId, remoteDeviceId) {
+    _log.info('Remote pairing removal: jobId=$jobId, from=$remoteDeviceId');
+    ref.read(syncServiceProvider.notifier)
+        .onRemotePairingRemoved(jobId, remoteDeviceId);
   };
 
   // Wire summary notification callback for completed sync batches.
   ref.read(syncServiceProvider.notifier).onSyncBatchCompleted =
       (String jobName, int fileCount, String deviceName) {
     if (Platform.isWindows) {
-      WindowsNotificationService.instance.notifySyncCompleted(
-        fileCount, deviceName, jobName,
+      final locale = ref.read(settingsProvider).locale;
+      final body = AppLocalizations.get('notifSyncComplete', locale)
+          .replaceAll('{job}', jobName)
+          .replaceAll('{count}', fileCount.toString())
+          .replaceAll('{device}', deviceName);
+      WindowsNotificationService.instance.notify(
+        title: 'LifeOS AnyWhere',
+        body: body,
       );
     }
   };
+
+  // Wire callback for when a sync receiving batch starts (first file arrives).
+  ref.read(syncServiceProvider.notifier).onSyncReceivingStarted =
+      (String senderName) {
+    if (Platform.isWindows) {
+      final locale = ref.read(settingsProvider).locale;
+      final body = AppLocalizations.get('notifSyncReceiving', locale)
+          .replaceAll('{sender}', senderName);
+      WindowsNotificationService.instance.notify(
+        title: 'LifeOS AnyWhere',
+        body: body,
+      );
+    }
+    _log.info('Sync receiving started from $senderName');
+  };
+
+  // Keep the server's syncReceiveFolder in sync with settings changes.
+  ref.listen<AppSettings>(settingsProvider, (prev, next) {
+    if (prev?.syncReceiveFolder != next.syncReceiveFolder) {
+      server.syncReceiveFolder = next.syncReceiveFolder;
+      _log.info('Updated sync receive folder: ${next.syncReceiveFolder}');
+    }
+  });
 
   try {
     await server.start(AppConstants.defaultPort);
@@ -96,6 +162,26 @@ final fileServerProvider = FutureProvider.autoDispose<FileServer>((ref) async {
   ref.onDispose(() {
     server.dispose();
   });
+
+  // ── Auto-sync on LAN device discovery ──
+  // Listen for changes in the devices list and trigger auto-sync for new ones.
+  Set<String> previousDeviceIds = {};
+  ref.listen<AsyncValue<List<Device>>>(devicesProvider, (prev, next) {
+    next.whenData((devices) {
+      final currentIds = devices.map((d) => d.id).toSet();
+      final newIds = currentIds.difference(previousDeviceIds);
+      previousDeviceIds = currentIds;
+
+      if (newIds.isNotEmpty) {
+        final syncService = ref.read(syncServiceProvider.notifier);
+        for (final device in devices) {
+          if (newIds.contains(device.id)) {
+            syncService.onDeviceDiscovered(device);
+          }
+        }
+      }
+    });
+  }, fireImmediately: true);
 
   // Keep the provider alive so the HTTP server never stops.
   ref.keepAlive();
@@ -169,7 +255,10 @@ final activeTransfersProvider =
     StateNotifierProvider.autoDispose<ActiveTransfersNotifier, List<Transfer>>(
   (ref) {
     final historyNotifier = ref.read(transferHistoryProvider.notifier);
-    final notifier = ActiveTransfersNotifier(historyNotifier: historyNotifier);
+    final notifier = ActiveTransfersNotifier(
+      historyNotifier: historyNotifier,
+      getLocale: () => ref.read(settingsProvider).locale,
+    );
 
     // Listen to file server progress updates when the server is ready.
     ref.listen<AsyncValue<FileServer>>(fileServerProvider, (_, next) {
@@ -189,12 +278,34 @@ final activeTransfersProvider =
   },
 );
 
+// ---------------------------------------------------------------------------
+// Notification batch helper
+// ---------------------------------------------------------------------------
+
+/// Holds pending notification data for debounced batch delivery.
+class _PendingNotifBatch {
+  String deviceName;
+  int completedCount = 0;
+  int failedCount = 0;
+  String lastFileName = '';
+  Timer? timer;
+
+  _PendingNotifBatch({required this.deviceName});
+}
+
 /// [StateNotifier] that merges progress updates from both the [FileServer]
 /// (incoming) and [FileSender] (outgoing) into a single ordered list.
 class ActiveTransfersNotifier extends StateNotifier<List<Transfer>> {
-  ActiveTransfersNotifier({this.historyNotifier}) : super([]);
+  ActiveTransfersNotifier({
+    this.historyNotifier,
+    required this.getLocale,
+  }) : super([]);
 
   final TransferHistoryNotifier? historyNotifier;
+
+  /// Callback to read the current locale from settings.
+  final String Function() getLocale;
+
   StreamSubscription<Transfer>? _serverSub;
   StreamSubscription<Transfer>? _senderSub;
 
@@ -202,6 +313,17 @@ class ActiveTransfersNotifier extends StateNotifier<List<Transfer>> {
   /// Stream events arriving with these stale IDs are ignored to
   /// prevent duplicate entries caused by the async race condition.
   final Set<String> _replacedIds = {};
+
+  // ── Notification batching state ──
+  /// Debounce duration before flushing a completion batch.
+  static const _batchDelay = Duration(seconds: 3);
+
+  /// Pending completion batches keyed by sender device ID.
+  final Map<String, _PendingNotifBatch> _pendingCompletions = {};
+
+  /// Devices for which a "transfer started" notification was already shown.
+  /// Resets when no more active transfers remain for that device.
+  final Set<String> _notifiedStartedDevices = {};
 
   /// Start listening to server progress updates.
   void listenToServer(FileServer server) {
@@ -272,6 +394,11 @@ class ActiveTransfersNotifier extends StateNotifier<List<Transfer>> {
   void dispose() {
     _serverSub?.cancel();
     _senderSub?.cancel();
+    // Cancel all pending batch timers.
+    for (final batch in _pendingCompletions.values) {
+      batch.timer?.cancel();
+    }
+    _pendingCompletions.clear();
     super.dispose();
   }
 
@@ -306,32 +433,129 @@ class ActiveTransfersNotifier extends StateNotifier<List<Transfer>> {
       historyNotifier?.recordTransfer(transfer);
     }
 
-    // Fire Windows notifications for incoming transfers only.
+    // Background service: start foreground service / wakelock when a transfer
+    // begins, and release when it finishes.
+    if (prevStatus != transfer.status) {
+      final bg = BackgroundTransferService.instance;
+      final locale = getLocale();
+      if (transfer.status == TransferStatus.transferring &&
+          prevStatus != TransferStatus.transferring) {
+        bg.onTransferStarted(
+          title: AppLocalizations.get('notifTransferring', locale),
+          text: transfer.fileName,
+        );
+      } else if (transfer.isFinished &&
+          (prevStatus == TransferStatus.transferring ||
+           prevStatus == TransferStatus.accepted ||
+           prevStatus == TransferStatus.pending)) {
+        bg.onTransferFinished();
+      }
+    }
+
+    // Update the Android notification with transfer progress.
+    if (transfer.status == TransferStatus.transferring &&
+        transfer.progress > 0 &&
+        transfer.speed != null) {
+      final locale = getLocale();
+      final speedMBps = (transfer.speed! / (1024 * 1024)).toStringAsFixed(1);
+      final pct = (transfer.progress * 100).toStringAsFixed(0);
+      final activeCount = state.where((t) =>
+          t.status == TransferStatus.transferring).length;
+      final title = activeCount > 1
+          ? AppLocalizations.get('notifTransferringCount', locale)
+              .replaceAll('{count}', activeCount.toString())
+          : AppLocalizations.get('notifTransferring', locale);
+      BackgroundTransferService.instance.updateProgress(
+        title: title,
+        text: '$pct% — $speedMBps MB/s',
+      );
+    }
+
+    // Fire Windows notifications (batched for completions).
     if (Platform.isWindows) {
       _fireNotification(transfer, prevStatus);
     }
   }
 
   void _fireNotification(Transfer transfer, TransferStatus? prevStatus) {
+    final locale = getLocale();
     final notif = WindowsNotificationService.instance;
+    const title = 'LifeOS AnyWhere';
 
-    // New incoming transfer starts transferring.
+    // ── Transfer started: one notification per device ──
     if (transfer.status == TransferStatus.transferring &&
         prevStatus != TransferStatus.transferring) {
-      final sender = transfer.senderDevice.name;
-      notif.notifyTransferStarted(transfer.fileName, sender);
+      final deviceId = transfer.senderDevice.id;
+      if (!_notifiedStartedDevices.contains(deviceId)) {
+        _notifiedStartedDevices.add(deviceId);
+        final sender = transfer.senderDevice.name;
+        final body = AppLocalizations.get('notifTransferStarted', locale)
+            .replaceAll('{sender}', sender)
+            .replaceAll('{file}', transfer.fileName);
+        notif.notify(title: title, body: body);
+      }
     }
 
-    // Transfer completed.
-    if (transfer.status == TransferStatus.completed &&
-        prevStatus != TransferStatus.completed) {
-      notif.notifyTransferCompleted(transfer.fileName);
-    }
-
-    // Transfer failed.
+    // ── Transfer failed: always fire immediately ──
     if (transfer.status == TransferStatus.failed &&
         prevStatus != TransferStatus.failed) {
-      notif.notifyTransferFailed(transfer.fileName);
+      final body = AppLocalizations.get('notifTransferFailed', locale)
+          .replaceAll('{file}', transfer.fileName);
+      notif.notify(title: title, body: body);
+    }
+
+    // ── Transfer completed: debounce & batch per device ──
+    if (transfer.status == TransferStatus.completed &&
+        prevStatus != TransferStatus.completed) {
+      final deviceId = transfer.senderDevice.id;
+      final deviceName = transfer.senderDevice.name;
+
+      final batch = _pendingCompletions.putIfAbsent(
+        deviceId,
+        () => _PendingNotifBatch(deviceName: deviceName),
+      );
+      batch.completedCount++;
+      batch.lastFileName = transfer.fileName;
+      batch.deviceName = deviceName;
+
+      // Reset the timer on each new completion.
+      batch.timer?.cancel();
+      batch.timer = Timer(_batchDelay, () {
+        _flushCompletionBatch(deviceId);
+      });
+    }
+
+    // ── Clean up started-devices tracking when no active transfers remain ──
+    if (transfer.isFinished) {
+      final deviceId = transfer.senderDevice.id;
+      final hasActiveForDevice = state.any((t) =>
+          t.senderDevice.id == deviceId && t.isActive);
+      if (!hasActiveForDevice) {
+        _notifiedStartedDevices.remove(deviceId);
+      }
+    }
+  }
+
+  /// Flush a pending completion batch and show the notification.
+  void _flushCompletionBatch(String deviceId) {
+    final batch = _pendingCompletions.remove(deviceId);
+    if (batch == null || batch.completedCount == 0) return;
+
+    final locale = getLocale();
+    final notif = WindowsNotificationService.instance;
+    const title = 'LifeOS AnyWhere';
+
+    if (batch.completedCount == 1) {
+      // Single file — show the file name.
+      final body = AppLocalizations.get('notifTransferComplete', locale)
+          .replaceAll('{file}', batch.lastFileName);
+      notif.notify(title: title, body: body);
+    } else {
+      // Multiple files — show count + device.
+      final body = AppLocalizations.get('notifBatchComplete', locale)
+          .replaceAll('{count}', batch.completedCount.toString())
+          .replaceAll('{device}', batch.deviceName);
+      notif.notify(title: title, body: body);
     }
   }
 }

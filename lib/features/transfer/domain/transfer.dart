@@ -22,13 +22,13 @@ class Transfer {
   final String? error;
   final DateTime createdAt;
 
-  /// Transfer hızı (bayt/saniye). Null ise henüz hesaplanamadı.
+  /// Transfer speed in bytes per second. Null if not yet calculated.
   final double? speed;
 
-  /// Tahmini kalan süre. Null ise henüz hesaplanamadı.
+  /// Estimated time remaining. Null if not yet calculated.
   final Duration? estimatedTimeLeft;
 
-  /// Bu transfer gönderim mi yoksa alım mı?
+  /// Whether this transfer is a send (true) or receive (false).
   final bool isSending;
 
   const Transfer({
@@ -166,7 +166,7 @@ class Transfer {
     }
   }
 
-  /// Cihaz adı — gönderimde alıcı, alımda gönderici.
+  /// Device name — receiver when sending, sender when receiving.
   String get deviceName {
     if (isSending && receiverDevice != null) {
       return receiverDevice!.name;
@@ -174,13 +174,13 @@ class Transfer {
     return senderDevice.name;
   }
 
-  /// Transfer edilen boyut (progress * fileSize).
+  /// Transferred size formatted as a human-readable string.
   String get formattedTransferredSize {
     final transferred = (progress * fileSize).round();
     return _formatBytes(transferred);
   }
 
-  /// Dosya boyutu formatlanmış.
+  /// File size formatted as a human-readable string.
   String get formattedFileSize => _formatBytes(fileSize);
 
   static String _formatBytes(int bytes) {

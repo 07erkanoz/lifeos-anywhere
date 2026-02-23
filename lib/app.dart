@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'package:flutter/material.dart';
@@ -20,10 +22,16 @@ import 'package:anyware/features/transfer/domain/transfer.dart';
 import 'package:anyware/features/settings/presentation/settings_screen.dart';
 import 'package:anyware/i18n/app_localizations.dart';
 import 'package:anyware/widgets/tv_sidebar.dart';
+import 'package:anyware/widgets/desktop_content_shell.dart';
+import 'package:anyware/widgets/desktop_status_bar.dart';
 import 'package:anyware/features/clipboard/presentation/clipboard_screen.dart';
 import 'package:anyware/features/sync/presentation/sync_screen.dart';
+import 'package:anyware/features/sync/presentation/sync_setup_dialog.dart';
 import 'package:anyware/features/sync/data/sync_service.dart';
-
+import 'package:anyware/features/sync/domain/sync_state.dart';
+import 'package:anyware/features/server_sync/presentation/server_sync_screen.dart';
+import 'package:anyware/features/server_sync/data/server_sync_service.dart';
+import 'package:anyware/features/platform/tray_service.dart';
 class App extends ConsumerWidget {
   const App({super.key});
 
@@ -51,26 +59,37 @@ class App extends ConsumerWidget {
         themeMode = ThemeMode.system;
     }
 
-    return MaterialApp(
-      title: AppConstants.appName,
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.light,
-      darkTheme: AppTheme.dark,
-      themeMode: themeMode,
-      shortcuts: <ShortcutActivator, Intent>{
-        ...WidgetsApp.defaultShortcuts,
-        const SingleActivator(LogicalKeyboardKey.browserBack):
-            const _PopRouteIntent(),
-        const SingleActivator(LogicalKeyboardKey.escape):
-            const _PopRouteIntent(),
-      },
-      home: const _MainShell(),
+    return WithForegroundTask(
+      child: MaterialApp(
+        title: AppConstants.appName,
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.light,
+        darkTheme: AppTheme.dark,
+        themeMode: themeMode,
+        shortcuts: <ShortcutActivator, Intent>{
+          ...WidgetsApp.defaultShortcuts,
+          const SingleActivator(LogicalKeyboardKey.browserBack):
+              const _PopRouteIntent(),
+          const SingleActivator(LogicalKeyboardKey.escape):
+              const _PopRouteIntent(),
+        },
+        home: const _MainShell(),
+      ),
     );
   }
 }
 
 class _PopRouteIntent extends Intent {
   const _PopRouteIntent();
+}
+
+class _NavIntent extends Intent {
+  const _NavIntent(this.index);
+  final int index;
+}
+
+class _ToggleSidebarIntent extends Intent {
+  const _ToggleSidebarIntent();
 }
 
 class _MainShell extends ConsumerStatefulWidget {
@@ -83,17 +102,18 @@ class _MainShell extends ConsumerStatefulWidget {
 class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
   int _selectedIndex = 0;
   bool _localeInitialized = false;
+  bool _sidebarCollapsed = false;
 
-  /// Android TV mi?
+  /// Whether the device is an Android TV.
   bool get _isTV => Platform.isAndroid && TvDetector.isTVCached;
 
-  /// Masaüstü platformlarda sidebar kullan (TV hariç — TV bottom nav kullanır).
+  /// Use sidebar layout on desktop platforms (TV uses bottom nav).
   bool get _useSidebar =>
       Platform.isWindows || Platform.isLinux || Platform.isMacOS;
 
-  /// Ekran listesi.
+  /// Screen list based on platform.
   List<Widget> get _screens {
-    // TV: basit — Dashboard, Transfers, Settings
+    // TV: simplified — Dashboard, Transfers, Settings
     if (_isTV) {
       return const <Widget>[
         DashboardScreen(),
@@ -101,22 +121,24 @@ class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
         SettingsScreen(),
       ];
     }
-    // Masaüstü sidebar: Dashboard, Transfers, Clipboard, Sync, Settings
+    // Desktop sidebar: Dashboard, Transfers, Clipboard, Sync, ServerSync, Settings
     if (_useSidebar) {
       return const <Widget>[
         DashboardScreen(),
         TransferScreen(),
         ClipboardScreen(),
         SyncScreen(),
+        ServerSyncScreen(),
         SettingsScreen(),
       ];
     }
-    // Mobil: DeviceList, Transfers, Clipboard, Sync, Settings
+    // Mobile: DeviceList, Transfers, Clipboard, Sync, ServerSync, Settings
     return const <Widget>[
       DeviceListScreen(),
       TransferScreen(),
       ClipboardScreen(),
       SyncScreen(),
+      ServerSyncScreen(),
       SettingsScreen(),
     ];
   }
@@ -134,17 +156,24 @@ class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
   void onWindowClose() async {
     final isDesktop =
         Platform.isWindows || Platform.isLinux || Platform.isMacOS;
-    if (isDesktop) {
-      // If minimize-to-tray is enabled, just hide the window.
-      final settings = ref.read(settingsProvider);
-      if (settings.minimizeToTray) {
-        await windowManager.hide();
-        return;
-      }
+    if (!isDesktop) return;
 
-      // If sync is active, show a warning dialog before closing.
+    final settings = ref.read(settingsProvider);
+    final isTrayExit = AppTrayService.exitRequested;
+
+    // If minimize-to-tray is enabled AND this is a normal close (not tray
+    // "Exit"), just hide the window and keep running.
+    if (settings.minimizeToTray && !isTrayExit) {
+      await windowManager.hide();
+      return;
+    }
+
+    // If this is NOT a tray exit, show a sync warning dialog if sync is active.
+    if (!isTrayExit) {
       final syncState = ref.read(syncServiceProvider);
-      if (syncState.hasActiveJobs && mounted) {
+      final serverSyncState = ref.read(serverSyncServiceProvider);
+      if ((syncState.hasActiveJobs || serverSyncState.activeJobCount > 0) &&
+          mounted) {
         final locale = settings.locale;
         final shouldClose = await showDialog<bool>(
           context: context,
@@ -163,25 +192,62 @@ class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
             ],
           ),
         );
-
         if (shouldClose != true) return;
       }
-
-      // Perform a full shutdown.
-      try {
-        ref.read(discoveryServiceProvider).valueOrNull?.stop();
-        try {
-          ref.read(syncServiceProvider.notifier).stopAll();
-        } catch (_) {}
-        await ref.read(fileServerProvider).valueOrNull?.stop();
-      } catch (e) {
-        AppLogger('MainShell').error('Error during shutdown', error: e);
-      }
-
-      await windowManager.setPreventClose(false);
-      await windowManager.destroy();
-      exit(0);
     }
+
+    // ── Shutdown with hard timeout ──────────────────────────────────────────
+    // If anything hangs, the safety timer will force-kill the process.
+    final safetyTimer = Timer(const Duration(seconds: 6), () => exit(0));
+
+    try {
+      await _shutdownServices();
+    } catch (_) {}
+
+    safetyTimer.cancel();
+    await windowManager.setPreventClose(false);
+    await windowManager.destroy();
+    exit(0);
+  }
+
+  /// Stops all background services and flushes the logger.
+  ///
+  /// Individual operations are wrapped in a 4-second total timeout so a
+  /// blocked socket or file watcher cannot hold up the shutdown.
+  Future<void> _shutdownServices() async {
+    final log = AppLogger('Shutdown');
+    log.info('Shutting down services…');
+
+    try {
+      await Future.wait<void>([
+        Future<void>.sync(() {
+          ref.read(discoveryServiceProvider).valueOrNull?.stop();
+        }),
+        Future<void>.sync(() {
+          try {
+            ref.read(syncServiceProvider.notifier).stopAll();
+          } catch (_) {}
+        }),
+        Future<void>.sync(() {
+          try {
+            ref.read(serverSyncServiceProvider.notifier).stopAll();
+          } catch (_) {}
+        }),
+        (ref.read(fileServerProvider).valueOrNull?.stop() ?? Future.value())
+            .timeout(const Duration(seconds: 3), onTimeout: () {}),
+      ]).timeout(const Duration(seconds: 4), onTimeout: () {
+        log.warning('Service shutdown timed out after 4 s');
+        return <void>[];
+      });
+    } catch (e) {
+      log.error('Error during service shutdown', error: e);
+    }
+
+    // Flush and close the logger file sink.
+    try {
+      await AppLogger.dispose()
+          .timeout(const Duration(seconds: 1), onTimeout: () {});
+    } catch (_) {}
   }
 
   @override
@@ -212,7 +278,7 @@ class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
     final settings = ref.watch(settingsProvider);
     final locale = settings.locale;
 
-    // Yeni transfer geldiğinde otomatik olarak Transfer ekranına geç.
+    // Auto-switch to Transfer screen when a new incoming transfer arrives.
     ref.listen<List<Transfer>>(activeTransfersProvider, (prev, next) {
       final prevIds = prev?.map((t) => t.id).toSet() ?? {};
       final hasNewTransfer = next.any((t) => !prevIds.contains(t.id));
@@ -221,29 +287,98 @@ class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
       }
     });
 
-    return Actions(
-      actions: <Type, Action<Intent>>{
-        _PopRouteIntent: CallbackAction<_PopRouteIntent>(
-          onInvoke: (_) {
-            final navigator = Navigator.of(context);
-            if (navigator.canPop()) {
-              navigator.pop();
-            }
-            return null;
-          },
-        ),
+    // Show sync setup dialog when a remote device sends a setup request.
+    ref.listen<SyncState>(syncServiceProvider, (prev, next) {
+      if (next.pendingSyncSetup != null &&
+          prev?.pendingSyncSetup == null &&
+          mounted) {
+        showDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => SyncSetupDialog(request: next.pendingSyncSetup!),
+        );
+      }
+    });
+
+    final screenCount = _screens.length;
+
+    return Shortcuts(
+      shortcuts: <ShortcutActivator, Intent>{
+        // Ctrl+1..6 → navigate to specific tab (desktop only)
+        if (_useSidebar) ...{
+          const SingleActivator(LogicalKeyboardKey.digit1, control: true):
+              _NavIntent(0),
+          const SingleActivator(LogicalKeyboardKey.digit2, control: true):
+              _NavIntent(1),
+          if (screenCount > 2)
+            const SingleActivator(LogicalKeyboardKey.digit3, control: true):
+                _NavIntent(2),
+          if (screenCount > 3)
+            const SingleActivator(LogicalKeyboardKey.digit4, control: true):
+                _NavIntent(3),
+          if (screenCount > 4)
+            const SingleActivator(LogicalKeyboardKey.digit5, control: true):
+                _NavIntent(4),
+          if (screenCount > 5)
+            const SingleActivator(LogicalKeyboardKey.digit6, control: true):
+                _NavIntent(5),
+          const SingleActivator(LogicalKeyboardKey.bracketLeft, control: true):
+              const _ToggleSidebarIntent(),
+        },
       },
-      child: _useSidebar
-          ? _buildSidebarLayout(locale)
-          : _buildBottomNavLayout(locale),
+      child: Actions(
+        actions: <Type, Action<Intent>>{
+          _PopRouteIntent: CallbackAction<_PopRouteIntent>(
+            onInvoke: (_) {
+              final navigator = Navigator.of(context);
+              if (navigator.canPop()) {
+                navigator.pop();
+              }
+              return null;
+            },
+          ),
+          _NavIntent: CallbackAction<_NavIntent>(
+            onInvoke: (intent) {
+              if (intent.index < screenCount) {
+                setState(() => _selectedIndex = intent.index);
+              }
+              return null;
+            },
+          ),
+          _ToggleSidebarIntent: CallbackAction<_ToggleSidebarIntent>(
+            onInvoke: (_) {
+              setState(
+                  () => _sidebarCollapsed = !_sidebarCollapsed);
+              return null;
+            },
+          ),
+        },
+        child: _useSidebar
+            ? _buildSidebarLayout(locale)
+            : _buildBottomNavLayout(locale),
+      ),
     );
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Sidebar düzeni (Windows, Linux, macOS)
+  // Sidebar layout (Windows, Linux, macOS)
   // ─────────────────────────────────────────────────────────────────────────
 
   Widget _buildSidebarLayout(String locale) {
+    // Compute badges from providers.
+    final transfers = ref.watch(activeTransfersProvider);
+    final activeTransferCount =
+        transfers.where((t) => t.isActive).length;
+    final syncState = ref.watch(syncServiceProvider);
+    final serverSyncState = ref.watch(serverSyncServiceProvider);
+    final activeSyncCount = syncState.jobs.where((j) => j.isActive).length +
+        serverSyncState.jobs.where((j) => j.isActive).length;
+
+    final badges = <int, String>{
+      if (activeTransferCount > 0) 1: '$activeTransferCount',
+      if (activeSyncCount > 0) 3: '$activeSyncCount',
+    };
+
     return Scaffold(
       body: Column(
         children: [
@@ -254,19 +389,32 @@ class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
           Expanded(
             child: Row(
               children: [
-                // Sol sidebar
+                // Left sidebar
                 TvSidebar(
                   selectedIndex: _selectedIndex,
                   onIndexChanged: (i) => setState(() => _selectedIndex = i),
                   locale: locale,
                   isTv: false,
+                  isCollapsed: _sidebarCollapsed,
+                  onToggleCollapse: () =>
+                      setState(() => _sidebarCollapsed = !_sidebarCollapsed),
+                  badges: badges.isNotEmpty ? badges : null,
                 ),
 
-                // İçerik alanı
+                // Content area + status bar
                 Expanded(
-                  child: IndexedStack(
-                    index: _selectedIndex,
-                    children: _screens,
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: DesktopShellScope(
+                          child: IndexedStack(
+                            index: _selectedIndex,
+                            children: _screens,
+                          ),
+                        ),
+                      ),
+                      const DesktopStatusBar(),
+                    ],
                   ),
                 ),
               ],
@@ -278,7 +426,7 @@ class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Bottom nav düzeni (Android telefon, iOS, Android TV)
+  // Bottom nav layout (Android phone, iOS, Android TV)
   // ─────────────────────────────────────────────────────────────────────────
 
   Widget _buildBottomNavLayout(String locale) {
@@ -286,7 +434,7 @@ class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
     final List<IconData> navIcons;
 
     if (_isTV) {
-      // TV: 3 sekme — Cihazlar, Transferler, Ayarlar
+      // TV: 3 tabs — Devices, Transfers, Settings
       navLabels = [
         AppLocalizations.get('devices', locale),
         AppLocalizations.get('transfers', locale),
@@ -298,12 +446,13 @@ class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
         Icons.settings_rounded,
       ];
     } else {
-      // Mobil: 5 sekme
+      // Mobile: 6 tabs
       navLabels = [
         AppLocalizations.get('devices', locale),
         AppLocalizations.get('transfers', locale),
         AppLocalizations.get('clipboard', locale),
         AppLocalizations.get('folderSync', locale),
+        AppLocalizations.get('serverSync', locale),
         AppLocalizations.get('settings', locale),
       ];
       navIcons = [
@@ -311,6 +460,7 @@ class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
         Icons.swap_horiz_rounded,
         Icons.content_paste_rounded,
         Icons.sync_rounded,
+        Icons.cloud_sync_rounded,
         Icons.settings_rounded,
       ];
     }
@@ -325,6 +475,8 @@ class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
         onDestinationSelected: (int index) {
           setState(() => _selectedIndex = index);
         },
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
+        height: 56,
         destinations: [
           for (int i = 0; i < navLabels.length; i++)
             NavigationDestination(

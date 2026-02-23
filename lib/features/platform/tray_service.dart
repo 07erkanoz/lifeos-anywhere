@@ -29,6 +29,11 @@ class AppTrayService with TrayListener {
   /// Callback invoked before the application exits via the tray menu.
   Future<void> Function()? onBeforeExit;
 
+  /// Set to `true` when the user clicks "Exit" in the tray menu.
+  /// Window-close handlers check this to distinguish a real exit from a
+  /// minimize-to-tray event.
+  static bool exitRequested = false;
+
   bool _isInitialized = false;
 
   /// Whether the tray service has been initialized.
@@ -132,8 +137,12 @@ class AppTrayService with TrayListener {
     await windowManager.focus();
   }
 
-  /// Runs cleanup, disables close prevention, and destroys the window.
+  /// Signals a real exit, disables close prevention, and destroys the window.
+  ///
+  /// The actual cleanup is performed by `_MainShellState.onWindowClose()` which
+  /// checks [exitRequested] to bypass the minimize-to-tray logic.
   Future<void> _exitApplication() async {
+    exitRequested = true;
     if (onBeforeExit != null) {
       await onBeforeExit!();
     }

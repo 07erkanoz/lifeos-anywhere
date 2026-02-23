@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
+
 import 'package:anyware/core/logger.dart';
 import 'package:anyware/features/discovery/domain/device.dart';
 import 'package:anyware/features/transfer/domain/transfer.dart';
@@ -76,7 +78,18 @@ class FileSender {
 
     // Use relativePath for folder transfers (preserves directory structure),
     // otherwise just the bare filename.
-    final fileName = relativePath ?? file.uri.pathSegments.last;
+    // Sanitize relativePath to prevent directory traversal attacks.
+    String? sanitizedRelativePath = relativePath;
+    if (sanitizedRelativePath != null) {
+      sanitizedRelativePath = p.normalize(sanitizedRelativePath).replaceAll(r'\', '/');
+      if (sanitizedRelativePath.startsWith('../') ||
+          sanitizedRelativePath.startsWith('/') ||
+          sanitizedRelativePath.contains('/../')) {
+        _log.warning('Blocked suspicious relative path: $relativePath');
+        sanitizedRelativePath = p.basename(sanitizedRelativePath);
+      }
+    }
+    final fileName = sanitizedRelativePath ?? file.uri.pathSegments.last;
     final fileSize = await file.length();
 
     // Use a temporary local ID so that the UI can track this transfer
@@ -96,13 +109,24 @@ class FileSender {
     _emitProgress(transfer);
 
     // ------------------------------------------------------------------
-    // Step 0: Verify the target device is reachable.
+    // Step 0a: Compute SHA-256 hash for integrity verification.
+    // ------------------------------------------------------------------
+    String? fileHash;
+    try {
+      final digest = await sha256.bind(file.openRead()).last;
+      fileHash = digest.toString();
+    } catch (e) {
+      _log.warning('Could not compute file hash: $e');
+    }
+
+    // ------------------------------------------------------------------
+    // Step 0b: Verify the target device is reachable.
     // ------------------------------------------------------------------
     final isReachable = await pingDevice(target);
     if (!isReachable) {
       transfer = transfer.copyWith(
         status: TransferStatus.failed,
-        error: 'Device is not reachable',
+        error: 'Device is not reachable — ensure it is online and both devices are on the same network',
       );
       _emitProgress(transfer);
       return transfer;
@@ -120,6 +144,7 @@ class FileSender {
       'senderPort': localDevice.port,
       'senderPlatform': localDevice.platform,
       'senderVersion': localDevice.version,
+      if (fileHash != null) 'sha256': fileHash,
     });
 
     final requestUri = Uri.http(
@@ -180,12 +205,26 @@ class FileSender {
         return transfer;
       }
 
+      // On retry attempts, query the receiver for how many bytes it already
+      // has so we can resume instead of restarting from zero.
+      int resumeOffset = 0;
+      if (attempt > 1) {
+        resumeOffset = await _queryReceivedOffset(target, transferId);
+        if (resumeOffset > 0) {
+          _log.info(
+            'Resuming transfer $transferId from offset $resumeOffset '
+            '(attempt $attempt)',
+          );
+        }
+      }
+
       uploadResult = await _attemptUpload(
         target: target,
         transferId: transferId,
         file: file,
         fileSize: fileSize,
         transfer: transfer,
+        resumeOffset: resumeOffset,
       );
 
       if (uploadResult.status == TransferStatus.completed ||
@@ -218,12 +257,17 @@ class FileSender {
   }
 
   /// Attempts a single upload of the file to the target device.
+  ///
+  /// When [resumeOffset] > 0, only sends the remaining bytes starting from
+  /// that offset, and includes an `X-Offset` header so the receiver knows
+  /// to append rather than overwrite.
   Future<Transfer> _attemptUpload({
     required Device target,
     required String transferId,
     required File file,
     required int fileSize,
     required Transfer transfer,
+    int resumeOffset = 0,
   }) async {
     try {
       final uploadUri = Uri.http(
@@ -234,17 +278,24 @@ class FileSender {
       final uploadRequest = await _httpClient.postUrl(uploadUri);
       _activeRequest = uploadRequest;
 
+      final contentLength = fileSize - resumeOffset;
       uploadRequest.headers
         ..contentType = ContentType.binary
-        ..contentLength = fileSize;
+        ..contentLength = contentLength;
+
+      // Tell the receiver where to resume from.
+      if (resumeOffset > 0) {
+        uploadRequest.headers.add('X-Offset', resumeOffset.toString());
+      }
 
       // Stream the file in chunks with optional speed throttling.
-      int bytesSent = 0;
+      // Start reading from resumeOffset to skip already-sent bytes.
+      int bytesSent = resumeOffset;
       DateTime lastProgressTime = DateTime.now();
       int throttleBytesSent = 0;
       DateTime throttleWindowStart = DateTime.now();
 
-      await for (final chunk in file.openRead()) {
+      await for (final chunk in file.openRead(resumeOffset)) {
         if (_cancelRequested) {
           uploadRequest.abort();
           return transfer.copyWith(status: TransferStatus.cancelled);
@@ -337,7 +388,7 @@ class FileSender {
       } else {
         transfer = transfer.copyWith(
           status: TransferStatus.failed,
-          error: 'Transfer timed out: $e',
+          error: 'Transfer timed out — the receiver may be busy or unreachable. $e',
         );
       }
     } on HttpException catch (e) {
@@ -346,7 +397,7 @@ class FileSender {
       } else {
         transfer = transfer.copyWith(
           status: TransferStatus.failed,
-          error: 'HTTP error: $e',
+          error: 'HTTP protocol error — the receiver may be running an incompatible version. $e',
         );
       }
     } on SocketException catch (e) {
@@ -355,7 +406,7 @@ class FileSender {
       } else {
         transfer = transfer.copyWith(
           status: TransferStatus.failed,
-          error: 'Connection lost: $e',
+          error: 'Connection lost — check that both devices are on the same network. $e',
         );
       }
     } catch (e) {
@@ -465,6 +516,45 @@ class FileSender {
   }
 
   // Helpers -------------------------------------------------------------
+
+  /// Queries the receiver for how many bytes it has already received for
+  /// [transferId]. Returns 0 if the status cannot be determined (e.g. network
+  /// error, old receiver without resume support).
+  Future<int> _queryReceivedOffset(Device target, String transferId) async {
+    try {
+      final statusUri = Uri.http(
+        '${target.ip}:${target.port}',
+        '/api/status/$transferId',
+      );
+      final request = await _httpClient.getUrl(statusUri);
+      final response = await request.close().timeout(
+        const Duration(seconds: 10),
+      );
+      if (response.statusCode != 200) return 0;
+
+      final body = await response.transform(utf8.decoder).join();
+      final json = jsonDecode(body) as Map<String, dynamic>;
+
+      // Prefer the on-disk temp file size (authoritative) over the in-memory
+      // bytesReceived counter.
+      final tempFileSize = json['tempFileSize'] as int? ?? 0;
+      final bytesReceived = json['bytesReceived'] as int? ?? 0;
+
+      // Use the smaller of the two to be safe.
+      final offset = tempFileSize > 0 && bytesReceived > 0
+          ? (tempFileSize < bytesReceived ? tempFileSize : bytesReceived)
+          : (tempFileSize > 0 ? tempFileSize : bytesReceived);
+
+      _log.debug(
+        'Resume query for $transferId: '
+        'bytesReceived=$bytesReceived, tempFileSize=$tempFileSize → offset=$offset',
+      );
+      return offset;
+    } catch (e) {
+      _log.warning('Could not query resume offset for $transferId: $e');
+      return 0;
+    }
+  }
 
   /// POST with automatic retry and exponential backoff.
   Future<String> _postWithRetry(Uri uri, String body) async {

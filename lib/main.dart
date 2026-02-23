@@ -10,6 +10,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'package:anyware/app.dart';
+import 'package:anyware/core/background_service.dart';
+import 'package:anyware/core/constants.dart';
 import 'package:anyware/core/tv_detector.dart';
 import 'package:anyware/features/discovery/presentation/device_list_screen.dart';
 import 'package:anyware/features/platform/tray_service.dart';
@@ -56,7 +58,20 @@ Future<void> main(List<String> args) async {
     } catch (e) {
       _log.error('Android initialization error', error: e);
     }
+
+    // Request notification permission on Android 13+ for foreground service.
+    try {
+      final notifStatus = await Permission.notification.status;
+      if (!notifStatus.isGranted) {
+        await Permission.notification.request();
+      }
+    } catch (e) {
+      _log.warning('Notification permission request failed: $e');
+    }
   }
+
+  // Initialize background transfer service (foreground service + wakelock).
+  await BackgroundTransferService.instance.init();
 
   // File path from --share argument (Explorer context menu).
   String? pendingSharePath;
@@ -227,7 +242,7 @@ Future<bool> _checkSingleInstance(List<String> args) async {
     // Use a fixed port just for the single-instance lock (loopback only).
     final server = await ServerSocket.bind(
       InternetAddress.loopbackIPv4,
-      42099,
+      AppConstants.singleInstancePort,
       shared: false,
     );
     // We got the lock — keep it alive for the app's lifetime.
@@ -285,7 +300,7 @@ void _handleInstanceMessage(String message) {
     if (filePath.isNotEmpty) {
       _pendingSharePaths.add(filePath);
       _shareDebounce?.cancel();
-      _shareDebounce = Timer(const Duration(milliseconds: 300), () {
+      _shareDebounce = Timer(const Duration(milliseconds: AppConstants.shareDebounceMs), () {
         final paths = List<String>.from(_pendingSharePaths);
         _pendingSharePaths.clear();
         _container.read(pendingShareProvider.notifier).state = paths;

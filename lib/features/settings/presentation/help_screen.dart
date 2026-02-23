@@ -20,11 +20,34 @@ class HelpScreen extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
 
     final sections = <_HelpSection>[
+      // ── Connection & Discovery ──
       _HelpSection(
         icon: Icons.wifi_find,
         title: AppLocalizations.get('helpDiscovery', locale),
         body: AppLocalizations.get('helpDiscoveryDesc', locale),
       ),
+      _HelpSection(
+        icon: Icons.qr_code_scanner,
+        title: AppLocalizations.get('helpQrPairing', locale),
+        body: AppLocalizations.get('helpQrPairingDesc', locale),
+      ),
+      _HelpSection(
+        icon: Icons.edit_note,
+        title: AppLocalizations.get('helpManualIp', locale),
+        body: AppLocalizations.get('helpManualIpDesc', locale),
+      ),
+      _HelpSection(
+        icon: Icons.link,
+        title: AppLocalizations.get('helpMagicLink', locale),
+        body: AppLocalizations.get('helpMagicLinkDesc', locale),
+      ),
+      _HelpSection(
+        icon: Icons.wifi_tethering,
+        title: AppLocalizations.get('helpHotspot', locale),
+        body: AppLocalizations.get('helpHotspotDesc', locale),
+      ),
+
+      // ── File Transfer ──
       _HelpSection(
         icon: Icons.send_rounded,
         title: AppLocalizations.get('helpSendFiles', locale),
@@ -35,17 +58,91 @@ class HelpScreen extends StatelessWidget {
         title: AppLocalizations.get('helpReceiveFiles', locale),
         body: AppLocalizations.get('helpReceiveFilesDesc', locale),
       ),
-      _HelpSection(
-        icon: Icons.qr_code_scanner,
-        title: AppLocalizations.get('helpQrPairing', locale),
-        body: AppLocalizations.get('helpQrPairingDesc', locale),
-      ),
-      if (Platform.isWindows)
+      if (Platform.isWindows || Platform.isLinux || Platform.isMacOS)
         _HelpSection(
-          icon: Icons.sync,
-          title: AppLocalizations.get('helpSync', locale),
-          body: AppLocalizations.get('helpSyncDesc', locale),
+          icon: Icons.drag_indicator,
+          title: AppLocalizations.get('helpDragDrop', locale),
+          body: AppLocalizations.get('helpDragDropDesc', locale),
         ),
+      _HelpSection(
+        icon: Icons.refresh,
+        title: AppLocalizations.get('helpResume', locale),
+        body: AppLocalizations.get('helpResumeDesc', locale),
+      ),
+      if (!Platform.isWindows && !Platform.isLinux && !Platform.isMacOS)
+        _HelpSection(
+          icon: Icons.notifications_active,
+          title: AppLocalizations.get('helpBackground', locale),
+          body: AppLocalizations.get('helpBackgroundDesc', locale),
+        ),
+
+      // ── Clipboard ──
+      _HelpSection(
+        icon: Icons.content_paste,
+        title: AppLocalizations.get('helpClipboard', locale),
+        body: AppLocalizations.get('helpClipboardDesc', locale),
+      ),
+
+      // ── Folder Sync ──
+      _HelpSection(
+        icon: Icons.sync,
+        title: AppLocalizations.get('helpSync', locale),
+        body: AppLocalizations.get('helpSyncDesc', locale),
+      ),
+      _HelpSection(
+        icon: Icons.work_outline,
+        title: AppLocalizations.get('helpSyncJobs', locale),
+        body: AppLocalizations.get('helpSyncJobsDesc', locale),
+      ),
+      _HelpSection(
+        icon: Icons.swap_horiz,
+        title: AppLocalizations.get('helpSyncDirection', locale),
+        body: AppLocalizations.get('helpSyncDirectionDesc', locale),
+      ),
+      _HelpSection(
+        icon: Icons.photo_camera,
+        title: AppLocalizations.get('helpSyncPhotoMode', locale),
+        body: AppLocalizations.get('helpSyncPhotoModeDesc', locale),
+      ),
+      _HelpSection(
+        icon: Icons.delete_sweep,
+        title: AppLocalizations.get('helpMirrorDeletions', locale),
+        body: AppLocalizations.get('helpMirrorDeletionsDesc', locale),
+      ),
+      _HelpSection(
+        icon: Icons.filter_alt_outlined,
+        title: AppLocalizations.get('helpSyncFilters', locale),
+        body: AppLocalizations.get('helpSyncFiltersDesc', locale),
+      ),
+      _HelpSection(
+        icon: Icons.bolt,
+        title: AppLocalizations.get('helpAutoSync', locale),
+        body: AppLocalizations.get('helpAutoSyncDesc', locale),
+      ),
+      _HelpSection(
+        icon: Icons.folder_special,
+        title: AppLocalizations.get('helpSyncReceiveFolder', locale),
+        body: AppLocalizations.get('helpSyncReceiveFolderDesc', locale),
+      ),
+      _HelpSection(
+        icon: Icons.handshake_outlined,
+        title: AppLocalizations.get('helpSyncPairing', locale),
+        body: AppLocalizations.get('helpSyncPairingDesc', locale),
+      ),
+
+      // ── Server Sync (SFTP) ──
+      _HelpSection(
+        icon: Icons.cloud_sync_rounded,
+        title: AppLocalizations.get('helpServerSync', locale),
+        body: AppLocalizations.get('helpServerSyncDesc', locale),
+      ),
+
+      // ── Other ──
+      _HelpSection(
+        icon: Icons.language,
+        title: AppLocalizations.get('helpWebPortal', locale),
+        body: AppLocalizations.get('helpWebPortalDesc', locale),
+      ),
       _HelpSection(
         icon: Icons.tv,
         title: AppLocalizations.get('helpTvMode', locale),
@@ -58,6 +155,9 @@ class HelpScreen extends StatelessWidget {
       AppLocalizations.get('helpTip2', locale),
       AppLocalizations.get('helpTip3', locale),
       AppLocalizations.get('helpTip4', locale),
+      AppLocalizations.get('helpTip5', locale),
+      AppLocalizations.get('helpTip6', locale),
+      AppLocalizations.get('helpTip7', locale),
     ];
 
     return Scaffold(

@@ -8,12 +8,11 @@ import 'package:file_picker/file_picker.dart';
 import 'package:anyware/features/discovery/domain/device.dart';
 import 'package:anyware/features/discovery/presentation/providers.dart';
 import 'package:anyware/features/pairing/presentation/manual_ip_dialog.dart';
-import 'package:anyware/features/pairing/presentation/qr_display_dialog.dart';
-import 'package:anyware/features/pairing/presentation/qr_scan_screen.dart';
+import 'package:anyware/features/pairing/presentation/qr_options_dialog.dart';
 import 'package:anyware/features/transfer/presentation/providers.dart';
 import 'package:anyware/features/settings/presentation/providers.dart';
 import 'package:anyware/i18n/app_localizations.dart';
-import 'package:anyware/core/tv_detector.dart';
+import 'package:anyware/widgets/desktop_content_shell.dart';
 
 /// Provider that holds file paths shared via Explorer context menu (--share).
 /// When set, the device list screen will show a device picker dialog.
@@ -58,145 +57,145 @@ class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
       _currentDevices = devices;
     });
 
-    final body = Scaffold(
-      appBar: AppBar(
-        title: Text(AppLocalizations.get('devices', locale)),
-        actions: [
-          // QR button: scan on mobile, show on desktop
-          if (Platform.isAndroid || Platform.isIOS)
-            IconButton(
-              icon: const Icon(Icons.qr_code_scanner),
-              tooltip: AppLocalizations.get('scanQrTitle', locale),
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => QrScanScreen(locale: locale),
-                  ),
-                );
-              },
-            )
-          else
-            IconButton(
-              icon: const Icon(Icons.qr_code_rounded),
-              tooltip: AppLocalizations.get('pairDevice', locale),
-              onPressed: () {
-                showDialog(
-                  context: context,
-                  builder: (_) => QrDisplayDialog(locale: locale),
-                );
-              },
+    final headerActions = <Widget>[
+      IconButton(
+        icon: const Icon(Icons.qr_code_rounded),
+        tooltip: AppLocalizations.get('qrOptions', locale),
+        onPressed: () {
+          showDialog(
+            context: context,
+            builder: (_) => QrOptionsDialog(locale: locale),
+          );
+        },
+      ),
+      IconButton(
+        icon: const Icon(Icons.add_link),
+        tooltip: AppLocalizations.get('addManually', locale),
+        onPressed: () {
+          showDialog(
+            context: context,
+            builder: (_) => ManualIpDialog(locale: locale),
+          );
+        },
+      ),
+      IconButton(
+        icon: const Icon(Icons.refresh),
+        tooltip: AppLocalizations.get('scanning', locale),
+        onPressed: () {
+          ref.read(refreshDiscoveryProvider)();
+        },
+      ),
+    ];
+
+    final bodyContent = RefreshIndicator(
+      onRefresh: () async {
+        await ref.read(refreshDiscoveryProvider)();
+      },
+      child: ListView(
+        padding: const EdgeInsets.only(top: 8, bottom: 24),
+        children: [
+          // --- Local device header card ---
+          localDeviceAsync.when(
+            data: (localDevice) => _LocalDeviceCard(
+              device: localDevice,
+              locale: locale,
             ),
-          IconButton(
-            icon: const Icon(Icons.add_link),
-            tooltip: AppLocalizations.get('addManually', locale),
-            onPressed: () {
-              showDialog(
-                context: context,
-                builder: (_) => ManualIpDialog(locale: locale),
+            loading: () => const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+            error: (error, _) => Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                error.toString(),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.error,
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 8),
+
+          // --- Discovered devices ---
+          devicesAsync.when(
+            data: (devices) {
+              if (devices.isEmpty) {
+                return _EmptyDevicesView(locale: locale);
+              }
+              return Column(
+                children: [
+                  for (int i = 0; i < devices.length; i++)
+                    _DeviceDropTarget(
+                      device: devices[i],
+                      locale: locale,
+                      isDragging: _isDragging,
+                      autofocus: i == 0,
+                      onSendFile: () =>
+                          _pickAndSendFile(context, ref, devices[i]),
+                      onFilesDropped: (paths) {
+                        _dropHandledByCard = true;
+                        _sendFilesToDevice(context, ref, devices[i], paths);
+                      },
+                    ),
+                ],
               );
             },
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: AppLocalizations.get('scanning', locale),
-            onPressed: () {
-              ref.read(refreshDiscoveryProvider)();
-            },
+            loading: () => const Padding(
+              padding: EdgeInsets.symmetric(vertical: 48),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+            error: (error, _) => Padding(
+              padding: const EdgeInsets.all(24),
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.error_outline,
+                      size: 48,
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      error.toString(),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    OutlinedButton.icon(
+                      onPressed: () => ref.read(refreshDiscoveryProvider)(),
+                      icon: const Icon(Icons.refresh),
+                      label: Text(AppLocalizations.get('retry', locale)),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          await ref.read(refreshDiscoveryProvider)();
-        },
-        child: ListView(
-          padding: const EdgeInsets.only(top: 8, bottom: 24),
-          children: [
-            // --- Local device header card ---
-            localDeviceAsync.when(
-              data: (localDevice) => _LocalDeviceCard(
-                device: localDevice,
-                locale: locale,
-              ),
-              loading: () => const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                child: Center(child: CircularProgressIndicator()),
-              ),
-              error: (error, _) => Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(
-                  error.toString(),
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.error,
-                  ),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 8),
-
-            // --- Discovered devices ---
-            devicesAsync.when(
-              data: (devices) {
-                if (devices.isEmpty) {
-                  return _EmptyDevicesView(locale: locale);
-                }
-                return Column(
-                  children: [
-                    for (int i = 0; i < devices.length; i++)
-                      _DeviceDropTarget(
-                        device: devices[i],
-                        locale: locale,
-                        isDragging: _isDragging,
-                        autofocus: i == 0,
-                        onSendFile: () =>
-                            _pickAndSendFile(context, ref, devices[i]),
-                        onFilesDropped: (paths) {
-                          _dropHandledByCard = true;
-                          _sendFilesToDevice(context, ref, devices[i], paths);
-                        },
-                      ),
-                  ],
-                );
-              },
-              loading: () => const Padding(
-                padding: EdgeInsets.symmetric(vertical: 48),
-                child: Center(child: CircularProgressIndicator()),
-              ),
-              error: (error, _) => Padding(
-                padding: const EdgeInsets.all(24),
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.error_outline,
-                        size: 48,
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        error.toString(),
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.error,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      OutlinedButton.icon(
-                        onPressed: () => ref.read(refreshDiscoveryProvider)(),
-                        icon: const Icon(Icons.refresh),
-                        label: Text(AppLocalizations.get('retry', locale)),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
+
+    final Widget screen;
+    if (DesktopShellScope.of(context)) {
+      screen = DesktopContentShell(
+        title: AppLocalizations.get('devices', locale),
+        maxWidth: 1100,
+        actions: headerActions,
+        child: bodyContent,
+      );
+    } else {
+      screen = Scaffold(
+        appBar: AppBar(
+          title: Text(AppLocalizations.get('devices', locale)),
+          actions: headerActions,
+        ),
+        body: bodyContent,
+      );
+    }
 
     // Wrap with DropTarget only on desktop platforms.
     if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
@@ -220,14 +219,14 @@ class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
         },
         child: Stack(
           children: [
-            body,
+            screen,
             if (_isDragging) _DragOverlay(locale: locale),
           ],
         ),
       );
     }
 
-    return body;
+    return screen;
   }
 
   // -------------------------------------------------------------------------
