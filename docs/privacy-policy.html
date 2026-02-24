@@ -32,6 +32,11 @@
             margin: 28px 0 12px;
             color: #1a1a1a;
         }
+        h3 {
+            font-size: 1.1rem;
+            margin: 18px 0 8px;
+            color: #333;
+        }
         p, li {
             margin-bottom: 12px;
             color: #444;
@@ -46,6 +51,13 @@
             border-radius: 4px;
             margin: 20px 0;
         }
+        .warning {
+            background: #fff3e0;
+            border-left: 4px solid #ff9800;
+            padding: 16px 20px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
         .footer {
             margin-top: 48px;
             padding-top: 24px;
@@ -55,71 +67,148 @@
         }
         a { color: #007AFF; text-decoration: none; }
         a:hover { text-decoration: underline; }
+        code { background: #eee; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Privacy Policy</h1>
-        <p class="subtitle">LifeOS AnyWhere &mdash; Last updated: February 19, 2026</p>
+        <p class="subtitle">LifeOS AnyWhere &mdash; Last updated: February 24, 2026</p>
 
         <div class="highlight">
-            <strong>Summary:</strong> LifeOS AnyWhere operates entirely on your local network. We do not collect, store, or transmit any personal data to external servers. All file transfers happen directly between your devices over Wi-Fi.
+            <strong>Summary:</strong> LifeOS AnyWhere is a file synchronization app that works both on your local network and with cloud storage services (Google Drive, OneDrive). We do not operate any backend servers. All your data stays on your devices and your own cloud storage accounts. We do not collect, store, or transmit any personal data.
         </div>
 
         <h2>1. Introduction</h2>
-        <p>LifeOS AnyWhere ("the App") is a free, open-source, cross-platform application for sharing files, clipboard content, and folders between devices on the same local network. This privacy policy explains how the App handles your data.</p>
+        <p>LifeOS AnyWhere ("the App") is a free, open-source, cross-platform application for sharing and synchronizing files between your devices. The App supports:</p>
+        <ul>
+            <li><strong>Local Network Sync:</strong> Direct device-to-device file transfer over your Wi-Fi network.</li>
+            <li><strong>Google Drive Sync:</strong> Synchronize local folders with your Google Drive storage.</li>
+            <li><strong>OneDrive Sync:</strong> Synchronize local folders with your Microsoft OneDrive storage.</li>
+            <li><strong>SFTP Server Sync:</strong> Synchronize local folders with remote SFTP servers.</li>
+        </ul>
+        <p>This privacy policy explains how the App handles your data across all these features.</p>
 
         <h2>2. Data Collection</h2>
-        <p>The App does <strong>not</strong> collect, store, or transmit any personal data to remote servers. Specifically:</p>
+        <p>The App does <strong>not</strong> collect, store, or transmit any personal data to remote servers operated by us. Specifically:</p>
         <ul>
             <li>No analytics or tracking services are used.</li>
             <li>No crash reporting services are used.</li>
             <li>No advertising SDKs are included.</li>
-            <li>No user accounts or registration are required.</li>
+            <li>No user accounts or registration with us are required.</li>
             <li>No data is sent to the developer or any third party.</li>
         </ul>
 
-        <h2>3. Local Network Communication</h2>
-        <p>The App communicates exclusively over your local Wi-Fi network to:</p>
+        <h2>3. Google Drive Access</h2>
+
+        <div class="warning">
+            <strong>Scope used:</strong> This app requests the <code>https://www.googleapis.com/auth/drive</code> scope (Google Drive full access).
+        </div>
+
+        <h3>What we access and why</h3>
         <ul>
-            <li><strong>Discover devices:</strong> The App sends UDP multicast packets on your local network to find other devices running LifeOS AnyWhere.</li>
-            <li><strong>Transfer files:</strong> Files are sent directly from one device to another over your local network using HTTP. No data passes through external servers.</li>
-            <li><strong>Share clipboard:</strong> Clipboard text and images are transferred directly between devices on the local network.</li>
-            <li><strong>Sync folders:</strong> Folder synchronization operates between devices on the same local network.</li>
+            <li><strong>Browse folders:</strong> We list your Google Drive folder structure so you can choose which folder to synchronize with. This is necessary because the App lets you pick any existing folder as a sync destination.</li>
+            <li><strong>Upload files:</strong> When you configure a sync job, the App uploads files from your selected local folder to your chosen Google Drive folder.</li>
+            <li><strong>Download files:</strong> For bidirectional sync, the App downloads files from your chosen Google Drive folder to your local device.</li>
+            <li><strong>Create folders:</strong> The App may create subfolders in your chosen sync destination if they don't already exist.</li>
         </ul>
 
-        <h2>4. Permissions</h2>
-        <p>The App requests the following permissions, all of which are used solely for local network functionality:</p>
+        <h3>What we do NOT do</h3>
         <ul>
-            <li><strong>Internet &amp; Wi-Fi State:</strong> Required for local network device discovery and file transfer.</li>
-            <li><strong>Storage:</strong> Required to read files you choose to share and to save received files.</li>
+            <li>We do <strong>not</strong> access files outside of the folders you explicitly select for synchronization.</li>
+            <li>We do <strong>not</strong> copy, index, or scan your Google Drive contents for any purpose other than the sync operation you configure.</li>
+            <li>We do <strong>not</strong> store your Google Drive files on any server — files are transferred directly between your device and Google's servers.</li>
+            <li>We do <strong>not</strong> share your Google Drive data with any third party.</li>
+        </ul>
+
+        <h3>Authentication</h3>
+        <p>The App uses OAuth 2.0 to authenticate with Google. Your Google password is never seen or stored by the App. The OAuth access token and refresh token are stored in your device's platform-native secure storage:</p>
+        <ul>
+            <li><strong>Windows:</strong> Windows Credential Manager</li>
+            <li><strong>macOS:</strong> Keychain</li>
+            <li><strong>Linux:</strong> libsecret</li>
+            <li><strong>Android:</strong> Android Keystore</li>
+        </ul>
+
+        <h3>Revoking access</h3>
+        <p>You can revoke the App's access to your Google Drive at any time by visiting <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">Google Account Permissions</a> and removing "LifeOS AnyWhere".</p>
+
+        <h2>4. Microsoft OneDrive Access</h2>
+
+        <h3>Permissions requested</h3>
+        <ul>
+            <li><code>Files.ReadWrite</code> — To browse, upload, and download files in your OneDrive for the sync folders you select.</li>
+            <li><code>User.Read</code> — To display your account name and email in the App's interface so you can identify which account is connected.</li>
+            <li><code>offline_access</code> — To maintain your connection without requiring you to sign in repeatedly.</li>
+        </ul>
+
+        <h3>Data handling</h3>
+        <p>The same principles apply as with Google Drive: we only access the folders you select, we don't store your files on any server, and all data transfers happen directly between your device and Microsoft's servers.</p>
+
+        <h3>Revoking access</h3>
+        <p>You can revoke the App's access at any time by visiting <a href="https://account.live.com/consent/Manage" target="_blank" rel="noopener">Microsoft Account Permissions</a>.</p>
+
+        <h2>5. SFTP Server Access</h2>
+        <p>When you configure an SFTP server, the App stores connection details (host, port, username, SSH key path) locally on your device using encrypted storage. Passwords and SSH private keys are never transmitted to any third party. All SFTP communication is encrypted via SSH.</p>
+
+        <h2>6. Local Network Communication</h2>
+        <p>For local device-to-device sync, the App communicates exclusively over your local Wi-Fi network:</p>
+        <ul>
+            <li><strong>Device discovery:</strong> UDP multicast packets on your local network to find other devices running LifeOS AnyWhere.</li>
+            <li><strong>File transfer:</strong> Direct device-to-device transfer over your local network. No data passes through external servers.</li>
+            <li><strong>Clipboard sync:</strong> Clipboard text and images are transferred directly between devices on the local network.</li>
+        </ul>
+
+        <h2>7. Permissions</h2>
+        <ul>
+            <li><strong>Internet &amp; Wi-Fi State:</strong> Required for local network device discovery, file transfer, and cloud storage API communication.</li>
+            <li><strong>Storage:</strong> Required to read files you choose to share/sync and to save received files.</li>
             <li><strong>Location (Android):</strong> Required by Android to obtain Wi-Fi network name (SSID) for device discovery. The App does not track your geographic location.</li>
             <li><strong>Camera:</strong> Used only for scanning QR codes to quickly connect devices. No photos or videos are captured or stored.</li>
             <li><strong>Notifications:</strong> Used to show file transfer progress and completion status.</li>
             <li><strong>Nearby Wi-Fi Devices (Android 13+):</strong> Required by Android for local network peer discovery.</li>
         </ul>
 
-        <h2>5. Data Storage</h2>
+        <h2>8. Data Storage</h2>
         <ul>
             <li><strong>Received files</strong> are saved to the location you choose on your device.</li>
-            <li><strong>Transfer history</strong> and <strong>clipboard history</strong> are stored locally on your device using SharedPreferences. This data never leaves your device.</li>
+            <li><strong>OAuth tokens</strong> (Google, Microsoft) are stored in platform-native secure storage (Keychain, Credential Manager, libsecret, Keystore). They never leave your device.</li>
+            <li><strong>Sync configuration</strong> (job names, folder paths, schedules) is stored locally on your device.</li>
+            <li><strong>Transfer history</strong> and <strong>clipboard history</strong> are stored locally using SharedPreferences.</li>
             <li><strong>App settings</strong> (theme, language, download path) are stored locally on your device.</li>
         </ul>
 
-        <h2>6. Third-Party Services</h2>
-        <p>The App does not integrate with any third-party services, analytics platforms, or advertising networks.</p>
+        <h2>9. Data Retention</h2>
+        <ul>
+            <li>Uninstalling the App removes all locally stored data including OAuth tokens.</li>
+            <li>You can disconnect cloud accounts at any time from the App, which deletes stored OAuth tokens.</li>
+            <li>You can revoke the App's access from your Google or Microsoft account settings at any time.</li>
+        </ul>
 
-        <h2>7. Children's Privacy</h2>
+        <h2>10. Third-Party Services</h2>
+        <p>The App communicates with the following services <strong>only when you explicitly configure cloud sync</strong>:</p>
+        <ul>
+            <li><strong>Google APIs</strong> (accounts.google.com, googleapis.com) — For Google Drive authentication and file operations.</li>
+            <li><strong>Microsoft APIs</strong> (login.microsoftonline.com, graph.microsoft.com) — For OneDrive authentication and file operations.</li>
+        </ul>
+        <p>No other third-party services, analytics platforms, or advertising networks are used.</p>
+
+        <h2>11. Children's Privacy</h2>
         <p>The App does not collect any personal information from anyone, including children under the age of 13. The App is a general-purpose utility tool and is not directed at children.</p>
 
-        <h2>8. Open Source</h2>
+        <h2>12. Open Source</h2>
         <p>LifeOS AnyWhere is open source under the MIT License. You can review the complete source code at <a href="https://github.com/07erkanoz/lifeos-anywhere" target="_blank" rel="noopener">github.com/07erkanoz/lifeos-anywhere</a>.</p>
 
-        <h2>9. Changes to This Policy</h2>
+        <h2>13. Changes to This Policy</h2>
         <p>If we make changes to this privacy policy, we will update the "Last updated" date above. We encourage you to review this page periodically.</p>
 
-        <h2>10. Contact</h2>
-        <p>If you have questions about this privacy policy, please open an issue on our <a href="https://github.com/07erkanoz/lifeos-anywhere/issues" target="_blank" rel="noopener">GitHub repository</a> or visit <a href="https://lifeos.com.tr" target="_blank" rel="noopener">lifeos.com.tr</a>.</p>
+        <h2>14. Contact</h2>
+        <p>If you have questions about this privacy policy:</p>
+        <ul>
+            <li><strong>Email:</strong> <a href="mailto:erkanoz07@gmail.com">erkanoz07@gmail.com</a></li>
+            <li><strong>Website:</strong> <a href="https://lifeos.com.tr" target="_blank" rel="noopener">lifeos.com.tr</a></li>
+            <li><strong>GitHub:</strong> <a href="https://github.com/07erkanoz/lifeos-anywhere/issues" target="_blank" rel="noopener">github.com/07erkanoz/lifeos-anywhere</a></li>
+        </ul>
 
         <div class="footer">
             <p>&copy; 2025-2026 LifeOS &middot; <a href="https://lifeos.com.tr">lifeos.com.tr</a> &middot; All rights reserved.</p>
