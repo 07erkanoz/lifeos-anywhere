@@ -7,6 +7,7 @@ import 'package:anyware/features/server_sync/domain/server_sync_job.dart';
 import 'package:anyware/features/server_sync/domain/server_sync_state.dart';
 import 'package:anyware/features/server_sync/domain/sync_account.dart';
 import 'package:anyware/features/server_sync/presentation/server_config_dialog.dart';
+import 'package:anyware/features/server_sync/presentation/server_sync_job_detail.dart';
 import 'package:anyware/features/server_sync/presentation/server_sync_job_wizard.dart';
 import 'package:anyware/features/settings/presentation/providers.dart';
 import 'package:anyware/features/sync/domain/sync_state.dart';
@@ -369,6 +370,7 @@ class _ServerSyncScreenState extends ConsumerState<ServerSyncScreen> {
     }
 
     return GestureDetector(
+      onTap: () => _openJobDetail(context, job),
       onSecondaryTapUp: (details) =>
           _showJobContextMenu(context, details.globalPosition, job, locale),
       child: Padding(
@@ -634,6 +636,13 @@ class _ServerSyncScreenState extends ConsumerState<ServerSyncScreen> {
   void _showServerDialog(BuildContext context,
       {SyncAccount? server}) {
     _showAccountDialog(context, account: server);
+  }
+
+  void _openJobDetail(BuildContext context, ServerSyncJob job) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+          builder: (_) => ServerSyncJobDetail(jobId: job.id)),
+    );
   }
 
   void _openJobWizard(BuildContext context, {SyncAccount? preselectedAccount}) {
