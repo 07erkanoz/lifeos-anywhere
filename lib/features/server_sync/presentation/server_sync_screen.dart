@@ -614,12 +614,20 @@ class _ServerSyncScreenState extends ConsumerState<ServerSyncScreen> {
     return '${local.day}/${local.month}/${local.year}';
   }
 
-  void _showAccountDialog(BuildContext context,
-      {SyncAccount? account}) {
-    showDialog(
+  Future<void> _showAccountDialog(BuildContext context,
+      {SyncAccount? account}) async {
+    final isNew = account == null;
+    final result = await showDialog<Object>(
       context: context,
       builder: (_) => ServerConfigDialog(account: account),
     );
+
+    // If a NEW account was just created, auto-open the sync job wizard
+    // with that account pre-selected so the user can configure a job
+    // in one continuous flow.
+    if (isNew && result is SyncAccount && mounted) {
+      _openJobWizard(context, preselectedAccount: result);
+    }
   }
 
   /// @deprecated Use [_showAccountDialog].
@@ -628,10 +636,12 @@ class _ServerSyncScreenState extends ConsumerState<ServerSyncScreen> {
     _showAccountDialog(context, account: server);
   }
 
-  void _openJobWizard(BuildContext context) {
+  void _openJobWizard(BuildContext context, {SyncAccount? preselectedAccount}) {
     Navigator.of(context).push(
       MaterialPageRoute(
-          builder: (_) => const ServerSyncJobWizard()),
+          builder: (_) => ServerSyncJobWizard(
+                preselectedAccount: preselectedAccount,
+              )),
     );
   }
 

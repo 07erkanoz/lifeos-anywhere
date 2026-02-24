@@ -18,7 +18,11 @@ import 'package:anyware/i18n/app_localizations.dart';
 
 /// 3-step wizard for creating a new server sync job.
 class ServerSyncJobWizard extends ConsumerStatefulWidget {
-  const ServerSyncJobWizard({super.key});
+  const ServerSyncJobWizard({super.key, this.preselectedAccount});
+
+  /// When non-null the wizard pre-selects this account as the target server,
+  /// so the user coming from "Add Server" doesn't have to pick it again.
+  final SyncAccount? preselectedAccount;
 
   @override
   ConsumerState<ServerSyncJobWizard> createState() =>
@@ -50,6 +54,14 @@ class _ServerSyncJobWizardState extends ConsumerState<ServerSyncJobWizard> {
     'desktop.ini',
   ];
   final _filterController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.preselectedAccount != null) {
+      _targetAccount = widget.preselectedAccount;
+    }
+  }
 
   @override
   void dispose() {
@@ -369,32 +381,71 @@ class _ServerSyncJobWizardState extends ConsumerState<ServerSyncJobWizard> {
                 )),
           const SizedBox(height: 16),
 
-          // Remote subfolder (optional) + Browse button
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _remoteSubPathController,
-                  decoration: InputDecoration(
-                    labelText: AppLocalizations.get(
-                        'serverSyncRemoteSubfolder', locale),
-                    hintText: 'Documents',
-                    prefixIcon: const Icon(
-                        Icons.subdirectory_arrow_right_rounded,
-                        size: 20),
-                  ),
+          // Remote folder — browse button
+          Text(AppLocalizations.get('serverSyncRemoteSubfolder', locale),
+              style:
+                  const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+          const SizedBox(height: 8),
+          InkWell(
+            onTap: _targetAccount != null
+                ? () => _browseRemoteFolder(locale)
+                : null,
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: _targetAccount != null
+                      ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.5)
+                      : Colors.grey.shade700,
                 ),
-              ),
-              const SizedBox(width: 8),
-              IconButton.filledTonal(
-                onPressed: _targetAccount != null
-                    ? () => _browseRemoteFolder(locale)
+                borderRadius: BorderRadius.circular(8),
+                color: _targetAccount != null
+                    ? Theme.of(context)
+                        .colorScheme
+                        .primary
+                        .withValues(alpha: 0.05)
                     : null,
-                icon: const Icon(Icons.folder_open_rounded, size: 20),
-                tooltip: AppLocalizations.get('browseRemoteFolder', locale),
               ),
-            ],
+              child: Row(
+                children: [
+                  Icon(Icons.cloud_rounded,
+                      size: 20,
+                      color: _targetAccount != null
+                          ? Theme.of(context).colorScheme.primary
+                          : Colors.grey),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _remoteSubPathController.text.isNotEmpty
+                          ? _remoteSubPathController.text
+                          : AppLocalizations.get(
+                              'browseRemoteFolder', locale),
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: _remoteSubPathController.text.isNotEmpty
+                            ? null
+                            : Colors.grey,
+                      ),
+                    ),
+                  ),
+                  if (_targetAccount != null)
+                    Icon(Icons.folder_open_rounded,
+                        size: 18,
+                        color: Theme.of(context).colorScheme.primary),
+                ],
+              ),
+            ),
           ),
+          if (_targetAccount == null)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                AppLocalizations.get('selectServerFirst', locale),
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+              ),
+            ),
         ],
       ),
     );

@@ -237,7 +237,7 @@ class _ServerConfigDialogState extends ConsumerState<ServerConfigDialog> {
       await service.addAccount(account);
     }
 
-    if (mounted) Navigator.of(context).pop(true);
+    if (mounted) Navigator.of(context).pop(account);
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -312,20 +312,21 @@ class _ServerConfigDialogState extends ConsumerState<ServerConfigDialog> {
 
               const SizedBox(height: 12),
 
-              // ── Remote path ──
-              TextField(
-                controller: _remotePathCtrl,
-                decoration: InputDecoration(
-                  labelText:
-                      AppLocalizations.get('serverRemotePath', locale),
-                  hintText: _providerType == SyncProviderType.sftp
-                      ? '/home/user/sync'
-                      : 'Documents/Sync',
-                  prefixIcon:
-                      const Icon(Icons.folder_rounded, size: 20),
+              // ── Remote path (only for SFTP; cloud folder is chosen per job) ──
+              if (_providerType == SyncProviderType.sftp) ...[
+                TextField(
+                  controller: _remotePathCtrl,
+                  decoration: InputDecoration(
+                    labelText:
+                        AppLocalizations.get('serverRemotePath', locale),
+                    hintText: '/home/user/sync',
+                    prefixIcon:
+                        const Icon(Icons.folder_rounded, size: 20),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
+                const SizedBox(height: 16),
+              ] else
+                const SizedBox(height: 16),
 
               // ── Test connection ──
               OutlinedButton.icon(
