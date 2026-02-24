@@ -71,7 +71,6 @@ class _RemoteFolderBrowserState extends State<RemoteFolderBrowser> {
   List<RemoteEntry> _entries = [];
   bool _isLoading = true;
   String? _error;
-  String? _selectedPath;
 
   /// Breadcrumb segments: list of (label, fullPath) pairs.
   List<_Crumb> _breadcrumbs = [];
@@ -99,7 +98,6 @@ class _RemoteFolderBrowserState extends State<RemoteFolderBrowser> {
         _currentPath = path;
         _entries = entries;
         _isLoading = false;
-        _selectedPath = null;
         _buildBreadcrumbs();
       });
     } catch (e) {
@@ -243,12 +241,12 @@ class _RemoteFolderBrowserState extends State<RemoteFolderBrowser> {
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 8),
               itemCount: _breadcrumbs.length,
-              separatorBuilder: (_, _) => Icon(
+              separatorBuilder: (context, index) => Icon(
                 Icons.chevron_right_rounded,
                 size: 16,
                 color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
               ),
-              itemBuilder: (_, i) {
+              itemBuilder: (context, i) {
                 final crumb = _breadcrumbs[i];
                 final isLast = i == _breadcrumbs.length - 1;
                 return Center(
@@ -291,16 +289,15 @@ class _RemoteFolderBrowserState extends State<RemoteFolderBrowser> {
   }
 
   Widget _buildEntryList(bool isDark, Color cardColor) {
-    // Only show directories (this is a folder picker, not a file picker)
     final dirs = _entries.where((e) => e.isDirectory).toList();
     final files = _entries.where((e) => !e.isDirectory).toList();
 
     return ListView(
       padding: const EdgeInsets.symmetric(vertical: 4),
       children: [
-        // Directories
+        // Directories — tap to navigate into
         for (final entry in dirs)
-          _buildEntryTile(entry, isDark, cardColor, isDir: true),
+          _buildDirTile(entry, isDark),
 
         // Files (dimmed, not selectable — shown for context)
         if (files.isNotEmpty) ...[
@@ -315,64 +312,61 @@ class _RemoteFolderBrowserState extends State<RemoteFolderBrowser> {
             ),
           ),
           for (final entry in files)
-            _buildEntryTile(entry, isDark, cardColor, isDir: false),
+            _buildFileTile(entry, isDark),
         ],
       ],
     );
   }
 
-  Widget _buildEntryTile(
-    RemoteEntry entry,
-    bool isDark,
-    Color cardColor, {
-    required bool isDir,
-  }) {
-    final isSelected = _selectedPath == entry.path;
-    final selectedBg =
-        widget.accentColor.withValues(alpha: isDark ? 0.15 : 0.08);
-
+  /// A folder row — tap to navigate into.
+  Widget _buildDirTile(RemoteEntry entry, bool isDark) {
     return ListTile(
       dense: true,
       leading: Icon(
-        isDir ? Icons.folder_rounded : Icons.insert_drive_file_outlined,
+        Icons.folder_rounded,
         size: 20,
-        color: isDir
-            ? widget.accentColor
-            : (isDark ? Colors.grey.shade500 : Colors.grey.shade400),
+        color: widget.accentColor,
+      ),
+      title: Text(
+        entry.name,
+        style: const TextStyle(fontSize: 13),
+        overflow: TextOverflow.ellipsis,
+      ),
+      trailing: Icon(
+        Icons.chevron_right_rounded,
+        size: 18,
+        color: isDark ? Colors.grey.shade500 : Colors.grey.shade400,
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      onTap: () => _navigateTo(entry.path),
+    );
+  }
+
+  /// A file row (dimmed, not interactive — shown for context).
+  Widget _buildFileTile(RemoteEntry entry, bool isDark) {
+    return ListTile(
+      dense: true,
+      leading: Icon(
+        Icons.insert_drive_file_outlined,
+        size: 20,
+        color: isDark ? Colors.grey.shade500 : Colors.grey.shade400,
       ),
       title: Text(
         entry.name,
         style: TextStyle(
           fontSize: 13,
-          color: isDir
-              ? null
-              : (isDark ? Colors.grey.shade500 : Colors.grey.shade400),
+          color: isDark ? Colors.grey.shade500 : Colors.grey.shade400,
         ),
         overflow: TextOverflow.ellipsis,
       ),
-      subtitle: !isDir && entry.size != null
+      subtitle: entry.size != null
           ? Text(_formatSize(entry.size!),
               style: TextStyle(
                   fontSize: 11,
                   color:
                       isDark ? Colors.grey.shade600 : Colors.grey.shade500))
           : null,
-      trailing: isDir
-          ? Icon(
-              Icons.chevron_right_rounded,
-              size: 18,
-              color: isDark ? Colors.grey.shade500 : Colors.grey.shade400,
-            )
-          : null,
-      tileColor: isSelected ? selectedBg : null,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      onTap: isDir
-          ? () {
-              setState(() => _selectedPath = entry.path);
-            }
-          : null,
-      onLongPress: isDir ? () => _navigateTo(entry.path) : null,
-      // Double-tap to enter folder (desktop)
     );
   }
 
@@ -389,6 +383,14 @@ class _RemoteFolderBrowserState extends State<RemoteFolderBrowser> {
             AppLocalizations.get('emptyFolder', locale),
             style: TextStyle(
               color: isDark ? Colors.grey.shade500 : Colors.grey.shade500,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            AppLocalizations.get('remoteBrowseEmptyHint', locale),
+            style: TextStyle(
+              fontSize: 12,
+              color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
             ),
           ),
         ],
@@ -433,31 +435,43 @@ class _RemoteFolderBrowserState extends State<RemoteFolderBrowser> {
         children: [
           // Current path info
           Expanded(
-            child: Text(
-              _selectedPath ?? _currentPath,
-              style: TextStyle(
-                fontSize: 12,
-                color: isDark ? Colors.grey.shade500 : Colors.grey.shade500,
-              ),
-              overflow: TextOverflow.ellipsis,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  AppLocalizations.get('remoteBrowseCurrentFolder', locale),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
+                  ),
+                ),
+                Text(
+                  _currentPath.isEmpty ? '/' : _currentPath,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ),
           ),
           const SizedBox(width: 12),
 
-          // Use current folder button
+          // Cancel button
           TextButton(
-            onPressed: () => Navigator.of(context).pop(_currentPath),
-            child: Text(AppLocalizations.get('remoteBrowseUseCurrent', locale)),
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(AppLocalizations.get('cancel', locale)),
           ),
           const SizedBox(width: 8),
 
-          // Select button (for selected subfolder)
+          // Select This Folder button
           FilledButton.icon(
-            onPressed: _selectedPath != null
-                ? () => Navigator.of(context).pop(_selectedPath)
-                : null,
+            onPressed: () => Navigator.of(context).pop(_currentPath),
             icon: const Icon(Icons.check_rounded, size: 16),
-            label: Text(AppLocalizations.get('select', locale)),
+            label: Text(AppLocalizations.get('remoteBrowseSelectFolder', locale)),
             style: FilledButton.styleFrom(
               backgroundColor: widget.accentColor,
             ),

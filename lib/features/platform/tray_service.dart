@@ -137,10 +137,12 @@ class AppTrayService with TrayListener {
     await windowManager.focus();
   }
 
-  /// Signals a real exit, disables close prevention, and destroys the window.
+  /// Signals a real exit, disables close prevention, destroys the window,
+  /// and terminates the Dart VM process.
   ///
-  /// The actual cleanup is performed by `_MainShellState.onWindowClose()` which
-  /// checks [exitRequested] to bypass the minimize-to-tray logic.
+  /// We explicitly call `exit(0)` because `windowManager.destroy()` only
+  /// tears down the native window — the Dart event loop keeps running if
+  /// background services (TCP server, discovery, etc.) are still alive.
   Future<void> _exitApplication() async {
     exitRequested = true;
     if (onBeforeExit != null) {
@@ -148,6 +150,7 @@ class AppTrayService with TrayListener {
     }
     await windowManager.setPreventClose(false);
     await windowManager.destroy();
+    exit(0);
   }
 
   /// Cleans up the tray and removes the icon.

@@ -116,13 +116,15 @@ class WindowsTrayService with TrayListener {
     await windowManager.focus();
   }
 
-  /// Runs cleanup, disables close prevention, and destroys the window.
+  /// Runs cleanup, disables close prevention, destroys the window, and
+  /// terminates the process.
   Future<void> _exitApplication() async {
     if (onBeforeExit != null) {
       await onBeforeExit!();
     }
     await windowManager.setPreventClose(false);
     await windowManager.destroy();
+    exit(0);
   }
 
   /// Cleans up the tray listener and removes the tray icon.

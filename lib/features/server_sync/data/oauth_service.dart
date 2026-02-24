@@ -410,15 +410,23 @@ class OAuthService {
   // ═══════════════════════════════════════════════════════════════════════════
 
   Future<OAuthToken> _refreshGoogleToken(OAuthToken expired) async {
+    // Use the platform-aware client ID: Android tokens are bound to the
+    // Android client ID, Desktop tokens to the Desktop client ID.
+    final body = <String, String>{
+      'client_id': CloudCredentials.googleActiveClientId,
+      'refresh_token': expired.refreshToken!,
+      'grant_type': 'refresh_token',
+    };
+
+    // Desktop clients need client_secret; Android (SHA-1 verified) does not.
+    if (!_isMobile) {
+      body['client_secret'] = CloudCredentials.googleClientSecret;
+    }
+
     final resp = await _http.post(
       Uri.parse(CloudCredentials.googleTokenUri),
       headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-      body: {
-        'client_id': CloudCredentials.googleClientId,
-        'client_secret': CloudCredentials.googleClientSecret,
-        'refresh_token': expired.refreshToken!,
-        'grant_type': 'refresh_token',
-      },
+      body: body,
     );
 
     if (resp.statusCode != 200) {
@@ -490,9 +498,12 @@ class OAuthService {
   }
 
   /// Open a URL in the system browser.
+  ///
+  /// On Windows, uses rundll32 to avoid cmd.exe interpreting `&`
+  /// characters in OAuth URLs as command separators.
   Future<void> _openUrl(String url) async {
     if (Platform.isWindows) {
-      await Process.run('cmd', ['/c', 'start', url]);
+      await Process.run('rundll32', ['url.dll,FileProtocolHandler', url]);
     } else if (Platform.isMacOS) {
       await Process.run('open', [url]);
     } else if (Platform.isLinux) {
