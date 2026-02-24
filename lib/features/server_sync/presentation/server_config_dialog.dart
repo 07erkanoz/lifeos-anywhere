@@ -48,11 +48,16 @@ class _ServerConfigDialogState extends ConsumerState<ServerConfigDialog> {
   bool _isTesting = false;
   String? _testResult;
 
+  /// Stable ID for this account — generated once so the OAuth token and
+  /// the persisted [SyncAccount] always share the same identifier.
+  late final String _accountId;
+
   bool get _isEditing => widget.account != null;
 
   @override
   void initState() {
     super.initState();
+    _accountId = widget.account?.id ?? const Uuid().v4();
     if (_isEditing) {
       final a = widget.account!;
       _providerType = a.providerType;
@@ -91,7 +96,7 @@ class _ServerConfigDialogState extends ConsumerState<ServerConfigDialog> {
 
     try {
       final oauth = ref.read(oauthServiceProvider);
-      final tempId = widget.account?.id ?? const Uuid().v4();
+      final tempId = _accountId;
 
       if (_providerType == SyncProviderType.gdrive) {
         final token = await oauth.authenticateGoogle(tempId);
@@ -167,7 +172,7 @@ class _ServerConfigDialogState extends ConsumerState<ServerConfigDialog> {
 
   SyncAccount _buildAccount() {
     return SyncAccount(
-      id: widget.account?.id ?? const Uuid().v4(),
+      id: _accountId,
       name: _nameCtrl.text.trim(),
       providerType: _providerType,
       createdAt: widget.account?.createdAt ?? DateTime.now(),
