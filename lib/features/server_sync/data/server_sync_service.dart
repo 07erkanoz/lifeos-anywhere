@@ -10,13 +10,24 @@ import 'package:uuid/uuid.dart';
 import 'package:watcher/watcher.dart';
 
 import 'package:anyware/core/logger.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
+import 'package:anyware/features/server_sync/data/cloud_transport.dart';
+import 'package:anyware/features/server_sync/data/gdrive_transport.dart';
+import 'package:anyware/features/server_sync/data/oauth_service.dart';
+import 'package:anyware/features/server_sync/data/onedrive_transport.dart';
+import 'package:anyware/features/server_sync/data/sftp_cloud_transport.dart';
 import 'package:anyware/features/server_sync/data/sftp_transport.dart';
+import 'package:anyware/features/server_sync/data/token_store.dart';
 import 'package:anyware/features/server_sync/domain/server_sync_job.dart';
 import 'package:anyware/features/server_sync/domain/server_sync_state.dart';
 import 'package:anyware/features/server_sync/domain/sftp_server_config.dart';
+import 'package:anyware/features/server_sync/domain/sync_account.dart';
+import 'package:anyware/features/sync/data/cancellation_token.dart';
 import 'package:anyware/features/sync/data/sync_diff_engine.dart';
 import 'package:anyware/features/sync/data/sync_filter_utils.dart';
 import 'package:anyware/features/sync/data/sync_manifest_store.dart';
+import 'package:anyware/features/sync/data/isolate_scanner.dart';
 import 'package:anyware/features/sync/domain/sync_manifest.dart';
 import 'package:anyware/features/sync/domain/sync_state.dart';
 
@@ -26,6 +37,8 @@ const _uuid = Uuid();
 // ── Providers ────────────────────────────────────────────────────────────────
 
 final sftpTransportProvider = Provider((_) => SftpTransport());
+final tokenStoreProvider = Provider((_) => TokenStore(const FlutterSecureStorage()));
+final oauthServiceProvider = Provider((ref) => OAuthService(ref.read(tokenStoreProvider)));
 
 final serverSyncServiceProvider =
     StateNotifierProvider<ServerSyncService, ServerSyncState>((ref) {
@@ -41,7 +54,8 @@ class ServerSyncService extends StateNotifier<ServerSyncState> {
 
   final Ref ref;
 
-  static const _prefServers = 'sftp_servers_v1';
+  static const _prefAccounts = 'sync_accounts_v1';
+  static const _prefLegacyServers = 'sftp_servers_v1';
   static const _prefJobs = 'sftp_sync_jobs_v1';
 
   SftpTransport get _transport => ref.read(sftpTransportProvider);
@@ -57,12 +71,15 @@ class ServerSyncService extends StateNotifier<ServerSyncState> {
   // Active SFTP sessions for live-watch (kept open).
   final Map<String, SftpSession> _liveSessions = {};
 
+  // Per-job cancellation tokens for cooperative cancellation.
+  final Map<String, CancellationToken> _cancelTokens = {};
+
   // ═══════════════════════════════════════════════════════════════════════════
   // Initialisation & persistence
   // ═══════════════════════════════════════════════════════════════════════════
 
   Future<void> _init() async {
-    await _loadServers();
+    await _loadAccounts();
     await _loadJobs();
     // Auto-resume jobs that were running before the app closed.
     Future.delayed(const Duration(seconds: 4), _autoResumeJobs);
@@ -70,26 +87,45 @@ class ServerSyncService extends StateNotifier<ServerSyncState> {
 
   Future<SharedPreferences> get _prefs => SharedPreferences.getInstance();
 
-  Future<void> _loadServers() async {
+  /// Load accounts from SharedPreferences, with migration from legacy format.
+  Future<void> _loadAccounts() async {
     try {
       final prefs = await _prefs;
-      final raw = prefs.getString(_prefServers);
+
+      // Try new format first.
+      final raw = prefs.getString(_prefAccounts);
       if (raw != null) {
         final list = (jsonDecode(raw) as List<dynamic>)
+            .map((e) => SyncAccount.fromJson(e as Map<String, dynamic>))
+            .toList();
+        state = state.copyWith(accounts: list);
+        return;
+      }
+
+      // Migration: read legacy sftp_servers_v1 format.
+      final legacyRaw = prefs.getString(_prefLegacyServers);
+      if (legacyRaw != null) {
+        _log.info('Migrating legacy sftp_servers_v1 to sync_accounts_v1');
+        final legacyList = (jsonDecode(legacyRaw) as List<dynamic>)
             .map((e) =>
                 SftpServerConfig.fromJson(e as Map<String, dynamic>))
             .toList();
-        state = state.copyWith(servers: list);
+        final accounts = legacyList
+            .map((s) => SyncAccount.fromSftpConfig(s))
+            .toList();
+        state = state.copyWith(accounts: accounts);
+        await _saveAccounts();
+        // Keep legacy key for rollback safety.
       }
     } catch (e) {
-      _log.error('Failed to load servers: $e', error: e);
+      _log.error('Failed to load accounts: $e', error: e);
     }
   }
 
-  Future<void> _saveServers() async {
+  Future<void> _saveAccounts() async {
     final prefs = await _prefs;
-    final json = state.servers.map((s) => s.toJson()).toList();
-    await prefs.setString(_prefServers, jsonEncode(json));
+    final json = state.accounts.map((a) => a.toJson()).toList();
+    await prefs.setString(_prefAccounts, jsonEncode(json));
   }
 
   Future<void> _loadJobs() async {
@@ -132,50 +168,88 @@ class ServerSyncService extends StateNotifier<ServerSyncState> {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // Server CRUD
+  // Account CRUD
   // ═══════════════════════════════════════════════════════════════════════════
 
-  Future<String> addServer(SftpServerConfig server) async {
-    state = state.copyWith(servers: [...state.servers, server]);
-    await _saveServers();
-    return server.id;
+  Future<String> addAccount(SyncAccount account) async {
+    state = state.copyWith(accounts: [...state.accounts, account]);
+    await _saveAccounts();
+    return account.id;
   }
 
-  Future<void> updateServer(SftpServerConfig server) async {
-    final servers = state.servers.map((s) {
-      return s.id == server.id ? server : s;
+  Future<void> updateAccount(SyncAccount account) async {
+    final accounts = state.accounts.map((a) {
+      return a.id == account.id ? account : a;
     }).toList();
-    state = state.copyWith(servers: servers);
-    await _saveServers();
+    state = state.copyWith(accounts: accounts);
+    await _saveAccounts();
   }
 
-  Future<void> deleteServer(String serverId) async {
-    // Stop and remove all jobs for this server.
+  Future<void> deleteAccount(String accountId) async {
+    final account = state.accountById(accountId);
+
+    // Stop and remove all jobs for this account.
     final jobsToRemove =
-        state.jobs.where((j) => j.serverId == serverId).toList();
+        state.jobs.where((j) => j.serverId == accountId).toList();
     for (final job in jobsToRemove) {
       stopJob(job.id);
-      await SyncManifestStore.instance.deleteManifests('sftp_${job.id}');
+      final storeKey = '${job.providerType.name}_${job.id}';
+      await SyncManifestStore.instance.deleteManifests(storeKey);
     }
+
+    // Revoke OAuth token for cloud accounts.
+    if (account != null && account.isCloud) {
+      try {
+        await ref.read(oauthServiceProvider).revokeToken(accountId);
+      } catch (e) {
+        _log.error('Token revocation failed during account delete: $e');
+      }
+    }
+
     final remainingJobs =
-        state.jobs.where((j) => j.serverId != serverId).toList();
-    final remainingServers =
-        state.servers.where((s) => s.id != serverId).toList();
-    state = state.copyWith(servers: remainingServers, jobs: remainingJobs);
-    await _saveServers();
+        state.jobs.where((j) => j.serverId != accountId).toList();
+    final remainingAccounts =
+        state.accounts.where((a) => a.id != accountId).toList();
+    state = state.copyWith(accounts: remainingAccounts, jobs: remainingJobs);
+    await _saveAccounts();
     await _saveJobs();
   }
 
-  Future<bool> testServer(String serverId) async {
-    final server = state.serverById(serverId);
-    if (server == null) return false;
-    final ok = await _transport.testConnection(server);
-    if (ok) {
-      await updateServer(
-          server.copyWith(lastConnectedAt: DateTime.now()));
+  Future<bool> testAccount(String accountId) async {
+    final account = state.accountById(accountId);
+    if (account == null) return false;
+
+    final transport = _createTransport(account);
+    try {
+      final ok = await transport.testConnection();
+      if (ok) {
+        await updateAccount(
+            account.copyWith(lastConnectedAt: DateTime.now()));
+      }
+      return ok;
+    } catch (e) {
+      _log.error('Test account failed: $e');
+      return false;
     }
-    return ok;
   }
+
+  // ── Backward compatibility aliases ──
+
+  /// @deprecated Use [addAccount] instead.
+  Future<String> addServer(SftpServerConfig server) async =>
+      addAccount(SyncAccount.fromSftpConfig(server));
+
+  /// @deprecated Use [updateAccount] instead.
+  Future<void> updateServer(SftpServerConfig server) async =>
+      updateAccount(SyncAccount.fromSftpConfig(server));
+
+  /// @deprecated Use [deleteAccount] instead.
+  Future<void> deleteServer(String serverId) async =>
+      deleteAccount(serverId);
+
+  /// @deprecated Use [testAccount] instead.
+  Future<bool> testServer(String serverId) async =>
+      testAccount(serverId);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // Job CRUD
@@ -193,13 +267,14 @@ class ServerSyncService extends StateNotifier<ServerSyncState> {
     bool mirrorDeletions = true,
     bool liveWatch = false,
   }) async {
-    final server = state.serverById(serverId);
+    final account = state.accountById(serverId);
     final job = ServerSyncJob(
       id: _uuid.v4(),
       name: name,
       sourceDirectory: sourceDirectory,
       serverId: serverId,
-      serverName: server?.name ?? '',
+      serverName: account?.name ?? '',
+      providerType: account?.providerType ?? SyncProviderType.sftp,
       remoteSubPath: remoteSubPath,
       createdAt: DateTime.now(),
       syncDirection: syncDirection,
@@ -237,11 +312,11 @@ class ServerSyncService extends StateNotifier<ServerSyncState> {
     var job = _findJob(jobId);
     if (job == null || job.isActive) return;
 
-    final server = state.serverById(job.serverId);
-    if (server == null) {
+    final account = state.accountById(job.serverId);
+    if (account == null) {
       _updateJob(job.copyWith(
         phase: SyncJobPhase.error,
-        status: 'Server not found',
+        status: 'Account not found',
       ));
       return;
     }
@@ -269,9 +344,19 @@ class ServerSyncService extends StateNotifier<ServerSyncState> {
     ));
     _saveJobs();
 
+    // Create a fresh cancellation token for this sync session.
+    _cancelTokens[jobId]?.cancel();
+    final cancelToken = CancellationToken();
+    _cancelTokens[jobId] = cancelToken;
+
+    // Keep the device awake during SFTP sync operations.
+    try {
+      await WakelockPlus.enable();
+    } catch (_) {}
+
     // Run the actual sync.
     try {
-      await _executeSyncJob(jobId, server);
+      await _executeSyncJob(jobId, account, cancelToken);
     } catch (e) {
       _log.error('Sync job $jobId failed: $e', error: e);
       job = _findJob(jobId);
@@ -281,6 +366,16 @@ class ServerSyncService extends StateNotifier<ServerSyncState> {
           status: e.toString(),
         ));
       }
+    } finally {
+      // Release wakelock if no other SFTP jobs are syncing.
+      final anyStillSyncing = state.jobs.any(
+        (j) => j.id != jobId && j.phase == SyncJobPhase.syncing,
+      );
+      if (!anyStillSyncing) {
+        try {
+          await WakelockPlus.disable();
+        } catch (_) {}
+      }
     }
 
     // After sync, start live watcher if enabled.
@@ -289,7 +384,7 @@ class ServerSyncService extends StateNotifier<ServerSyncState> {
         job.liveWatch &&
         job.phase != SyncJobPhase.idle &&
         job.phase != SyncJobPhase.error) {
-      _startLiveWatch(job, server);
+      _startLiveWatch(job, account);
     }
 
     // Start schedule timer if configured.
@@ -300,6 +395,10 @@ class ServerSyncService extends StateNotifier<ServerSyncState> {
   }
 
   void stopJob(String jobId) {
+    // Cancel any in-flight transfers for this job.
+    _cancelTokens[jobId]?.cancel();
+    _cancelTokens.remove(jobId);
+
     _watchers[jobId]?.cancel();
     _watchers.remove(jobId);
     _debouncers[jobId]?.cancel();
@@ -309,6 +408,8 @@ class ServerSyncService extends StateNotifier<ServerSyncState> {
     _scheduleTimers.remove(jobId);
     _liveSessions[jobId]?.close();
     _liveSessions.remove(jobId);
+    _liveTransports[jobId]?.disconnect();
+    _liveTransports.remove(jobId);
 
     final job = _findJob(jobId);
     if (job != null) {
@@ -347,6 +448,13 @@ class ServerSyncService extends StateNotifier<ServerSyncState> {
       } catch (_) {}
     }
     _liveSessions.clear();
+    // Disconnect any leftover cloud transports.
+    for (final entry in _liveTransports.entries.toList()) {
+      try {
+        entry.value.disconnect();
+      } catch (_) {}
+    }
+    _liveTransports.clear();
     // Cancel any remaining timers.
     for (final t in _scheduleTimers.values) {
       t.cancel();
@@ -364,21 +472,49 @@ class ServerSyncService extends StateNotifier<ServerSyncState> {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // Transport factory
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Create the appropriate [CloudTransport] for the given [account].
+  CloudTransport _createTransport(SyncAccount account) {
+    switch (account.providerType) {
+      case SyncProviderType.sftp:
+        return SftpCloudTransport(
+          transport: _transport,
+          config: account.toSftpConfig(),
+        );
+      case SyncProviderType.gdrive:
+        return GDriveTransport(
+          oauth: ref.read(oauthServiceProvider),
+          accountId: account.id,
+        );
+      case SyncProviderType.onedrive:
+        return OneDriveTransport(
+          oauth: ref.read(oauthServiceProvider),
+          accountId: account.id,
+        );
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // Sync execution
   // ═══════════════════════════════════════════════════════════════════════════
 
   Future<void> _executeSyncJob(
     String jobId,
-    SftpServerConfig server,
+    SyncAccount account,
+    CancellationToken cancelToken,
   ) async {
     var job = _findJob(jobId);
     if (job == null) return;
 
+    final transport = _createTransport(account);
+    final storeKey = '${account.providerType.name}_$jobId';
+
     // ── 1. Connect ──
     _updateJob(job.copyWith(status: 'serverSyncConnecting'));
-    SftpSession? session;
     try {
-      session = await _transport.connect(server);
+      await transport.connect();
     } catch (e) {
       _updateJob(job.copyWith(
         phase: SyncJobPhase.error,
@@ -395,26 +531,25 @@ class ServerSyncService extends StateNotifier<ServerSyncState> {
 
       final localManifest = await _buildLocalManifest(job);
 
-      // ── 3. Build remote manifest ──
+      // ── 3. Build remote manifest (or try delta first) ──
       job = _findJob(jobId);
       if (job == null || job.phase == SyncJobPhase.idle) return;
       _updateJob(job.copyWith(status: 'serverSyncScanning'));
 
-      final remotePath = _remotePath(server, job);
+      final remotePath = _remotePathForAccount(account, job);
 
       // Ensure remote directory exists.
-      await _transport.ensureRemoteDir(session.sftp, remotePath);
+      await transport.ensureRemoteDir(remotePath);
 
-      final remoteManifest = await _transport.buildRemoteManifest(
-        session.sftp,
+      final remoteManifest = await transport.buildRemoteManifest(
         remotePath,
-        server.id,
+        account.id,
       );
 
       // ── 4. Compute diff ──
       final store = SyncManifestStore.instance;
-      final prevLocal = await store.loadLocalManifest('sftp_$jobId');
-      final prevRemote = await store.loadRemoteManifest('sftp_$jobId');
+      final prevLocal = await store.loadLocalManifest(storeKey);
+      final prevRemote = await store.loadRemoteManifest(storeKey);
 
       _updateJob(job.copyWith(status: 'syncComputingDiff'));
       final plan = computeSyncPlan(
@@ -443,8 +578,8 @@ class ServerSyncService extends StateNotifier<ServerSyncState> {
             lastSyncTime: DateTime.now(),
             wasRunning: job.liveWatch,
           ));
-          await store.saveLocalManifest('sftp_$jobId', localManifest);
-          await store.saveRemoteManifest('sftp_$jobId', remoteManifest);
+          await store.saveLocalManifest(storeKey, localManifest);
+          await store.saveRemoteManifest(storeKey, remoteManifest);
           _saveJobs();
         }
         return;
@@ -471,8 +606,6 @@ class ServerSyncService extends StateNotifier<ServerSyncState> {
         }
       }
 
-      // newerWins conflicts are already resolved in the plan.
-
       // Build file items for progress tracking.
       final fileItems = allActions
           .map((a) => SyncFileItem(
@@ -497,12 +630,24 @@ class ServerSyncService extends StateNotifier<ServerSyncState> {
         failedFiles: [],
       ));
 
-      // ── 6. Execute actions ──
+      // ── 6. Execute actions via CloudTransport ──
       int successCount = 0;
       int transferred = 0;
       final failures = <SyncError>[];
 
-      for (int i = 0; i < allActions.length; i++) {
+      // Load checkpoint for resume-after-crash.
+      final checkpoint = await store.loadCheckpoint(storeKey);
+      final startIndex =
+          (checkpoint >= 0 && checkpoint < allActions.length)
+              ? checkpoint + 1
+              : 0;
+
+      for (int i = startIndex; i < allActions.length; i++) {
+        if (cancelToken.isCancelled) {
+          _log.info('Sync cancelled for job $jobId at index $i');
+          break;
+        }
+
         job = _findJob(jobId);
         if (job == null || job.phase == SyncJobPhase.idle) break;
 
@@ -528,13 +673,13 @@ class ServerSyncService extends StateNotifier<ServerSyncState> {
             );
             final remoteFilePath =
                 '$remotePath/${action.relativePath}';
-            error = await _transport.uploadFile(
-              session.sftp,
+            error = await transport.uploadFile(
               localPath,
               remoteFilePath,
               onProgress: (bytes) {
                 // Throttled progress updates.
               },
+              cancel: cancelToken,
             );
             break;
 
@@ -545,10 +690,10 @@ class ServerSyncService extends StateNotifier<ServerSyncState> {
             );
             final remoteFilePath =
                 '$remotePath/${action.relativePath}';
-            error = await _transport.downloadFile(
-              session.sftp,
+            error = await transport.downloadFile(
               remoteFilePath,
               localPath,
+              cancel: cancelToken,
             );
             break;
 
@@ -568,13 +713,11 @@ class ServerSyncService extends StateNotifier<ServerSyncState> {
           case SyncActionType.deleteRemote:
             final remoteFilePath =
                 '$remotePath/${action.relativePath}';
-            final ok = await _transport.deleteRemoteFile(
-                session.sftp, remoteFilePath);
+            final ok = await transport.deleteRemoteFile(remoteFilePath);
             if (!ok) error = 'Failed to delete remote file';
             break;
 
           case SyncActionType.conflict:
-            // Should have been resolved above.
             break;
         }
 
@@ -590,6 +733,7 @@ class ServerSyncService extends StateNotifier<ServerSyncState> {
             status: SyncFileStatus.completed,
             completedAt: DateTime.now(),
           );
+          await store.saveCheckpoint(storeKey, i);
         } else {
           failures.add(SyncError(
             filePath: action.relativePath,
@@ -609,8 +753,9 @@ class ServerSyncService extends StateNotifier<ServerSyncState> {
       }
 
       // ── 7. Save manifests & finalise ──
-      await store.saveLocalManifest('sftp_$jobId', localManifest);
-      await store.saveRemoteManifest('sftp_$jobId', remoteManifest);
+      await store.deleteCheckpoint(storeKey);
+      await store.saveLocalManifest(storeKey, localManifest);
+      await store.saveRemoteManifest(storeKey, remoteManifest);
 
       job = _findJob(jobId);
       if (job != null && job.phase != SyncJobPhase.idle) {
@@ -625,7 +770,7 @@ class ServerSyncService extends StateNotifier<ServerSyncState> {
         _saveJobs();
       }
     } finally {
-      session.close();
+      await transport.disconnect();
     }
   }
 
@@ -633,17 +778,17 @@ class ServerSyncService extends StateNotifier<ServerSyncState> {
   // Live watch (file system watcher → SFTP push)
   // ═══════════════════════════════════════════════════════════════════════════
 
-  void _startLiveWatch(ServerSyncJob job, SftpServerConfig server) {
+  void _startLiveWatch(ServerSyncJob job, SyncAccount account) {
     _watchers[job.id]?.cancel();
     final watcher = DirectoryWatcher(job.sourceDirectory);
     _watchers[job.id] = watcher.events.listen((event) {
-      _onLocalFileChange(job.id, event, server);
+      _onLocalFileChange(job.id, event, account);
     });
     _log.info('Live watch started for job ${job.name}');
   }
 
   void _onLocalFileChange(
-      String jobId, WatchEvent event, SftpServerConfig server) {
+      String jobId, WatchEvent event, SyncAccount account) {
     final job = _findJob(jobId);
     if (job == null || job.phase == SyncJobPhase.idle) return;
 
@@ -653,12 +798,15 @@ class ServerSyncService extends StateNotifier<ServerSyncState> {
     // Debounce: wait 3 seconds for batch.
     _debouncers[jobId]?.cancel();
     _debouncers[jobId] = Timer(const Duration(seconds: 3), () {
-      _flushPendingFiles(jobId, server);
+      _flushPendingFiles(jobId, account);
     });
   }
 
+  /// Per-job transport instances kept alive for live watch mode.
+  final Map<String, CloudTransport> _liveTransports = {};
+
   Future<void> _flushPendingFiles(
-      String jobId, SftpServerConfig server) async {
+      String jobId, SyncAccount account) async {
     final job = _findJob(jobId);
     if (job == null) return;
 
@@ -669,16 +817,16 @@ class ServerSyncService extends StateNotifier<ServerSyncState> {
     _log.info('Live watch: flushing ${pending.length} changed files for ${job.name}');
     _updateJob(job.copyWith(phase: SyncJobPhase.syncing, status: 'syncing'));
 
-    SftpSession? session;
     try {
-      // Reuse existing session or create new.
-      session = _liveSessions[jobId];
-      if (session == null) {
-        session = await _transport.connect(server);
-        _liveSessions[jobId] = session;
+      // Reuse existing transport or create new.
+      var transport = _liveTransports[jobId];
+      if (transport == null) {
+        transport = _createTransport(account);
+        await transport.connect();
+        _liveTransports[jobId] = transport;
       }
 
-      final remotePath = _remotePath(server, job);
+      final remotePath = _remotePathForAccount(account, job);
 
       for (final filePath in pending) {
         final file = File(filePath);
@@ -698,8 +846,7 @@ class ServerSyncService extends StateNotifier<ServerSyncState> {
         }
 
         final remoteFilePath = '$remotePath/$relativePath';
-        final error = await _transport.uploadFile(
-            session.sftp, filePath, remoteFilePath);
+        final error = await transport.uploadFile(filePath, remoteFilePath);
         if (error != null) {
           _log.warning('Live watch upload failed: $relativePath — $error');
         }
@@ -715,9 +862,11 @@ class ServerSyncService extends StateNotifier<ServerSyncState> {
       }
     } catch (e) {
       _log.error('Live watch flush error: $e', error: e);
-      // Close broken session so next flush reconnects.
-      _liveSessions[jobId]?.close();
-      _liveSessions.remove(jobId);
+      // Disconnect broken transport so next flush reconnects.
+      try {
+        await _liveTransports[jobId]?.disconnect();
+      } catch (_) {}
+      _liveTransports.remove(jobId);
 
       final updatedJob = _findJob(jobId);
       if (updatedJob != null) {
@@ -790,8 +939,8 @@ class ServerSyncService extends StateNotifier<ServerSyncState> {
     state = state.copyWith(jobs: jobs);
   }
 
-  String _remotePath(SftpServerConfig server, ServerSyncJob job) {
-    var base = server.remotePath;
+  String _remotePathForAccount(SyncAccount account, ServerSyncJob job) {
+    var base = account.remotePath;
     if (!base.endsWith('/')) base = '$base/';
     if (job.remoteSubPath.isNotEmpty) {
       return '$base${job.remoteSubPath}'.replaceAll('//', '/');
@@ -799,42 +948,20 @@ class ServerSyncService extends StateNotifier<ServerSyncState> {
     return base.endsWith('/') ? base.substring(0, base.length - 1) : base;
   }
 
-  /// Build a local manifest by scanning [job.sourceDirectory].
+  /// Build a local manifest by scanning [job.sourceDirectory] in a background
+  /// isolate with optional SHA-256 hash computation.
   Future<SyncManifest> _buildLocalManifest(ServerSyncJob job) async {
-    final entries = <SyncManifestEntry>[];
-    final dir = Directory(job.sourceDirectory);
-    int yieldCounter = 0;
-    await for (final entity in dir.list(recursive: true)) {
-      if (entity is! File) continue;
-      final relativePath = p
-          .relative(entity.path, from: job.sourceDirectory)
-          .replaceAll(r'\', '/');
-
-      if (!matchesSyncFilters(
-        relativePath,
-        includePatterns: job.includePatterns,
-        excludePatterns: job.excludePatterns,
-      )) {
-        continue;
-      }
-
-      final stat = await entity.stat();
-      entries.add(SyncManifestEntry(
-        relativePath: relativePath,
-        size: stat.size,
-        lastModified: stat.modified.toUtc(),
-      ));
-
-      // Yield periodically to keep UI responsive.
-      if (++yieldCounter % 100 == 0) {
-        await Future<void>.delayed(Duration.zero);
-      }
-    }
+    final result = await scanDirectoryInIsolate(ScanParams(
+      dirPath: job.sourceDirectory,
+      includePatterns: job.includePatterns,
+      excludePatterns: job.excludePatterns,
+      hashThresholdBytes: 50 * 1024 * 1024, // 50 MB
+    ));
     return SyncManifest(
       deviceId: 'local',
       basePath: job.sourceDirectory,
       createdAt: DateTime.now().toUtc(),
-      entries: entries,
+      entries: result.entries,
     );
   }
 

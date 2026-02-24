@@ -7,6 +7,8 @@ import 'package:permission_handler/permission_handler.dart';
 
 import 'package:anyware/features/discovery/domain/device.dart';
 import 'package:anyware/features/discovery/presentation/providers.dart';
+import 'package:anyware/features/server_sync/data/lan_remote_browser.dart';
+import 'package:anyware/features/server_sync/presentation/remote_folder_browser.dart';
 import 'package:anyware/features/settings/presentation/providers.dart';
 import 'package:anyware/features/sync/data/sync_service.dart';
 import 'package:anyware/features/sync/data/camera_folder_detector.dart';
@@ -33,6 +35,7 @@ class _SyncJobWizardState extends ConsumerState<SyncJobWizard> {
   final _nameController = TextEditingController();
   String? _sourceDirectory;
   Device? _targetDevice;
+  String? _remoteBaseDir;
 
   // Step 2: Options
   SyncDirection _syncDirection = SyncDirection.oneWay;
@@ -291,6 +294,85 @@ class _SyncJobWizardState extends ConsumerState<SyncJobWizard> {
             },
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (_, _) => const SizedBox.shrink(),
+          ),
+          const SizedBox(height: 20),
+
+          // Target folder on remote device (optional)
+          Text(
+            AppLocalizations.get('syncTargetFolder', locale),
+            style: theme.textTheme.titleSmall,
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: InkWell(
+                  onTap: _targetDevice != null
+                      ? () => _browseRemoteDevice(locale)
+                      : null,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: _remoteBaseDir != null
+                            ? theme.colorScheme.primary
+                            : theme.colorScheme.outline,
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.folder_open,
+                          color: _remoteBaseDir != null
+                              ? theme.colorScheme.primary
+                              : theme.colorScheme.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            _remoteBaseDir ??
+                                AppLocalizations.get(
+                                    'syncDefaultFolder', locale),
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: _remoteBaseDir != null
+                                  ? theme.colorScheme.onSurface
+                                  : theme.colorScheme.onSurfaceVariant,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (_remoteBaseDir != null)
+                          IconButton(
+                            icon: const Icon(Icons.clear, size: 18),
+                            onPressed: () =>
+                                setState(() => _remoteBaseDir = null),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton.filledTonal(
+                icon: const Icon(Icons.lan),
+                tooltip:
+                    AppLocalizations.get('browseLanDevice', locale),
+                onPressed: _targetDevice != null
+                    ? () => _browseRemoteDevice(locale)
+                    : null,
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            AppLocalizations.get('syncTargetFolderHint', locale),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
         ],
       ),
@@ -704,6 +786,40 @@ class _SyncJobWizardState extends ConsumerState<SyncJobWizard> {
     });
   }
 
+  Future<void> _browseRemoteDevice(String locale) async {
+    final device = _targetDevice;
+    if (device == null) return;
+
+    final browser = LanRemoteBrowser(
+      deviceIp: device.ip,
+      devicePort: device.port,
+      deviceName: device.name,
+    );
+
+    try {
+      final result = await showRemoteFolderPicker(
+        context,
+        browser: browser,
+        title: AppLocalizations.get('browseLanDevice', locale),
+        initialPath: _remoteBaseDir,
+        accentColor: Theme.of(context).colorScheme.primary,
+        locale: locale,
+      );
+
+      if (result != null && mounted) {
+        setState(() => _remoteBaseDir = result);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Browse failed: $e')),
+        );
+      }
+    } finally {
+      browser.dispose();
+    }
+  }
+
   Future<void> _createJob() async {
     if (_targetDevice == null || _sourceDirectory == null) return;
 
@@ -718,6 +834,7 @@ class _SyncJobWizardState extends ConsumerState<SyncJobWizard> {
       includePatterns: _includePatterns,
       excludePatterns: _excludePatterns,
       mirrorDeletions: _mirrorDeletions,
+      remoteBaseDir: _remoteBaseDir,
       convertHeicToJpg: _convertHeicToJpg,
       dateSubfolderFormat: _dateSubfolderFormat,
     );

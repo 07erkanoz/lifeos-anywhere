@@ -21,8 +21,19 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
+      - name: Create .env for build
+        run: |
+          @"
+          GDRIVE_CLIENT_ID=${{ secrets.GDRIVE_CLIENT_ID }}
+          GDRIVE_CLIENT_SECRET=${{ secrets.GDRIVE_CLIENT_SECRET }}
+          GDRIVE_ANDROID_CLIENT_ID=${{ secrets.GDRIVE_ANDROID_CLIENT_ID }}
+          MS_CLIENT_ID=${{ secrets.MS_CLIENT_ID }}
+          MS_CLIENT_SECRET=${{ secrets.MS_CLIENT_SECRET }}
+          "@ | Out-File -FilePath .env -Encoding utf8
+        shell: pwsh
+
       - name: Build Windows release
-        run: flutter build windows --release
+        run: flutter build windows --release --dart-define-from-file=.env
 
       - name: Create Inno Setup installer
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.5

@@ -351,6 +351,10 @@ class SyncJob {
   final int failedCount;
   final List<SyncError> failedFiles;
 
+  /// Index of the last successfully processed file in the current sync batch.
+  /// Used for resuming a sync job after crash/restart. -1 means no checkpoint.
+  final int lastProcessedIndex;
+
   const SyncJob({
     required this.id,
     required this.name,
@@ -383,6 +387,7 @@ class SyncJob {
     this.syncedCount = 0,
     this.failedCount = 0,
     this.failedFiles = const [],
+    this.lastProcessedIndex = -1,
   });
 
   // ── Computed ──
@@ -433,6 +438,7 @@ class SyncJob {
     int? syncedCount,
     int? failedCount,
     List<SyncError>? failedFiles,
+    int? lastProcessedIndex,
   }) =>
       SyncJob(
         id: id,
@@ -466,6 +472,7 @@ class SyncJob {
         syncedCount: syncedCount ?? this.syncedCount,
         failedCount: failedCount ?? this.failedCount,
         failedFiles: failedFiles ?? this.failedFiles,
+        lastProcessedIndex: lastProcessedIndex ?? this.lastProcessedIndex,
       );
 
   // ── JSON (for SharedPreferences persistence) ──
@@ -493,6 +500,7 @@ class SyncJob {
         'wasRunning': wasRunning,
         'convertHeicToJpg': convertHeicToJpg,
         'dateSubfolderFormat': dateSubfolderFormat,
+        'lastProcessedIndex': lastProcessedIndex,
       };
 
   factory SyncJob.fromJson(Map<String, dynamic> json) {
@@ -542,6 +550,7 @@ class SyncJob {
       convertHeicToJpg: json['convertHeicToJpg'] as bool? ?? false,
       dateSubfolderFormat:
           json['dateSubfolderFormat'] as String? ?? 'YYYY/MM',
+      lastProcessedIndex: json['lastProcessedIndex'] as int? ?? -1,
     );
   }
 }

@@ -5,7 +5,7 @@ import 'package:anyware/core/theme.dart';
 import 'package:anyware/features/server_sync/data/server_sync_service.dart';
 import 'package:anyware/features/server_sync/domain/server_sync_job.dart';
 import 'package:anyware/features/server_sync/domain/server_sync_state.dart';
-import 'package:anyware/features/server_sync/domain/sftp_server_config.dart';
+import 'package:anyware/features/server_sync/domain/sync_account.dart';
 import 'package:anyware/features/server_sync/presentation/server_config_dialog.dart';
 import 'package:anyware/features/server_sync/presentation/server_sync_job_wizard.dart';
 import 'package:anyware/features/settings/presentation/providers.dart';
@@ -35,7 +35,7 @@ class _ServerSyncScreenState extends ConsumerState<ServerSyncScreen> {
         tooltip: AppLocalizations.get('addServer', locale),
         onPressed: () => _showServerDialog(context),
       ),
-      if (syncState.hasServers)
+      if (syncState.hasAccounts)
         IconButton(
           icon: const Icon(Icons.add_rounded),
           tooltip: AppLocalizations.get('newServerSyncJob', locale),
@@ -43,7 +43,7 @@ class _ServerSyncScreenState extends ConsumerState<ServerSyncScreen> {
         ),
     ];
 
-    final body = syncState.hasServers
+    final body = syncState.hasAccounts
         ? _buildContent(syncState, locale, isDark)
         : _buildEmptyState(locale, isDark);
 
@@ -112,13 +112,13 @@ class _ServerSyncScreenState extends ConsumerState<ServerSyncScreen> {
         _buildSectionHeader(
           Icons.dns_rounded,
           AppLocalizations.get('serverSync', locale),
-          '${syncState.servers.length}',
+          '${syncState.accounts.length}',
           locale,
         ),
         const SizedBox(height: 8),
 
-        ...syncState.servers.map((server) =>
-            _buildServerCard(server, syncState, locale, isDark)),
+        ...syncState.accounts.map((account) =>
+            _buildAccountCard(account, syncState, locale, isDark)),
 
         const SizedBox(height: 24),
 
@@ -136,8 +136,8 @@ class _ServerSyncScreenState extends ConsumerState<ServerSyncScreen> {
               .map((job) => _buildJobCard(job, syncState, locale, isDark)),
         ],
 
-        // Add job CTA if servers exist but no jobs
-        if (syncState.hasServers && !syncState.hasJobs) ...[
+        // Add job CTA if accounts exist but no jobs
+        if (syncState.hasAccounts && !syncState.hasJobs) ...[
           const SizedBox(height: 32),
           Center(
             child: FilledButton.icon(
@@ -177,15 +177,28 @@ class _ServerSyncScreenState extends ConsumerState<ServerSyncScreen> {
     );
   }
 
-  // ── Server card ──
+  // ── Account card ──
 
-  Widget _buildServerCard(SftpServerConfig server,
+  /// Returns the icon and color for a given provider type.
+  (IconData, Color) _providerVisuals(SyncProviderType type) {
+    switch (type) {
+      case SyncProviderType.sftp:
+        return (Icons.dns_rounded, AppColors.neonBlue);
+      case SyncProviderType.gdrive:
+        return (Icons.cloud_rounded, const Color(0xFF34A853));
+      case SyncProviderType.onedrive:
+        return (Icons.cloud_queue_rounded, const Color(0xFF0078D4));
+    }
+  }
+
+  Widget _buildAccountCard(SyncAccount account,
       ServerSyncState syncState, String locale, bool isDark) {
-    final jobCount = syncState.jobsForServer(server.id).length;
+    final jobCount = syncState.jobsForAccount(account.id).length;
+    final (icon, color) = _providerVisuals(account.providerType);
 
     return GestureDetector(
       onSecondaryTapUp: (details) =>
-          _showServerContextMenu(context, details.globalPosition, server, locale),
+          _showAccountContextMenu(context, details.globalPosition, account, locale),
       child: Padding(
         padding: const EdgeInsets.only(bottom: 8),
         child: GlassmorphismCard(
@@ -195,27 +208,46 @@ class _ServerSyncScreenState extends ConsumerState<ServerSyncScreen> {
               children: [
                 CircleAvatar(
                   radius: 20,
-                  backgroundColor:
-                      AppColors.neonBlue.withValues(alpha: 0.15),
-                  child: const Icon(Icons.dns_rounded,
-                      size: 20, color: AppColors.neonBlue),
+                  backgroundColor: color.withValues(alpha: 0.15),
+                  child: Icon(icon, size: 20, color: color),
                 ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(server.name,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w600, fontSize: 15)),
-                    Text('${server.host}:${server.port}',
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(account.name,
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w600, fontSize: 15),
+                              overflow: TextOverflow.ellipsis),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: color.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(account.providerType.shortLabel,
+                              style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: color)),
+                        ),
+                      ],
+                    ),
+                    Text(account.subtitle,
                         style: TextStyle(
                             fontSize: 12,
                             color:
                                 isDark ? Colors.white54 : Colors.black45)),
-                    if (server.lastConnectedAt != null)
+                    if (account.lastConnectedAt != null)
                       Text(
-                        AppLocalizations.get('serverLastConnected', locale).replaceAll('{time}', _formatTime(server.lastConnectedAt!)),
+                        AppLocalizations.get('serverLastConnected', locale).replaceAll('{time}', _formatTime(account.lastConnectedAt!)),
                         style: TextStyle(
                             fontSize: 11,
                             color: isDark
@@ -241,14 +273,14 @@ class _ServerSyncScreenState extends ConsumerState<ServerSyncScreen> {
               IconButton(
                 icon: const Icon(Icons.edit_rounded, size: 18),
                 onPressed: () =>
-                    _showServerDialog(context, server: server),
+                    _showAccountDialog(context, account: account),
                 tooltip: AppLocalizations.get('editServer', locale),
               ),
               // Delete
               IconButton(
                 icon: Icon(Icons.delete_outline_rounded,
                     size: 18, color: Colors.red.shade300),
-                onPressed: () => _confirmDeleteServer(server, locale),
+                onPressed: () => _confirmDeleteAccount(account, locale),
                 tooltip: AppLocalizations.get('deleteServer', locale),
               ),
               ],
@@ -259,10 +291,10 @@ class _ServerSyncScreenState extends ConsumerState<ServerSyncScreen> {
     );
   }
 
-  // ── Server context menu ──
+  // ── Account context menu ──
 
-  void _showServerContextMenu(
-    BuildContext context, Offset position, SftpServerConfig server, String locale,
+  void _showAccountContextMenu(
+    BuildContext context, Offset position, SyncAccount account, String locale,
   ) {
     showMenu<String>(
       context: context,
@@ -295,10 +327,10 @@ class _ServerSyncScreenState extends ConsumerState<ServerSyncScreen> {
       if (value == null) return;
       switch (value) {
         case 'edit':
-          _showServerDialog(context, server: server);
+          _showAccountDialog(context, account: account);
           break;
         case 'delete':
-          _confirmDeleteServer(server, locale);
+          _confirmDeleteAccount(account, locale);
           break;
       }
     });
@@ -308,7 +340,7 @@ class _ServerSyncScreenState extends ConsumerState<ServerSyncScreen> {
 
   Widget _buildJobCard(ServerSyncJob job, ServerSyncState syncState,
       String locale, bool isDark) {
-    final server = syncState.serverById(job.serverId);
+    final account = syncState.accountById(job.serverId);
 
     Color phaseColor;
     IconData phaseIcon;
@@ -372,7 +404,7 @@ class _ServerSyncScreenState extends ConsumerState<ServerSyncScreen> {
 
               // Source → Server
               Text(
-                '${job.sourceDirectory} ${job.directionArrow} ${server?.name ?? job.serverName}',
+                '${job.sourceDirectory} ${job.directionArrow} ${account?.name ?? job.serverName}',
                 style: TextStyle(
                     fontSize: 12,
                     color: isDark ? Colors.white54 : Colors.black45),
@@ -582,12 +614,18 @@ class _ServerSyncScreenState extends ConsumerState<ServerSyncScreen> {
     return '${local.day}/${local.month}/${local.year}';
   }
 
-  void _showServerDialog(BuildContext context,
-      {SftpServerConfig? server}) {
+  void _showAccountDialog(BuildContext context,
+      {SyncAccount? account}) {
     showDialog(
       context: context,
-      builder: (_) => ServerConfigDialog(server: server),
+      builder: (_) => ServerConfigDialog(account: account),
     );
+  }
+
+  /// @deprecated Use [_showAccountDialog].
+  void _showServerDialog(BuildContext context,
+      {SyncAccount? server}) {
+    _showAccountDialog(context, account: server);
   }
 
   void _openJobWizard(BuildContext context) {
@@ -597,14 +635,14 @@ class _ServerSyncScreenState extends ConsumerState<ServerSyncScreen> {
     );
   }
 
-  void _confirmDeleteServer(
-      SftpServerConfig server, String locale) {
+  void _confirmDeleteAccount(
+      SyncAccount account, String locale) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(AppLocalizations.get('deleteServer', locale)),
         content: Text(AppLocalizations.get('deleteServerConfirm', locale)
-            .replaceAll('{name}', server.name)),
+            .replaceAll('{name}', account.name)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
@@ -614,7 +652,7 @@ class _ServerSyncScreenState extends ConsumerState<ServerSyncScreen> {
             onPressed: () {
               ref
                   .read(serverSyncServiceProvider.notifier)
-                  .deleteServer(server.id);
+                  .deleteAccount(account.id);
               Navigator.of(ctx).pop();
             },
             style: FilledButton.styleFrom(

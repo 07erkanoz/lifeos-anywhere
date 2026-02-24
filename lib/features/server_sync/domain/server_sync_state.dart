@@ -1,16 +1,18 @@
-import 'package:anyware/features/server_sync/domain/sftp_server_config.dart';
+import 'package:anyware/features/server_sync/domain/sync_account.dart';
 import 'package:anyware/features/server_sync/domain/server_sync_job.dart';
 import 'package:anyware/features/sync/domain/sync_state.dart';
 
 /// Top-level state for the Server Sync feature.
 class ServerSyncState {
-  final List<SftpServerConfig> servers;
+  /// All configured sync accounts (SFTP, Google Drive, OneDrive).
+  final List<SyncAccount> accounts;
+
   final List<ServerSyncJob> jobs;
   final String? activeJobId;
   final List<SyncConflict> pendingConflicts;
 
   const ServerSyncState({
-    this.servers = const [],
+    this.accounts = const [],
     this.jobs = const [],
     this.activeJobId,
     this.pendingConflicts = const [],
@@ -18,16 +20,16 @@ class ServerSyncState {
 
   // ── Computed ──
 
-  bool get hasServers => servers.isNotEmpty;
+  bool get hasAccounts => accounts.isNotEmpty;
   bool get hasJobs => jobs.isNotEmpty;
   int get activeJobCount => jobs.where((j) => j.isActive).length;
 
   ServerSyncJob? get selectedJob =>
       activeJobId != null ? jobById(activeJobId!) : null;
 
-  SftpServerConfig? serverById(String id) {
-    for (final s in servers) {
-      if (s.id == id) return s;
+  SyncAccount? accountById(String id) {
+    for (final a in accounts) {
+      if (a.id == id) return a;
     }
     return null;
   }
@@ -39,20 +41,36 @@ class ServerSyncState {
     return null;
   }
 
+  /// Get all jobs that reference a given account (by serverId field).
+  List<ServerSyncJob> jobsForAccount(String accountId) =>
+      jobs.where((j) => j.serverId == accountId).toList();
+
+  // ── Backward compatibility aliases ──
+
+  /// @deprecated Use [accounts] instead.
+  List<SyncAccount> get servers => accounts;
+
+  /// @deprecated Use [hasAccounts] instead.
+  bool get hasServers => hasAccounts;
+
+  /// @deprecated Use [accountById] instead.
+  SyncAccount? serverById(String id) => accountById(id);
+
+  /// @deprecated Use [jobsForAccount] instead.
   List<ServerSyncJob> jobsForServer(String serverId) =>
-      jobs.where((j) => j.serverId == serverId).toList();
+      jobsForAccount(serverId);
 
   // ── Copy ──
 
   ServerSyncState copyWith({
-    List<SftpServerConfig>? servers,
+    List<SyncAccount>? accounts,
     List<ServerSyncJob>? jobs,
     String? activeJobId,
     bool clearActiveJobId = false,
     List<SyncConflict>? pendingConflicts,
   }) =>
       ServerSyncState(
-        servers: servers ?? this.servers,
+        accounts: accounts ?? this.accounts,
         jobs: jobs ?? this.jobs,
         activeJobId:
             clearActiveJobId ? null : (activeJobId ?? this.activeJobId),

@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:dartssh2/dartssh2.dart';
 import 'package:anyware/core/logger.dart';
 import 'package:anyware/features/server_sync/domain/sftp_server_config.dart';
+import 'package:anyware/features/sync/data/cancellation_token.dart';
 import 'package:anyware/features/sync/domain/sync_manifest.dart';
 
 final _log = AppLogger('SftpTransport');
@@ -135,12 +136,16 @@ class SftpTransport {
 
   /// Upload a local file to [remotePath].
   ///
+  /// Supports byte-level resume: if a `.sync_tmp` temp file exists on the
+  /// server from a previous attempt, the upload resumes from where it left off.
+  ///
   /// Returns `null` on success, or an error message on failure.
   Future<String?> uploadFile(
     SftpClient sftp,
     String localPath,
     String remotePath, {
     void Function(int bytesWritten)? onProgress,
+    CancellationToken? cancel,
   }) async {
     try {
       // Ensure parent directories exist.
@@ -149,25 +154,86 @@ class SftpTransport {
 
       final localFile = File(localPath);
       final fileSize = await localFile.length();
-      final remoteFile = await sftp.open(
-        remotePath,
-        mode: SftpFileOpenMode.create |
-            SftpFileOpenMode.write |
-            SftpFileOpenMode.truncate,
-      );
+
+      // Upload to temp path, then SFTP rename for atomicity.
+      final tempRemotePath = '$remotePath.sync_tmp';
+
+      // ── Byte-level resume: check for partial upload on server ──
+      int resumeOffset = 0;
+      try {
+        final remoteStat = await sftp.stat(tempRemotePath);
+        final remoteSize = remoteStat.size ?? 0;
+        if (remoteSize > 0 && remoteSize < fileSize) {
+          resumeOffset = remoteSize;
+          _log.info(
+            'Found partial SFTP upload for $remotePath: '
+            '$resumeOffset / $fileSize bytes',
+          );
+        }
+      } catch (_) {
+        // Temp file doesn't exist — fresh upload.
+      }
+
+      final SftpFile remoteFile;
+      if (resumeOffset > 0) {
+        // Append to existing temp file.
+        remoteFile = await sftp.open(
+          tempRemotePath,
+          mode: SftpFileOpenMode.create |
+              SftpFileOpenMode.write |
+              SftpFileOpenMode.append,
+        );
+      } else {
+        // Fresh upload — truncate if exists.
+        remoteFile = await sftp.open(
+          tempRemotePath,
+          mode: SftpFileOpenMode.create |
+              SftpFileOpenMode.write |
+              SftpFileOpenMode.truncate,
+        );
+      }
 
       try {
-        final stream = localFile.openRead();
-        int written = 0;
+        final stream = localFile.openRead(resumeOffset > 0 ? resumeOffset : 0);
+        int written = resumeOffset;
+        bool cancelled = false;
         await for (final chunk in stream) {
+          if (cancel != null && cancel.isCancelled) {
+            cancelled = true;
+            break;
+          }
           await remoteFile.write(Stream.value(Uint8List.fromList(chunk)),
               offset: written);
           written += chunk.length;
           onProgress?.call(written);
         }
-        _log.info('Uploaded $localPath → $remotePath ($fileSize bytes)');
+        if (cancelled) {
+          _log.info('Upload cancelled: $localPath (at $written bytes)');
+          await remoteFile.close();
+          // Leave temp file for resume on next attempt.
+          return 'Cancelled';
+        }
+        _log.info('Uploaded $localPath → $tempRemotePath ($fileSize bytes'
+            '${resumeOffset > 0 ? ', resumed from $resumeOffset' : ''})');
       } finally {
         await remoteFile.close();
+      }
+
+      // Atomic rename on the SFTP server.
+      try {
+        // Remove existing target first (some SFTP servers don't allow rename-over).
+        try {
+          await sftp.remove(remotePath);
+        } catch (_) {}
+        await sftp.rename(tempRemotePath, remotePath);
+      } catch (e) {
+        _log.warning(
+            'SFTP rename failed ($tempRemotePath → $remotePath): $e');
+        // Clean up temp file on rename failure.
+        try {
+          await sftp.remove(tempRemotePath);
+        } catch (_) {}
+        rethrow;
       }
 
       // Try to set the modification time to match the local file.
@@ -189,24 +255,66 @@ class SftpTransport {
 
   /// Download a remote file to [localPath].
   ///
+  /// Supports byte-level resume: if a `.sync_tmp` temp file exists locally,
+  /// the download resumes from where it left off.
+  ///
   /// Returns `null` on success, or an error message on failure.
   Future<String?> downloadFile(
     SftpClient sftp,
     String remotePath,
     String localPath, {
     void Function(int bytesRead)? onProgress,
+    CancellationToken? cancel,
   }) async {
     try {
-      final localFile = File(localPath);
-      await localFile.parent.create(recursive: true);
+      // Download to temp file, then atomic rename.
+      final tempLocalPath = '$localPath.sync_tmp';
+      final tempFile = File(tempLocalPath);
+      await tempFile.parent.create(recursive: true);
+
+      // ── Byte-level resume: check for existing partial download ──
+      int resumeOffset = 0;
+      if (await tempFile.exists()) {
+        resumeOffset = await tempFile.length();
+        _log.info(
+          'Found partial download for $remotePath: $resumeOffset bytes',
+        );
+      }
 
       final remoteFile = await sftp.open(remotePath);
       try {
         final remoteStat = await remoteFile.stat();
-        final sink = localFile.openWrite();
-        int read = 0;
+        final remoteSize = remoteStat.size ?? 0;
 
-        await for (final chunk in remoteFile.read()) {
+        // Validate resume offset against remote file size.
+        if (resumeOffset >= remoteSize && remoteSize > 0) {
+          // Temp file is same size or larger — something changed, restart.
+          resumeOffset = 0;
+        }
+
+        final FileMode writeMode;
+        if (resumeOffset > 0) {
+          writeMode = FileMode.append;
+          _log.info(
+            'Resuming SFTP download of $remotePath from byte '
+            '$resumeOffset / $remoteSize',
+          );
+        } else {
+          writeMode = FileMode.write;
+        }
+
+        final sink = tempFile.openWrite(mode: writeMode);
+        int read = resumeOffset;
+        bool cancelled = false;
+
+        final readStream = resumeOffset > 0
+            ? remoteFile.read(offset: resumeOffset)
+            : remoteFile.read();
+        await for (final chunk in readStream) {
+          if (cancel != null && cancel.isCancelled) {
+            cancelled = true;
+            break;
+          }
           sink.add(chunk);
           read += chunk.length;
           onProgress?.call(read);
@@ -214,10 +322,26 @@ class SftpTransport {
         await sink.flush();
         await sink.close();
 
+        if (cancelled) {
+          _log.info('Download cancelled: $remotePath (at $read bytes)');
+          // Leave temp file for resume on next attempt.
+          return 'Cancelled';
+        }
+
+        // Atomic rename (copy+delete fallback).
+        try {
+          await tempFile.rename(localPath);
+        } catch (_) {
+          await tempFile.copy(localPath);
+          await tempFile.delete();
+        }
+
         // Restore modification time from remote.
+        final localFile = File(localPath);
         if (remoteStat.modifyTime != null) {
           try {
-            await localFile.setLastModified(DateTime.fromMillisecondsSinceEpoch(
+            await localFile.setLastModified(
+                DateTime.fromMillisecondsSinceEpoch(
               remoteStat.modifyTime! * 1000,
             ));
           } catch (_) {}

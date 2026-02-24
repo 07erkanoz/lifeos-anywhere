@@ -34,6 +34,9 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        // flutter_appauth: OAuth redirect scheme for cloud sync
+        manifestPlaceholders["appAuthRedirectScheme"] = "com.lifeos.anyware"
     }
 
     signingConfigs {

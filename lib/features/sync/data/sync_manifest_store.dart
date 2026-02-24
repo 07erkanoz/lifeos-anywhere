@@ -64,10 +64,52 @@ class SyncManifestStore {
       final remoteFile = File(p.join(basePath, '${jobId}_remote.json'));
       if (localFile.existsSync()) await localFile.delete();
       if (remoteFile.existsSync()) await remoteFile.delete();
+      final checkpointFile =
+          File(p.join(basePath, '${jobId}_checkpoint.json'));
+      if (checkpointFile.existsSync()) await checkpointFile.delete();
       _log.debug('Deleted manifests for job $jobId');
     } catch (e) {
       _log.warning('Failed to delete manifests for job $jobId: $e');
     }
+  }
+
+  // ── Checkpoint ──
+
+  /// Saves a file-level checkpoint for a sync job.
+  /// [index] is the 0-based index of the last successfully processed file.
+  Future<void> saveCheckpoint(String jobId, int index) async {
+    try {
+      final basePath = await _getBasePath();
+      final file = File(p.join(basePath, '${jobId}_checkpoint.json'));
+      await file.writeAsString(jsonEncode({'lastIndex': index}));
+    } catch (e) {
+      _log.warning('Failed to save checkpoint for job $jobId: $e');
+    }
+  }
+
+  /// Loads the last checkpoint for a sync job.
+  /// Returns -1 if no checkpoint exists.
+  Future<int> loadCheckpoint(String jobId) async {
+    try {
+      final basePath = await _getBasePath();
+      final file = File(p.join(basePath, '${jobId}_checkpoint.json'));
+      if (!file.existsSync()) return -1;
+      final json =
+          jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+      return json['lastIndex'] as int? ?? -1;
+    } catch (e) {
+      _log.warning('Failed to load checkpoint for job $jobId: $e');
+      return -1;
+    }
+  }
+
+  /// Deletes the checkpoint file for a job (on successful completion).
+  Future<void> deleteCheckpoint(String jobId) async {
+    try {
+      final basePath = await _getBasePath();
+      final file = File(p.join(basePath, '${jobId}_checkpoint.json'));
+      if (file.existsSync()) await file.delete();
+    } catch (_) {}
   }
 
   // ── Internal ──

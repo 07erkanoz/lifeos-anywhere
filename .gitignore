@@ -50,3 +50,6 @@ app.*.map.json
 
 # Flutter generated plugin registrant (auto-generated)
 .flutter-plugins
+
+# Environment credentials (never commit)
+.env

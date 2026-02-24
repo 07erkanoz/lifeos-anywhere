@@ -31,8 +31,18 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
+      - name: Create .env for build
+        run: |
+          cat > .env << EOF
+          GDRIVE_CLIENT_ID=${{ secrets.GDRIVE_CLIENT_ID }}
+          GDRIVE_CLIENT_SECRET=${{ secrets.GDRIVE_CLIENT_SECRET }}
+          GDRIVE_ANDROID_CLIENT_ID=${{ secrets.GDRIVE_ANDROID_CLIENT_ID }}
+          MS_CLIENT_ID=${{ secrets.MS_CLIENT_ID }}
+          MS_CLIENT_SECRET=${{ secrets.MS_CLIENT_SECRET }}
+          EOF
+
       - name: Build Linux release
-        run: flutter build linux --release
+        run: flutter build linux --release --dart-define-from-file=.env
 
       - name: Create .deb package
         run: |

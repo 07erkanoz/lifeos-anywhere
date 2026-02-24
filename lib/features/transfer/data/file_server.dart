@@ -18,6 +18,7 @@ import 'package:shelf_router/shelf_router.dart';
 import 'package:uuid/uuid.dart';
 
 import 'package:anyware/features/sync/domain/sync_state.dart';
+import 'package:anyware/features/sync/data/isolate_scanner.dart';
 import 'package:anyware/features/portal/data/portal_routes.dart';
 
 /// HTTP file-transfer server that runs on the local network.
@@ -195,6 +196,7 @@ class FileServer {
     router.post('/api/sync/manifest', _handleSyncManifest);
     router.get('/api/sync/pull', _handleSyncPull);
     router.post('/api/sync/remove-pairing', _handleRemovePairing);
+    router.get('/api/browse', _handleBrowse);
 
     // Web Portal routes — browser-based file management.
     registerPortalRoutes(
@@ -417,13 +419,85 @@ class FileServer {
         await Directory(targetDir).create(recursive: true);
       }
 
+      // Write to temp file, then atomic rename to prevent corruption on crash.
+      final tempPath = '$targetPath.sync_tmp';
+
+      // ── Upload resume support ──
+      // X-Offset header indicates the sender is resuming from a partial upload.
+      final offsetHeader = request.headers['x-offset'] ??
+          request.headers['X-Offset'];
+      int resumeOffset = 0;
+      FileMode syncWriteMode = FileMode.write;
+
+      if (offsetHeader != null) {
+        resumeOffset = int.tryParse(offsetHeader) ?? 0;
+      }
+
+      if (resumeOffset > 0) {
+        final existingTemp = File(tempPath);
+        if (existingTemp.existsSync()) {
+          final existingSize = existingTemp.lengthSync();
+          if (existingSize == resumeOffset) {
+            syncWriteMode = FileMode.append;
+            _log.info(
+              'Resuming sync upload for $relativePath from offset '
+              '$resumeOffset (temp: $existingSize bytes)',
+            );
+          } else {
+            _log.warning(
+              'Sync upload offset mismatch for $relativePath: '
+              'header=$resumeOffset, temp=$existingSize — restarting',
+            );
+            resumeOffset = 0;
+          }
+        } else {
+          resumeOffset = 0;
+        }
+      }
+
       await for (final part in parts) {
         final content = part.cast<List<int>>();
-        // Overwrite existing file for sync (Mirroring)
-        final file = File(targetPath);
-        final sink = file.openWrite();
+        final tempFile = File(tempPath);
+        final sink = tempFile.openWrite(mode: syncWriteMode);
         await sink.addStream(content);
+        await sink.flush();
         await sink.close();
+      }
+
+      // Atomic rename (with copy+delete fallback for Android scoped storage).
+      final tempFile = File(tempPath);
+      if (await tempFile.exists()) {
+        try {
+          await tempFile.rename(targetPath);
+        } catch (_) {
+          await tempFile.copy(targetPath);
+          await tempFile.delete();
+        }
+      }
+
+      // Verify hash if provided by sender.
+      final expectedHash = request.headers['X-Sync-Hash'] ??
+          request.headers['x-sync-hash'];
+      if (expectedHash != null && expectedHash.isNotEmpty) {
+        final savedFile = File(targetPath);
+        if (savedFile.existsSync()) {
+          final digest = await sha256.bind(savedFile.openRead()).last;
+          final actualHash = digest.toString();
+          if (actualHash != expectedHash) {
+            _log.error('Sync hash mismatch for $relativePath: '
+                'expected=$expectedHash, actual=$actualHash');
+            await savedFile.delete();
+            return shelf.Response.internalServerError(
+              body: jsonEncode({
+                'error': 'Hash mismatch',
+                'expected': expectedHash,
+                'actual': actualHash,
+              }),
+              headers: _jsonHeaders,
+            );
+          }
+          _log.info('SHA-256 verified for sync file: $relativePath');
+        }
       }
 
       final savedFileSize = File(targetPath).existsSync()
@@ -541,9 +615,18 @@ class FileServer {
       }
 
       final file = File(targetPath);
+
+      // Check for partial upload temp file (for upload resume).
+      final tempFile = File('$targetPath.sync_tmp');
+      final int tempSize =
+          tempFile.existsSync() ? tempFile.lengthSync() : 0;
+
       if (!file.existsSync()) {
         return shelf.Response.ok(
-          jsonEncode({'exists': false}),
+          jsonEncode({
+            'exists': false,
+            if (tempSize > 0) 'tempSize': tempSize,
+          }),
           headers: _jsonHeaders,
         );
       }
@@ -554,6 +637,7 @@ class FileServer {
           'exists': true,
           'size': stat.size,
           'lastModified': stat.modified.toIso8601String(),
+          if (tempSize > 0) 'tempSize': tempSize,
         }),
         headers: _jsonHeaders,
       );
@@ -611,24 +695,12 @@ class FileServer {
         );
       }
 
-      final entries = <Map<String, dynamic>>[];
-      final entities = dir.listSync(recursive: true);
-      for (final entity in entities) {
-        if (entity is File) {
-          final relPath = p.relative(entity.path, from: scanDir)
-              .replaceAll(r'\', '/');
-          try {
-            final stat = entity.statSync();
-            entries.add({
-              'relativePath': relPath,
-              'size': stat.size,
-              'lastModified': stat.modified.toUtc().toIso8601String(),
-            });
-          } catch (e) {
-            _log.warning('Manifest scan: cannot stat $relPath: $e');
-          }
-        }
-      }
+      // Scan in a background isolate to avoid blocking the server event loop.
+      final scanResult = await scanDirectoryInIsolate(ScanParams(
+        dirPath: scanDir,
+        hashThresholdBytes: 50 * 1024 * 1024, // 50 MB
+      ));
+      final entries = scanResult.entries.map((e) => e.toJson()).toList();
 
       return shelf.Response.ok(
         jsonEncode({
@@ -697,14 +769,56 @@ class FileServer {
       final stat = file.statSync();
       final mimeType = lookupMimeType(filePath) ?? 'application/octet-stream';
 
+      // Compute hash for integrity verification (files <= 50 MB).
+      // Hash is always computed over the FULL file regardless of Range.
+      String? contentHash;
+      if (stat.size <= 50 * 1024 * 1024 && stat.size > 0) {
+        final digest = await sha256.bind(file.openRead()).last;
+        contentHash = digest.toString();
+      }
+
+      // ── Range header support for byte-level resume ──
+      final rangeHeader = request.headers['range'];
+      int startByte = 0;
+      if (rangeHeader != null) {
+        final match = RegExp(r'bytes=(\d+)-').firstMatch(rangeHeader);
+        if (match != null) {
+          final parsed = int.tryParse(match.group(1)!) ?? 0;
+          if (parsed > 0 && parsed < stat.size) {
+            startByte = parsed;
+          }
+        }
+      }
+
+      final baseHeaders = {
+        'Content-Type': mimeType,
+        'X-Last-Modified': stat.modified.toUtc().toIso8601String(),
+        'Content-Disposition':
+            'attachment; filename="${Uri.encodeComponent(p.basename(filePath))}"',
+        if (contentHash != null) 'x-content-hash': contentHash,
+        'Accept-Ranges': 'bytes',
+        'X-Total-Size': stat.size.toString(),
+      };
+
+      if (startByte > 0) {
+        final remaining = stat.size - startByte;
+        return shelf.Response(
+          206, // Partial Content
+          body: file.openRead(startByte),
+          headers: {
+            ...baseHeaders,
+            'Content-Length': remaining.toString(),
+            'Content-Range':
+                'bytes $startByte-${stat.size - 1}/${stat.size}',
+          },
+        );
+      }
+
       return shelf.Response.ok(
         file.openRead(),
         headers: {
-          'Content-Type': mimeType,
+          ...baseHeaders,
           'Content-Length': stat.size.toString(),
-          'X-Last-Modified': stat.modified.toUtc().toIso8601String(),
-          'Content-Disposition':
-              'attachment; filename="${Uri.encodeComponent(p.basename(filePath))}"',
         },
       );
     } catch (e) {
@@ -751,6 +865,167 @@ class FileServer {
         headers: _jsonHeaders,
       );
     }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Remote folder browsing
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// GET /api/browse?path=...
+  ///
+  /// Lists files and directories at the given path on this device.
+  /// If `path` is empty or missing, returns platform root directories.
+  /// Used by the remote folder browser in sync job setup.
+  Future<shelf.Response> _handleBrowse(shelf.Request request) async {
+    try {
+      final path = request.url.queryParameters['path'] ?? '';
+
+      // ── No path → return platform root directories ──
+      if (path.isEmpty) {
+        final roots = await _getPlatformRoots();
+        return shelf.Response.ok(
+          jsonEncode(roots),
+          headers: _jsonHeaders,
+        );
+      }
+
+      // ── Security: only allow listing actual directories ──
+      final dir = Directory(path);
+      if (!await dir.exists()) {
+        return shelf.Response.notFound(
+          jsonEncode({'error': 'Directory not found'}),
+          headers: _jsonHeaders,
+        );
+      }
+
+      final entries = <Map<String, dynamic>>[];
+      await for (final entity in dir.list(followLinks: false)) {
+        try {
+          final name = p.basename(entity.path);
+          // Skip hidden files/directories on Unix-like systems.
+          if (name.startsWith('.') && !Platform.isWindows) continue;
+
+          final isDir = entity is Directory;
+          int? size;
+          DateTime? modified;
+
+          if (!isDir) {
+            try {
+              final stat = await entity.stat();
+              size = stat.size;
+              modified = stat.modified;
+            } catch (_) {}
+          }
+
+          entries.add({
+            'name': name,
+            'path': entity.path,
+            'isDir': isDir,
+            if (size != null) 'size': size,
+            if (modified != null) 'modified': modified.toIso8601String(),
+          });
+        } catch (_) {
+          // Skip inaccessible entries.
+        }
+      }
+
+      // Sort: directories first, then alphabetical.
+      entries.sort((a, b) {
+        final aDir = a['isDir'] as bool;
+        final bDir = b['isDir'] as bool;
+        if (aDir != bDir) return aDir ? -1 : 1;
+        return (a['name'] as String)
+            .toLowerCase()
+            .compareTo((b['name'] as String).toLowerCase());
+      });
+
+      return shelf.Response.ok(
+        jsonEncode(entries),
+        headers: _jsonHeaders,
+      );
+    } catch (e) {
+      _log.error('Browse error: $e', error: e);
+      return shelf.Response.internalServerError(
+        body: jsonEncode({'error': 'Browse failed: $e'}),
+        headers: _jsonHeaders,
+      );
+    }
+  }
+
+  /// Returns a list of platform root directories for browsing.
+  Future<List<Map<String, dynamic>>> _getPlatformRoots() async {
+    final roots = <Map<String, dynamic>>[];
+
+    if (Platform.isWindows) {
+      // List drive letters (C:, D:, E:, etc.)
+      for (int c = 65; c <= 90; c++) {
+        // A-Z
+        final drive = '${String.fromCharCode(c)}:\\';
+        if (await Directory(drive).exists()) {
+          roots.add({
+            'name': '${String.fromCharCode(c)}:',
+            'path': drive,
+            'isDir': true,
+          });
+        }
+      }
+    } else if (Platform.isAndroid) {
+      // Common Android storage paths.
+      const androidPaths = [
+        '/storage/emulated/0',
+        '/storage/self/primary',
+      ];
+      for (final path in androidPaths) {
+        if (await Directory(path).exists()) {
+          roots.add({
+            'name': p.basename(path),
+            'path': path,
+            'isDir': true,
+          });
+        }
+      }
+      // Check for external SD cards.
+      final storageDir = Directory('/storage');
+      if (await storageDir.exists()) {
+        await for (final entity in storageDir.list()) {
+          if (entity is Directory &&
+              !entity.path.contains('emulated') &&
+              !entity.path.contains('self')) {
+            roots.add({
+              'name': p.basename(entity.path),
+              'path': entity.path,
+              'isDir': true,
+            });
+          }
+        }
+      }
+    } else if (Platform.isMacOS || Platform.isLinux) {
+      // Home directory + common mount points.
+      final home = Platform.environment['HOME'];
+      if (home != null) {
+        roots.add({'name': 'Home', 'path': home, 'isDir': true});
+      }
+      roots.add({'name': '/', 'path': '/', 'isDir': true});
+      if (Platform.isMacOS) {
+        if (await Directory('/Volumes').exists()) {
+          roots.add(
+              {'name': 'Volumes', 'path': '/Volumes', 'isDir': true});
+        }
+      } else {
+        if (await Directory('/mnt').exists()) {
+          roots.add({'name': 'mnt', 'path': '/mnt', 'isDir': true});
+        }
+        if (await Directory('/media').exists()) {
+          roots.add({'name': 'media', 'path': '/media', 'isDir': true});
+        }
+      }
+    } else if (Platform.isIOS) {
+      // iOS apps are sandboxed.
+      final home = Platform.environment['HOME'] ?? '/var/mobile';
+      roots.add({'name': 'App', 'path': home, 'isDir': true});
+    }
+
+    return roots;
   }
 
   /// GET /api/ping

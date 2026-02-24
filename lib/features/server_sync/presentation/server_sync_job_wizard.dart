@@ -6,7 +6,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import 'package:anyware/features/server_sync/data/server_sync_service.dart';
-import 'package:anyware/features/server_sync/domain/sftp_server_config.dart';
+import 'package:anyware/features/server_sync/data/sftp_cloud_transport.dart';
+import 'package:anyware/features/server_sync/data/gdrive_transport.dart';
+import 'package:anyware/features/server_sync/data/onedrive_transport.dart';
+import 'package:anyware/features/server_sync/data/cloud_transport.dart';
+import 'package:anyware/features/server_sync/domain/sync_account.dart';
+import 'package:anyware/features/server_sync/presentation/remote_folder_browser.dart';
 import 'package:anyware/features/settings/presentation/providers.dart';
 import 'package:anyware/features/sync/domain/sync_state.dart';
 import 'package:anyware/i18n/app_localizations.dart';
@@ -27,7 +32,7 @@ class _ServerSyncJobWizardState extends ConsumerState<ServerSyncJobWizard> {
   // Step 1: Basics
   final _nameController = TextEditingController();
   String? _sourceDirectory;
-  SftpServerConfig? _targetServer;
+  SyncAccount? _targetAccount;
   final _remoteSubPathController = TextEditingController();
 
   // Step 2: Options
@@ -60,7 +65,7 @@ class _ServerSyncJobWizardState extends ConsumerState<ServerSyncJobWizard> {
       case 0:
         return _nameController.text.trim().isNotEmpty &&
             _sourceDirectory != null &&
-            _targetServer != null;
+            _targetAccount != null;
       default:
         return true;
     }
@@ -100,12 +105,79 @@ class _ServerSyncJobWizardState extends ConsumerState<ServerSyncJobWizard> {
     }
   }
 
+  Future<void> _browseRemoteFolder(String locale) async {
+    final account = _targetAccount;
+    if (account == null) return;
+
+    RemoteBrowser? browser;
+    try {
+      switch (account.providerType) {
+        case SyncProviderType.sftp:
+          final transport = SftpCloudTransport(
+            transport: ref.read(sftpTransportProvider),
+            config: account.toSftpConfig(),
+          );
+          await transport.connect();
+          browser = transport;
+          break;
+        case SyncProviderType.gdrive:
+          final transport = GDriveTransport(
+            oauth: ref.read(oauthServiceProvider),
+            accountId: account.id,
+          );
+          await transport.connect();
+          browser = transport;
+          break;
+        case SyncProviderType.onedrive:
+          final transport = OneDriveTransport(
+            oauth: ref.read(oauthServiceProvider),
+            accountId: account.id,
+          );
+          await transport.connect();
+          browser = transport;
+          break;
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Connection failed: $e')),
+        );
+      }
+      return;
+    }
+
+    if (!mounted) return;
+
+    final result = await showRemoteFolderPicker(
+      context,
+      browser: browser,
+      title: AppLocalizations.get('browseRemoteFolder', locale),
+      accentColor: account.providerType == SyncProviderType.gdrive
+          ? const Color(0xFF34A853)
+          : account.providerType == SyncProviderType.onedrive
+              ? const Color(0xFF0078D4)
+              : Theme.of(context).colorScheme.primary,
+      locale: locale,
+    );
+
+    if (result != null && mounted) {
+      setState(() {
+        _remoteSubPathController.text = result;
+      });
+    }
+
+    // Disconnect if the browser is also a CloudTransport
+    if (browser is CloudTransport) {
+      await (browser as CloudTransport).disconnect();
+    }
+  }
+
   Future<void> _createJob() async {
     final service = ref.read(serverSyncServiceProvider.notifier);
     await service.createJob(
       name: _nameController.text.trim(),
       sourceDirectory: _sourceDirectory!,
-      serverId: _targetServer!.id,
+      serverId: _targetAccount!.id,
       remoteSubPath: _remoteSubPathController.text.trim(),
       syncDirection: _syncDirection,
       conflictStrategy: _conflictStrategy,
@@ -143,7 +215,7 @@ class _ServerSyncJobWizardState extends ConsumerState<ServerSyncJobWizard> {
               controller: _pageController,
               physics: const NeverScrollableScrollPhysics(),
               children: [
-                _buildStep1Basics(locale, serverState.servers),
+                _buildStep1Basics(locale, serverState.accounts),
                 _buildStep2Options(locale),
                 _buildStep3Filters(locale),
               ],
@@ -203,7 +275,7 @@ class _ServerSyncJobWizardState extends ConsumerState<ServerSyncJobWizard> {
   // ── Step 1: Basics ──
 
   Widget _buildStep1Basics(
-      String locale, List<SftpServerConfig> servers) {
+      String locale, List<SyncAccount> accounts) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -267,33 +339,61 @@ class _ServerSyncJobWizardState extends ConsumerState<ServerSyncJobWizard> {
               style:
                   const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
           const SizedBox(height: 8),
-          if (servers.isEmpty)
+          if (accounts.isEmpty)
             Text(
                 AppLocalizations.get('noServersConfigured', locale),
                 style: TextStyle(color: Colors.grey.shade500))
           else
-            ...servers.map((s) => RadioListTile<SftpServerConfig>(
-                  title: Text(s.name),
-                  subtitle: Text('${s.host}:${s.port}'),
-                  value: s,
-                  groupValue: _targetServer,
-                  onChanged: (v) => setState(() => _targetServer = v),
+            ...accounts.map((a) => RadioListTile<SyncAccount>(
+                  title: Text(a.name),
+                  subtitle: Text(a.subtitle),
+                  value: a,
+                  groupValue: _targetAccount,
+                  onChanged: (v) => setState(() => _targetAccount = v),
                   dense: true,
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8)),
+                  secondary: Icon(
+                    a.isSftp
+                        ? Icons.dns_rounded
+                        : a.providerType == SyncProviderType.gdrive
+                            ? Icons.cloud_rounded
+                            : Icons.cloud_queue_rounded,
+                    size: 20,
+                    color: a.isSftp
+                        ? null
+                        : a.providerType == SyncProviderType.gdrive
+                            ? const Color(0xFF34A853)
+                            : const Color(0xFF0078D4),
+                  ),
                 )),
           const SizedBox(height: 16),
 
-          // Remote subfolder (optional)
-          TextField(
-            controller: _remoteSubPathController,
-            decoration: InputDecoration(
-              labelText: AppLocalizations.get(
-                  'serverSyncRemoteSubfolder', locale),
-              hintText: 'Documents',
-              prefixIcon: const Icon(Icons.subdirectory_arrow_right_rounded,
-                  size: 20),
-            ),
+          // Remote subfolder (optional) + Browse button
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _remoteSubPathController,
+                  decoration: InputDecoration(
+                    labelText: AppLocalizations.get(
+                        'serverSyncRemoteSubfolder', locale),
+                    hintText: 'Documents',
+                    prefixIcon: const Icon(
+                        Icons.subdirectory_arrow_right_rounded,
+                        size: 20),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton.filledTonal(
+                onPressed: _targetAccount != null
+                    ? () => _browseRemoteFolder(locale)
+                    : null,
+                icon: const Icon(Icons.folder_open_rounded, size: 20),
+                tooltip: AppLocalizations.get('browseRemoteFolder', locale),
+              ),
+            ],
           ),
         ],
       ),

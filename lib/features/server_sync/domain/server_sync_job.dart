@@ -1,19 +1,24 @@
+import 'package:anyware/features/server_sync/domain/sync_account.dart';
 import 'package:anyware/features/sync/domain/sync_state.dart';
 
-/// A sync job that synchronises a local folder with an SFTP server.
+/// A sync job that synchronises a local folder with a remote provider.
 ///
-/// Mirrors [SyncJob] but targets an [SftpServerConfig] (by [serverId])
-/// instead of a LAN device.
+/// Mirrors [SyncJob] but targets a [SyncAccount] (by [serverId])
+/// instead of a LAN device. The [providerType] indicates whether this
+/// job targets SFTP, Google Drive, or OneDrive.
 class ServerSyncJob {
   final String id;
   final String name;
   final String sourceDirectory;
 
-  /// References [SftpServerConfig.id].
+  /// References [SyncAccount.id].
   final String serverId;
 
-  /// Cached server display name.
+  /// Cached account display name.
   final String serverName;
+
+  /// The provider type of the referenced account.
+  final SyncProviderType providerType;
 
   /// Optional subfolder appended to the server's [remotePath].
   final String remoteSubPath;
@@ -47,12 +52,17 @@ class ServerSyncJob {
   final int failedCount;
   final List<SyncError> failedFiles;
 
+  /// Index of the last successfully processed file in the current sync batch.
+  /// Used for resuming a sync job after crash/restart. -1 means no checkpoint.
+  final int lastProcessedIndex;
+
   const ServerSyncJob({
     required this.id,
     required this.name,
     required this.sourceDirectory,
     required this.serverId,
     this.serverName = '',
+    this.providerType = SyncProviderType.sftp,
     this.remoteSubPath = '',
     this.phase = SyncJobPhase.idle,
     this.schedule,
@@ -73,6 +83,7 @@ class ServerSyncJob {
     this.syncedCount = 0,
     this.failedCount = 0,
     this.failedFiles = const [],
+    this.lastProcessedIndex = -1,
   });
 
   // ── Computed ──
@@ -96,6 +107,7 @@ class ServerSyncJob {
     String? sourceDirectory,
     String? serverId,
     String? serverName,
+    SyncProviderType? providerType,
     String? remoteSubPath,
     SyncJobPhase? phase,
     SyncSchedule? schedule,
@@ -116,6 +128,7 @@ class ServerSyncJob {
     int? syncedCount,
     int? failedCount,
     List<SyncError>? failedFiles,
+    int? lastProcessedIndex,
   }) =>
       ServerSyncJob(
         id: id,
@@ -123,6 +136,7 @@ class ServerSyncJob {
         sourceDirectory: sourceDirectory ?? this.sourceDirectory,
         serverId: serverId ?? this.serverId,
         serverName: serverName ?? this.serverName,
+        providerType: providerType ?? this.providerType,
         remoteSubPath: remoteSubPath ?? this.remoteSubPath,
         phase: phase ?? this.phase,
         schedule: clearSchedule ? null : (schedule ?? this.schedule),
@@ -143,6 +157,7 @@ class ServerSyncJob {
         syncedCount: syncedCount ?? this.syncedCount,
         failedCount: failedCount ?? this.failedCount,
         failedFiles: failedFiles ?? this.failedFiles,
+        lastProcessedIndex: lastProcessedIndex ?? this.lastProcessedIndex,
       );
 
   // ── JSON ──
@@ -153,6 +168,7 @@ class ServerSyncJob {
         'sourceDirectory': sourceDirectory,
         'serverId': serverId,
         'serverName': serverName,
+        'providerType': providerType.name,
         'remoteSubPath': remoteSubPath,
         'createdAt': createdAt.toIso8601String(),
         'lastSyncTime': lastSyncTime?.toIso8601String(),
@@ -164,6 +180,7 @@ class ServerSyncJob {
         'mirrorDeletions': mirrorDeletions,
         'liveWatch': liveWatch,
         'wasRunning': wasRunning,
+        'lastProcessedIndex': lastProcessedIndex,
       };
 
   factory ServerSyncJob.fromJson(Map<String, dynamic> json) {
@@ -173,6 +190,7 @@ class ServerSyncJob {
       sourceDirectory: json['sourceDirectory'] as String,
       serverId: json['serverId'] as String,
       serverName: (json['serverName'] as String?) ?? '',
+      providerType: _providerFromName(json['providerType'] as String?),
       remoteSubPath: (json['remoteSubPath'] as String?) ?? '',
       createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
           DateTime.now(),
@@ -203,6 +221,7 @@ class ServerSyncJob {
       mirrorDeletions: json['mirrorDeletions'] as bool? ?? true,
       liveWatch: json['liveWatch'] as bool? ?? false,
       wasRunning: json['wasRunning'] as bool? ?? false,
+      lastProcessedIndex: json['lastProcessedIndex'] as int? ?? -1,
     );
   }
 }
@@ -210,4 +229,12 @@ class ServerSyncJob {
 T _enumFromName<T extends Enum>(List<T> values, String? name, T fallback) {
   if (name == null) return fallback;
   return values.firstWhere((v) => v.name == name, orElse: () => fallback);
+}
+
+SyncProviderType _providerFromName(String? name) {
+  if (name == null) return SyncProviderType.sftp;
+  return SyncProviderType.values.firstWhere(
+    (v) => v.name == name,
+    orElse: () => SyncProviderType.sftp,
+  );
 }

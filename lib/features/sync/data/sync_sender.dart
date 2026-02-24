@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:anyware/core/logger.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +11,7 @@ import 'package:path/path.dart' as p;
 import 'package:anyware/core/constants.dart';
 import 'package:anyware/features/discovery/domain/device.dart';
 import 'package:anyware/features/discovery/presentation/providers.dart';
+import 'package:anyware/features/sync/data/cancellation_token.dart';
 import 'package:anyware/features/sync/domain/sync_manifest.dart';
 import 'package:anyware/features/sync/domain/sync_state.dart';
 
@@ -188,6 +190,7 @@ class SyncSender {
     bool convertHeicToJpg = false,
     String? jobId,
     String? jobName,
+    CancellationToken? cancel,
   }) async {
     final file = File(filePath);
     if (!await file.exists()) return 'File does not exist: $filePath';
@@ -216,11 +219,45 @@ class SyncSender {
     final senderDevice = discoveryService.localDevice;
 
     try {
+      // Check cancellation before starting network operations.
+      if (cancel != null && cancel.isCancelled) return 'Cancelled';
+
       final requestUrl = Uri.parse(
         'http://${target.ip}:${AppConstants.defaultPort}/api/sync/upload',
       );
 
+      final fileSize = await file.length();
+
+      // ── Upload resume: check for partial temp file on server ──
+      int uploadOffset = 0;
+      try {
+        final checkResult = await checkFileStatus(
+          target, relativePath, senderDevice.name,
+          jobId: jobId, jobName: jobName,
+        );
+        if (checkResult != null) {
+          final tempSize = checkResult['tempSize'] as int? ?? 0;
+          if (tempSize > 0 && tempSize < fileSize) {
+            uploadOffset = tempSize;
+            _log.info(
+              'Server has partial upload for $relativePath: '
+              '$uploadOffset / $fileSize bytes',
+            );
+          }
+        }
+      } catch (e) {
+        _log.debug('Upload resume check failed (starting fresh): $e');
+      }
+
       final request = http.MultipartRequest('POST', requestUrl);
+
+      // Compute SHA-256 for integrity verification (files <= 50 MB).
+      // Hash is always computed over the FULL file regardless of offset.
+      String? fileHash;
+      if (fileSize <= 50 * 1024 * 1024) {
+        final digest = await sha256.bind(file.openRead()).last;
+        fileHash = digest.toString();
+      }
 
       request.headers.addAll({
         'X-Sync-Path': Uri.encodeFull(relativePath),
@@ -228,19 +265,34 @@ class SyncSender {
         'X-Device-Name': Uri.encodeFull(senderDevice.name),
         if (jobId != null) 'X-Sync-Job-Id': jobId,
         if (jobName != null) 'X-Sync-Job-Name': Uri.encodeFull(jobName),
+        if (fileHash != null) 'X-Sync-Hash': fileHash,
+        if (uploadOffset > 0) 'X-Offset': uploadOffset.toString(),
+        'X-Total-Size': fileSize.toString(),
       });
 
-      request.files.add(
-        await http.MultipartFile.fromPath(
-          'file',
-          file.path,
-          filename: fileName,
-        ),
-      );
+      if (uploadOffset > 0) {
+        // Stream only the remaining bytes from the offset.
+        final remaining = fileSize - uploadOffset;
+        request.files.add(
+          http.MultipartFile(
+            'file',
+            file.openRead(uploadOffset),
+            remaining,
+            filename: fileName,
+          ),
+        );
+      } else {
+        request.files.add(
+          await http.MultipartFile.fromPath(
+            'file',
+            file.path,
+            filename: fileName,
+          ),
+        );
+      }
 
       // Dynamic timeout based on file size (min 5 min, +1 min per 5 MB).
-      final fileSizeBytes = await file.length();
-      final fileSizeMB = fileSizeBytes / (1024 * 1024);
+      final fileSizeMB = fileSize / (1024 * 1024);
       final timeoutMinutes = max(5, (fileSizeMB / 5).ceil() + 5);
 
       final streamedResponse = await request.send().timeout(
@@ -417,8 +469,12 @@ class SyncSender {
     String? basePath,
     String? jobId,
     String? jobName,
+    CancellationToken? cancel,
   }) async {
     try {
+      // Check cancellation before starting network operations.
+      if (cancel != null && cancel.isCancelled) return 'Cancelled';
+
       final queryParams = {
         'path': relativePath,
         'sender': senderName,
@@ -431,36 +487,94 @@ class SyncSender {
         'http://${target.ip}:${AppConstants.defaultPort}/api/sync/pull',
       ).replace(queryParameters: queryParams);
 
-      // Compute file size timeout: min 5 min, generous for large files.
+      // Create target directory.
+      final localFilePath = p.normalize(
+        p.join(localBasePath, relativePath.replaceAll('/', p.separator)),
+      );
+      final dir = Directory(p.dirname(localFilePath));
+      if (!await dir.exists()) {
+        await dir.create(recursive: true);
+      }
+
+      // ── Byte-level resume: check for existing temp file ──
+      final tempFilePath = '$localFilePath.sync_tmp';
+      final tempFile = File(tempFilePath);
+      int resumeOffset = 0;
+      if (await tempFile.exists()) {
+        resumeOffset = await tempFile.length();
+        _log.info(
+          'Found partial temp file for $relativePath: $resumeOffset bytes',
+        );
+      }
+
       final client = http.Client();
       try {
         final request = http.Request('GET', uri);
+        if (resumeOffset > 0) {
+          request.headers['Range'] = 'bytes=$resumeOffset-';
+        }
         final streamedResponse = await client.send(request).timeout(
               const Duration(minutes: 10),
             );
 
-        if (streamedResponse.statusCode != 200) {
+        if (streamedResponse.statusCode != 200 &&
+            streamedResponse.statusCode != 206) {
           final body = await streamedResponse.stream.bytesToString();
           return 'HTTP ${streamedResponse.statusCode}: $body';
         }
 
-        // Create target directory.
-        final localFilePath = p.normalize(
-          p.join(localBasePath, relativePath.replaceAll('/', p.separator)),
-        );
-        final dir = Directory(p.dirname(localFilePath));
-        if (!await dir.exists()) {
-          await dir.create(recursive: true);
+        // Determine write mode: append on 206 (partial), fresh on 200.
+        FileMode writeMode = FileMode.write;
+        if (streamedResponse.statusCode == 206 && resumeOffset > 0) {
+          writeMode = FileMode.append;
+          _log.info('Resuming pull of $relativePath from byte $resumeOffset');
+        } else {
+          resumeOffset = 0; // Fresh download.
         }
 
-        // Stream to file.
-        final file = File(localFilePath);
-        final sink = file.openWrite();
-        await sink.addStream(streamedResponse.stream);
+        // Stream to temp file with cancellation support.
+        final sink = tempFile.openWrite(mode: writeMode);
+        bool cancelled = false;
+        await for (final chunk in streamedResponse.stream) {
+          if (cancel != null && cancel.isCancelled) {
+            cancelled = true;
+            break;
+          }
+          sink.add(chunk);
+        }
         await sink.flush();
         await sink.close();
+        if (cancelled) {
+          // Leave temp file for resume on next attempt.
+          client.close();
+          return 'Cancelled';
+        }
+
+        // Atomic rename (copy+delete fallback for Android scoped storage).
+        try {
+          await tempFile.rename(localFilePath);
+        } catch (_) {
+          await tempFile.copy(localFilePath);
+          await tempFile.delete();
+        }
+
+        // Verify hash if the server provided one.
+        final hashHeader = streamedResponse.headers['x-content-hash'];
+        if (hashHeader != null && hashHeader.isNotEmpty) {
+          final digest =
+              await sha256.bind(File(localFilePath).openRead()).last;
+          final actualHash = digest.toString();
+          if (actualHash != hashHeader) {
+            _log.error('Pull hash mismatch for $relativePath: '
+                'expected=$hashHeader, actual=$actualHash');
+            await File(localFilePath).delete();
+            return 'Hash mismatch: expected $hashHeader, got $actualHash';
+          }
+          _log.info('SHA-256 verified for pulled file: $relativePath');
+        }
 
         // Restore last-modified from header if available.
+        final file = File(localFilePath);
         final lastModifiedHeader =
             streamedResponse.headers['x-last-modified'];
         if (lastModifiedHeader != null) {

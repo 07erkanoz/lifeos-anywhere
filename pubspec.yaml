@@ -67,6 +67,12 @@ dependencies:
   flutter_webrtc: ^0.12.4
   dartssh2: ^2.9.3
 
+  # Cloud Sync (OAuth + Google Drive + OneDrive)
+  flutter_appauth: ^7.0.1
+  flutter_secure_storage: ^9.2.4
+  googleapis: ^13.2.0
+  googleapis_auth: ^1.6.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

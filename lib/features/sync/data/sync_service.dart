@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:anyware/core/background_service.dart';
 import 'package:anyware/core/logger.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:flutter/material.dart' show TimeOfDay;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
@@ -20,7 +21,9 @@ import 'package:anyware/features/sync/data/sync_sender.dart';
 import 'package:anyware/features/sync/data/sync_diff_engine.dart';
 import 'package:anyware/features/sync/data/sync_filter_utils.dart';
 import 'package:anyware/features/sync/data/sync_manifest_store.dart';
+import 'package:anyware/features/sync/data/isolate_scanner.dart';
 import 'package:anyware/features/settings/presentation/providers.dart';
+import 'package:anyware/features/sync/data/cancellation_token.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Provider
@@ -62,6 +65,7 @@ class SyncService extends StateNotifier<SyncState> {
   final Map<String, Set<String>> _pendingFiles = {};
   final Map<String, DateTime> _lastPingTimes = {};
   final Map<String, SyncManifest> _pendingManifests = {};
+  final Map<String, CancellationToken> _cancelTokens = {};
 
   // ─── Notification callbacks (set by providers.dart) ───
   void Function(String jobName, int fileCount, String deviceName)?
@@ -565,6 +569,11 @@ class SyncService extends StateNotifier<SyncState> {
       return;
     }
 
+    // Create a fresh cancellation token for this sync session.
+    _cancelTokens[jobId]?.cancel(); // Cancel any stale token.
+    final cancelToken = CancellationToken();
+    _cancelTokens[jobId] = cancelToken;
+
     // Reset runtime state.
     job = job.copyWith(
       phase: SyncJobPhase.syncing,
@@ -578,6 +587,11 @@ class SyncService extends StateNotifier<SyncState> {
       syncStartTime: DateTime.now(),
     );
     _updateJob(job);
+
+    // Keep the device awake during sync operations.
+    try {
+      await WakelockPlus.enable();
+    } catch (_) {}
 
     // Resolve target device IP from discovery.
     final targetDevice = _resolveDevice(job);
@@ -607,40 +621,15 @@ class SyncService extends StateNotifier<SyncState> {
     final allFilePaths = <String, String>{}; // relPath → fullPath
 
     try {
-      final scanDir = Directory(sourceDir);
-      int yieldCounter = 0;
-      await for (final entity in scanDir.list(recursive: true)) {
-        if (entity is File) {
-          final relPath = p.relative(entity.path, from: sourceDir)
-              .replaceAll(r'\', '/');
-          if (_matchesFilters(relPath, jobForFilter)) {
-            try {
-              final stat = await entity.stat();
-              manifestEntries.add(SyncManifestEntry(
-                relativePath: relPath,
-                size: stat.size,
-                lastModified: stat.modified.toUtc(),
-              ));
-              allFilePaths[relPath] = entity.path;
-            } catch (_) {}
-          }
-        }
-        // Yield to the event loop every 50 entities so the UI stays responsive
-        // and network connections don't drop.
-        if (++yieldCounter % 50 == 0) {
-          await Future<void>.delayed(Duration.zero);
-          final current = _findJob(jobId);
-          if (current == null || current.phase != SyncJobPhase.syncing) return;
-
-          // Update UI with scan progress (throttled: every 500 files).
-          if (yieldCounter % 500 == 0) {
-            _updateJob(current.copyWith(
-              status: 'syncScanning',
-              syncedCount: manifestEntries.length,
-            ));
-          }
-        }
-      }
+      // Scan in a background isolate to keep the UI responsive.
+      final scanResult = await scanDirectoryInIsolate(ScanParams(
+        dirPath: sourceDir,
+        includePatterns: jobForFilter.includePatterns,
+        excludePatterns: jobForFilter.excludePatterns,
+        hashThresholdBytes: 50 * 1024 * 1024, // 50 MB
+      ));
+      manifestEntries.addAll(scanResult.entries);
+      allFilePaths.addAll(scanResult.fullPaths);
     } catch (e) {
       _log.error('Initial scan failed for job $jobId: $e', error: e);
       final errJob = _findJob(jobId);
@@ -757,7 +746,7 @@ class SyncService extends StateNotifier<SyncState> {
     _log.info('Job "$jobId": handshake complete, '
         'direction=${job.syncDirection.name}, proceeding to sync');
     if (job.isBidirectional) {
-      await _processBidirectionalSync(jobId, targetDevice);
+      await _processBidirectionalSync(jobId, targetDevice, cancelToken);
       _startWatcher(jobId, job.sourceDirectory);
       return;
     }
@@ -766,7 +755,7 @@ class SyncService extends StateNotifier<SyncState> {
     if (pending.isNotEmpty) {
       _debounceTimers[jobId]?.cancel();
       _debounceTimers[jobId] =
-          Timer(const Duration(milliseconds: 500), () => _processJobFiles(jobId));
+          Timer(const Duration(milliseconds: 500), () => _processJobFiles(jobId, cancelToken));
     } else {
       _log.info('Job "$jobId": no changed files, going to watching state');
       // Save manifest even when nothing changed (confirms sync is up-to-date).
@@ -831,7 +820,7 @@ class SyncService extends StateNotifier<SyncState> {
       }
       _debounceTimers[jobId]?.cancel();
       _debounceTimers[jobId] =
-          Timer(const Duration(milliseconds: 200), () => _processJobFiles(jobId));
+          Timer(const Duration(milliseconds: 200), () => _processJobFiles(jobId, _cancelTokens[jobId]));
     } else {
       // No pending files — go back to watching.
       _updateJob(job.copyWith(phase: SyncJobPhase.watching, status: 'syncCompleted'));
@@ -1076,6 +1065,7 @@ class SyncService extends StateNotifier<SyncState> {
   Future<void> _processBidirectionalSync(
     String jobId,
     Device targetDevice,
+    CancellationToken cancelToken,
   ) async {
     var job = _findJob(jobId);
     if (job == null) return;
@@ -1244,7 +1234,44 @@ class SyncService extends StateNotifier<SyncState> {
     final failures = <SyncError>[];
     final localDeviceId = discoveryService?.localDevice.id ?? '';
 
-    for (int i = 0; i < allActions.length; i++) {
+    // ── Resume: load checkpoint ──
+    final biCheckpoint =
+        await SyncManifestStore.instance.loadCheckpoint('bi_$jobId');
+    final biStartIndex =
+        (biCheckpoint >= 0 && biCheckpoint < allActions.length)
+            ? biCheckpoint + 1
+            : 0;
+    if (biStartIndex > 0) {
+      _log.info(
+        'Resuming bidirectional sync from index $biStartIndex '
+        '(${allActions.length} total)',
+      );
+      // Mark skipped items as completed.
+      final resumeItems = List<SyncFileItem>.from(job.fileItems);
+      for (int s = 0; s < biStartIndex; s++) {
+        resumeItems[s] = resumeItems[s].copyWith(
+          status: SyncFileStatus.completed,
+          completedAt: DateTime.now(),
+        );
+        final sz =
+            allActions[s].localEntry?.size ?? allActions[s].remoteEntry?.size ?? 0;
+        transferredBytes += sz;
+        successCount++;
+      }
+      _updateJob(job.copyWith(
+        fileItems: resumeItems,
+        syncedCount: successCount,
+        transferredBytes: transferredBytes,
+      ));
+    }
+
+    for (int i = biStartIndex; i < allActions.length; i++) {
+      // Check cancellation.
+      if (cancelToken.isCancelled) {
+        _log.info('Bidirectional sync cancelled for job $jobId at index $i');
+        break;
+      }
+
       job = _findJob(jobId);
       if (job == null || job.phase == SyncJobPhase.idle) break;
 
@@ -1271,6 +1298,7 @@ class SyncService extends StateNotifier<SyncState> {
           error = await sender.sendFile(
             targetDevice, filePath, job.sourceDirectory,
             jobId: job.id, jobName: job.name,
+            cancel: cancelToken,
           );
           break;
 
@@ -1283,6 +1311,7 @@ class SyncService extends StateNotifier<SyncState> {
             basePath: job.remoteBaseDir,
             jobId: job.id,
             jobName: job.name,
+            cancel: cancelToken,
           );
           break;
 
@@ -1335,6 +1364,8 @@ class SyncService extends StateNotifier<SyncState> {
           syncedCount: successCount,
           transferredBytes: transferredBytes,
         ));
+        // Save checkpoint after successful file.
+        await SyncManifestStore.instance.saveCheckpoint('bi_$jobId', i);
       } else {
         failures.add(SyncError(
           filePath: action.relativePath,
@@ -1353,6 +1384,9 @@ class SyncService extends StateNotifier<SyncState> {
         ));
       }
     }
+
+    // Clear bidirectional checkpoint on completion.
+    await SyncManifestStore.instance.deleteCheckpoint('bi_$jobId');
 
     // ── 7. Save manifests for next sync ──
     // Re-scan local after sync (files may have changed).
@@ -1397,35 +1431,19 @@ class SyncService extends StateNotifier<SyncState> {
           ref.read(discoveryServiceProvider).valueOrNull;
       final deviceId = discoveryService?.localDevice.id ?? '';
 
-      final entries = <SyncManifestEntry>[];
-      int yieldCounter = 0;
-      await for (final entity in dir.list(recursive: true)) {
-        if (entity is File) {
-          final relPath = p.relative(entity.path, from: job.sourceDirectory)
-              .replaceAll(r'\', '/');
-          if (!_matchesFilters(relPath, job)) continue;
-          try {
-            final stat = await entity.stat();
-            entries.add(SyncManifestEntry(
-              relativePath: relPath,
-              size: stat.size,
-              lastModified: stat.modified.toUtc(),
-            ));
-          } catch (_) {
-            // Skip files that can't be stat'd.
-          }
-        }
-        // Yield periodically to keep UI responsive.
-        if (++yieldCounter % 100 == 0) {
-          await Future<void>.delayed(Duration.zero);
-        }
-      }
+      // Scan in a background isolate with hash computation.
+      final result = await scanDirectoryInIsolate(ScanParams(
+        dirPath: job.sourceDirectory,
+        includePatterns: job.includePatterns,
+        excludePatterns: job.excludePatterns,
+        hashThresholdBytes: 50 * 1024 * 1024, // 50 MB
+      ));
 
       return SyncManifest(
         deviceId: deviceId,
         basePath: job.sourceDirectory,
         createdAt: DateTime.now().toUtc(),
-        entries: entries,
+        entries: result.entries,
       );
     } catch (e) {
       _log.error('Failed to build local manifest for job ${job.id}: $e',
@@ -1515,7 +1533,7 @@ class SyncService extends StateNotifier<SyncState> {
     pending.add(event.path);
     _debounceTimers[jobId]?.cancel();
     _debounceTimers[jobId] =
-        Timer(const Duration(seconds: 2), () => _processJobFiles(jobId));
+        Timer(const Duration(seconds: 2), () => _processJobFiles(jobId, _cancelTokens[jobId]));
 
     // Transition watching → syncing.
     final job = _findJob(jobId);
@@ -1613,7 +1631,7 @@ class SyncService extends StateNotifier<SyncState> {
   // Internal: process pending files for a job
   // ═══════════════════════════════════════════════════════════════════════════
 
-  Future<void> _processJobFiles(String jobId) async {
+  Future<void> _processJobFiles(String jobId, [CancellationToken? cancel]) async {
     final pending = _pendingFiles[jobId];
     _log.info('_processJobFiles("$jobId"): pending=${pending?.length ?? 0}');
     if (pending == null || pending.isEmpty) {
@@ -1725,7 +1743,21 @@ class SyncService extends StateNotifier<SyncState> {
       uiDirty = false;
     }
 
-    for (int i = 0; i < filesToSync.length; i++) {
+    // Load checkpoint for resume-after-crash.
+    final checkpoint =
+        await SyncManifestStore.instance.loadCheckpoint(jobId);
+    final startIndex =
+        (checkpoint >= 0 && checkpoint < filesToSync.length)
+            ? checkpoint + 1
+            : 0;
+
+    for (int i = startIndex; i < filesToSync.length; i++) {
+      // Check cancellation.
+      if (cancel != null && cancel.isCancelled) {
+        _log.info('One-way sync cancelled for job $jobId at index $i');
+        break;
+      }
+
       // Re-read job (state may have been modified by pause/stop/skip).
       job = _findJob(jobId);
       if (job == null || job.phase == SyncJobPhase.idle) break;
@@ -1788,6 +1820,7 @@ class SyncService extends StateNotifier<SyncState> {
           convertHeicToJpg: job.convertHeicToJpg,
           jobId: job.id,
           jobName: job.name,
+          cancel: cancel,
         );
         success = lastError == null;
         if (success) break;
@@ -1804,6 +1837,8 @@ class SyncService extends StateNotifier<SyncState> {
           status: SyncFileStatus.completed,
           completedAt: DateTime.now(),
         );
+        // Save checkpoint for resume-after-crash.
+        await SyncManifestStore.instance.saveCheckpoint(jobId, i);
       } else {
         failures.add(SyncError(
           filePath: relPath,
@@ -1846,6 +1881,9 @@ class SyncService extends StateNotifier<SyncState> {
       failedFiles: failures,
     ));
     _saveJobs();
+
+    // Clear checkpoint on successful completion.
+    await SyncManifestStore.instance.deleteCheckpoint(jobId);
 
     // Persist the manifest snapshot so next sync only transfers changes.
     final completedManifest = _pendingManifests.remove(jobId);
@@ -1991,6 +2029,10 @@ class SyncService extends StateNotifier<SyncState> {
   }
 
   void _stopJobInternal(String jobId) {
+    // Cancel any in-flight transfers for this job.
+    _cancelTokens[jobId]?.cancel();
+    _cancelTokens.remove(jobId);
+
     final hadWatcher = _watchers.containsKey(jobId);
     _watchers[jobId]?.cancel();
     _watchers.remove(jobId);
