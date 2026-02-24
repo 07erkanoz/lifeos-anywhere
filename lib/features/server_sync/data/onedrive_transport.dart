@@ -143,10 +143,27 @@ class OneDriveTransport implements CloudTransport, RemoteBrowser {
     final entries = <SyncManifestEntry>[];
     await _scanRecursive(remotePath, entries);
 
+    // Strip remotePath prefix — entries should have paths relative to remotePath.
+    // _scanRecursive returns full paths (e.g. "Documents/file.doc") but the
+    // diff engine expects relative paths (e.g. "file.doc") just like local manifest.
+    final relativeEntries = entries.map((e) {
+      var rp = e.relativePath;
+      if (remotePath.isNotEmpty && rp.startsWith(remotePath)) {
+        rp = rp.substring(remotePath.length);
+        if (rp.startsWith('/')) rp = rp.substring(1);
+      }
+      return SyncManifestEntry(
+        relativePath: rp,
+        hash: e.hash,
+        size: e.size,
+        lastModified: e.lastModified,
+      );
+    }).toList();
+
     return SyncManifest(
       deviceId: accountId,
       basePath: remotePath,
-      entries: entries,
+      entries: relativeEntries,
       createdAt: DateTime.now(),
     );
   }

@@ -940,12 +940,23 @@ class ServerSyncService extends StateNotifier<ServerSyncState> {
   }
 
   String _remotePathForAccount(SyncAccount account, ServerSyncJob job) {
-    var base = account.remotePath;
-    if (!base.endsWith('/')) base = '$base/';
-    if (job.remoteSubPath.isNotEmpty) {
-      return '$base${job.remoteSubPath}'.replaceAll('//', '/');
+    var result = account.remotePath;
+    // Remove trailing slashes (keep single '/' for root).
+    while (result.length > 1 && result.endsWith('/')) {
+      result = result.substring(0, result.length - 1);
     }
-    return base.endsWith('/') ? base.substring(0, base.length - 1) : base;
+    // Append subpath if present.
+    if (job.remoteSubPath.isNotEmpty) {
+      var sub = job.remoteSubPath;
+      if (sub.startsWith('/')) sub = sub.substring(1);
+      while (sub.endsWith('/')) {
+        sub = sub.substring(0, sub.length - 1);
+      }
+      if (sub.isNotEmpty) {
+        result = result == '/' ? '/$sub' : '$result/$sub';
+      }
+    }
+    return result;
   }
 
   /// Build a local manifest by scanning [job.sourceDirectory] in a background

@@ -5,6 +5,7 @@ import 'dart:math';
 
 import 'package:flutter_appauth/flutter_appauth.dart';
 import 'package:http/http.dart' as http;
+import 'package:window_manager/window_manager.dart';
 
 import 'package:anyware/core/cloud_credentials.dart';
 import 'package:anyware/core/logger.dart';
@@ -146,11 +147,16 @@ class OAuthService {
         Uri.parse('https://graph.microsoft.com/v1.0/me'),
         headers: {'Authorization': 'Bearer ${token.accessToken}'},
       );
+      _log.info('MS Graph /me status: ${resp.statusCode}');
       if (resp.statusCode == 200) {
         final data = jsonDecode(resp.body) as Map<String, dynamic>;
-        return (data['mail'] as String?) ??
-            (data['userPrincipalName'] as String?);
+        final email = (data['mail'] as String?) ??
+            (data['userPrincipalName'] as String?) ??
+            (data['displayName'] as String?);
+        _log.info('MS email resolved: $email');
+        return email;
       }
+      _log.error('MS Graph /me failed: ${resp.body}');
     } catch (e) {
       _log.error('Failed to get Microsoft email: $e');
     }
@@ -221,8 +227,7 @@ class OAuthService {
     for (var i = 0; i < 20; i++) {
       final port = 49152 + rng.nextInt(65535 - 49152);
       try {
-        final server =
-            await HttpServer.bind(InternetAddress.loopbackIPv4, port);
+        final server = await HttpServer.bind('localhost', port);
         await server.close();
         return port;
       } catch (_) {
@@ -284,7 +289,9 @@ class OAuthService {
 
   Future<OAuthToken> _desktopMsAuth() async {
     final port = await _findAvailablePort();
-    final redirectUri = 'http://127.0.0.1:$port/oauth/callback';
+    // Microsoft requires 'localhost' (not 127.0.0.1) for loopback redirect.
+    // No path suffix — Azure 'Mobile and desktop' platform matches any port.
+    final redirectUri = 'http://localhost:$port';
     final state = _randomString(32);
 
     final authUrl = Uri.parse(CloudCredentials.msAuthUri).replace(
@@ -304,6 +311,8 @@ class OAuthService {
       expectedState: state,
     );
 
+    _log.info('MS OAuth code received, exchanging for token...');
+
     // Exchange code for tokens
     final resp = await _http.post(
       Uri.parse(CloudCredentials.msTokenUri),
@@ -311,14 +320,15 @@ class OAuthService {
       body: {
         'code': code,
         'client_id': CloudCredentials.msClientId,
-        'client_secret': CloudCredentials.msClientSecret,
         'redirect_uri': redirectUri,
         'grant_type': 'authorization_code',
         'scope': CloudCredentials.msScopes,
       },
     );
 
+    _log.info('MS token exchange status: ${resp.statusCode}');
     if (resp.statusCode != 200) {
+      _log.error('MS token exchange body: ${resp.body}');
       throw Exception('Microsoft token exchange failed: ${resp.body}');
     }
 
@@ -341,9 +351,11 @@ class OAuthService {
   }) async {
     final completer = Completer<String>();
 
-    // Start temporary HTTP server for callback
-    final server =
-        await HttpServer.bind(InternetAddress.loopbackIPv4, port);
+    // Start temporary HTTP server for callback.
+    // Bind to 'localhost' (not loopbackIPv4) so that both IPv4 (127.0.0.1)
+    // and IPv6 (::1) connections are accepted — Windows may resolve
+    // 'localhost' to either address.
+    final server = await HttpServer.bind('localhost', port);
     _log.info('OAuth callback server listening on port $port');
 
     // Auto-close after 5 minutes (timeout)
@@ -356,7 +368,8 @@ class OAuthService {
     });
 
     server.listen((request) async {
-      if (request.uri.path == '/oauth/callback') {
+      // Accept callback on any path — Microsoft redirects to root '/'.
+      {
         final params = request.uri.queryParameters;
         final code = params['code'];
         final state = params['state'];
@@ -386,10 +399,6 @@ class OAuthService {
             ..write('Invalid callback')
             ..close();
         }
-      } else {
-        request.response
-          ..statusCode = 404
-          ..close();
       }
     });
 
@@ -398,7 +407,15 @@ class OAuthService {
     await _openUrl(authUrl.toString());
 
     try {
-      return await completer.future;
+      final code = await completer.future;
+      // Bring app window to foreground after browser callback.
+      if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+        try {
+          await windowManager.show();
+          await windowManager.focus();
+        } catch (_) {}
+      }
+      return code;
     } finally {
       timeout.cancel();
       await server.close();
@@ -451,7 +468,6 @@ class OAuthService {
       headers: {'Content-Type': 'application/x-www-form-urlencoded'},
       body: {
         'client_id': CloudCredentials.msClientId,
-        'client_secret': CloudCredentials.msClientSecret,
         'refresh_token': expired.refreshToken!,
         'grant_type': 'refresh_token',
         'scope': CloudCredentials.msScopes,

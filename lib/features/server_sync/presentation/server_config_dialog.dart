@@ -103,9 +103,9 @@ class _ServerConfigDialogState extends ConsumerState<ServerConfigDialog> {
         final email = await oauth.getGoogleEmail(token);
         if (mounted) {
           setState(() {
-            _cloudEmail = email;
-            if (_nameCtrl.text.trim().isEmpty && email != null) {
-              _nameCtrl.text = 'Google Drive ($email)';
+            _cloudEmail = email ?? 'Google Account';
+            if (_nameCtrl.text.trim().isEmpty) {
+              _nameCtrl.text = 'Google Drive ($_cloudEmail)';
             }
           });
         }
@@ -114,9 +114,9 @@ class _ServerConfigDialogState extends ConsumerState<ServerConfigDialog> {
         final email = await oauth.getMicrosoftEmail(token);
         if (mounted) {
           setState(() {
-            _cloudEmail = email;
-            if (_nameCtrl.text.trim().isEmpty && email != null) {
-              _nameCtrl.text = 'OneDrive ($email)';
+            _cloudEmail = email ?? 'OneDrive Account';
+            if (_nameCtrl.text.trim().isEmpty) {
+              _nameCtrl.text = 'OneDrive ($_cloudEmail)';
             }
           });
         }

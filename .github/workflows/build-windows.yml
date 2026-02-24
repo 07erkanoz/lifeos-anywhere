@@ -29,7 +29,7 @@ jobs:
           GDRIVE_ANDROID_CLIENT_ID=${{ secrets.GDRIVE_ANDROID_CLIENT_ID }}
           MS_CLIENT_ID=${{ secrets.MS_CLIENT_ID }}
           MS_CLIENT_SECRET=${{ secrets.MS_CLIENT_SECRET }}
-          "@ | Out-File -FilePath .env -Encoding utf8
+          "@ -replace '(?m)^\s+', '' | Out-File -FilePath .env -Encoding utf8NoBOM
         shell: pwsh
 
       - name: Build Windows release

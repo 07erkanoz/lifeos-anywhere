@@ -1,5 +1,5 @@
 @echo off
-set "PROGRAMFILES(X86)=C:\Program Files (x86)"
+set "ProgramFiles(x86)=C:\Program Files (x86)"
 cd /d C:\Projeler\LifeOs-Anywhere
-flutter build windows --release
-echo BUILD_EXIT_CODE=%ERRORLEVEL%
+flutter build windows --release --dart-define-from-file=.env
+echo EXIT_CODE=%ERRORLEVEL%

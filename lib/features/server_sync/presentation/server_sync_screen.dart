@@ -124,31 +124,19 @@ class _ServerSyncScreenState extends ConsumerState<ServerSyncScreen> {
         const SizedBox(height: 24),
 
         // ── Jobs section ──
-        if (syncState.hasJobs) ...[
-          _buildSectionHeader(
-            Icons.sync_rounded,
-            AppLocalizations.get('serverSyncJobs', locale),
-            '${syncState.jobs.length}',
-            locale,
-          ),
-          const SizedBox(height: 8),
+        _buildSectionHeader(
+          Icons.sync_rounded,
+          AppLocalizations.get('serverSyncJobs', locale),
+          '${syncState.jobs.length}',
+          locale,
+        ),
+        const SizedBox(height: 8),
 
+        if (syncState.hasJobs)
           ...syncState.jobs
-              .map((job) => _buildJobCard(job, syncState, locale, isDark)),
-        ],
-
-        // Add job CTA if accounts exist but no jobs
-        if (syncState.hasAccounts && !syncState.hasJobs) ...[
-          const SizedBox(height: 32),
-          Center(
-            child: FilledButton.icon(
-              onPressed: () => _openJobWizard(context),
-              icon: const Icon(Icons.add_rounded, size: 18),
-              label: Text(
-                  AppLocalizations.get('newServerSyncJob', locale)),
-            ),
-          ),
-        ],
+              .map((job) => _buildJobCard(job, syncState, locale, isDark))
+        else
+          _buildEmptyJobsState(locale, isDark),
       ],
     );
   }
@@ -337,15 +325,55 @@ class _ServerSyncScreenState extends ConsumerState<ServerSyncScreen> {
     });
   }
 
+  // ── Empty jobs state ──
+
+  Widget _buildEmptyJobsState(String locale, bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 32),
+      child: Center(
+        child: Column(
+          children: [
+            Icon(Icons.sync_disabled_rounded,
+                size: 48, color: isDark ? Colors.white24 : Colors.black12),
+            const SizedBox(height: 12),
+            Text(
+              AppLocalizations.get('syncNoJobs', locale),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: isDark ? Colors.white54 : Colors.black45,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              AppLocalizations.get('syncNoJobsDesc', locale),
+              style: TextStyle(
+                  fontSize: 13,
+                  color: isDark ? Colors.white30 : Colors.black26),
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: () => _openJobWizard(context),
+              icon: const Icon(Icons.add_rounded, size: 18),
+              label: Text(AppLocalizations.get('newServerSyncJob', locale)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   // ── Job card ──
 
   Widget _buildJobCard(ServerSyncJob job, ServerSyncState syncState,
       String locale, bool isDark) {
     final account = syncState.accountById(job.serverId);
+    final providerType = account?.providerType ?? job.providerType;
+    final (provIcon, provColor) = _providerVisuals(providerType);
 
+    // Phase visuals
     Color phaseColor;
     IconData phaseIcon;
-
     switch (job.phase) {
       case SyncJobPhase.idle:
         phaseColor = Colors.grey;
@@ -369,6 +397,84 @@ class _ServerSyncScreenState extends ConsumerState<ServerSyncScreen> {
         break;
     }
 
+    // Last sync status line
+    Widget statusLine;
+    if (job.phase == SyncJobPhase.syncing) {
+      statusLine = Row(
+        children: [
+          SizedBox(
+            width: 14,
+            height: 14,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor: AlwaysStoppedAnimation<Color>(AppColors.neonBlue),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              job.status != null
+                  ? _localizeStatus(job.status!, locale)
+                  : '${job.syncedCount} / ${job.fileItems.length} • ${job.progressPercent}',
+              style: TextStyle(fontSize: 11, color: AppColors.neonBlue),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      );
+    } else if (job.phase == SyncJobPhase.error) {
+      statusLine = Row(
+        children: [
+          Icon(Icons.error_rounded, size: 14, color: Colors.red.shade300),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              '${AppLocalizations.get('syncFailed', locale)}'
+              '${job.failedCount > 0 ? ' · ${job.failedCount} ${AppLocalizations.get('filesFailed', locale)}' : ''}',
+              style: TextStyle(fontSize: 11, color: Colors.red.shade300),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      );
+    } else if (job.lastSyncTime != null) {
+      final totalFiles = job.syncedCount + job.failedCount;
+      statusLine = Row(
+        children: [
+          Icon(Icons.check_circle_rounded,
+              size: 14, color: AppColors.neonGreen),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              AppLocalizations.get('syncLastSync', locale)
+                      .replaceAll('{time}', _formatTime(job.lastSyncTime!)) +
+                  (totalFiles > 0
+                      ? ' · ${AppLocalizations.get('filesCount', locale).replaceAll('{count}', '$totalFiles')}'
+                      : ''),
+              style: TextStyle(
+                  fontSize: 11,
+                  color: isDark ? Colors.white54 : Colors.black45),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      );
+    } else {
+      statusLine = Row(
+        children: [
+          Icon(Icons.schedule_rounded,
+              size: 14, color: isDark ? Colors.white30 : Colors.black26),
+          const SizedBox(width: 6),
+          Text(
+            AppLocalizations.get('neverSynced', locale),
+            style: TextStyle(
+                fontSize: 11,
+                color: isDark ? Colors.white30 : Colors.black26),
+          ),
+        ],
+      );
+    }
+
     return GestureDetector(
       onTap: () => _openJobDetail(context, job),
       onSecondaryTapUp: (details) =>
@@ -378,134 +484,149 @@ class _ServerSyncScreenState extends ConsumerState<ServerSyncScreen> {
         child: GlassmorphismCard(
           child: Padding(
             padding: const EdgeInsets.all(12),
-            child: Column(
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Header
-                Row(
-                  children: [
-                    Icon(phaseIcon, size: 18, color: phaseColor),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(job.name,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w600, fontSize: 15)),
-                    ),
-                    if (job.liveWatch)
-                      Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: Icon(Icons.remove_red_eye_rounded,
-                            size: 16, color: AppColors.neonGreen),
+                // ── Provider icon ──
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: provColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(provIcon, size: 22, color: provColor),
+                ),
+                const SizedBox(width: 12),
+
+                // ── Info column ──
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Row 1: Name + direction + phase badge
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(job.name,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(job.directionArrow,
+                              style: TextStyle(
+                                  fontSize: 14, color: phaseColor)),
+                          const SizedBox(width: 6),
+                          Icon(phaseIcon, size: 16, color: phaseColor),
+                          if (job.liveWatch) ...[
+                            const SizedBox(width: 4),
+                            Icon(Icons.remove_red_eye_rounded,
+                                size: 14, color: AppColors.neonGreen),
+                          ],
+                        ],
                       ),
-                    Text(job.directionArrow,
+                      const SizedBox(height: 3),
+
+                      // Row 2: source path → account name
+                      Text(
+                        '${_shortenPath(job.sourceDirectory)} ${job.directionArrow} ${account?.name ?? job.serverName}',
                         style: TextStyle(
-                            fontSize: 16, color: phaseColor)),
+                            fontSize: 11,
+                            color:
+                                isDark ? Colors.white38 : Colors.black38),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+
+                      // Progress bar (syncing)
+                      if (job.phase == SyncJobPhase.syncing &&
+                          job.totalBytes > 0) ...[
+                        const SizedBox(height: 6),
+                        NeonProgressBar(
+                          progress: job.progress,
+                          color: AppColors.neonBlue,
+                          height: 4,
+                        ),
+                      ],
+
+                      const SizedBox(height: 4),
+
+                      // Row 3: Status line
+                      statusLine,
+                    ],
+                  ),
+                ),
+
+                // ── Quick actions ──
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (job.phase == SyncJobPhase.idle ||
+                        job.phase == SyncJobPhase.error)
+                      _miniAction(
+                        Icons.play_arrow_rounded,
+                        AppColors.neonGreen,
+                        () => ref
+                            .read(serverSyncServiceProvider.notifier)
+                            .startJob(job.id),
+                      ),
+                    if (job.phase == SyncJobPhase.syncing)
+                      _miniAction(
+                        Icons.pause_rounded,
+                        Colors.orange,
+                        () => ref
+                            .read(serverSyncServiceProvider.notifier)
+                            .pauseJob(job.id),
+                      ),
+                    if (job.phase == SyncJobPhase.paused)
+                      _miniAction(
+                        Icons.play_arrow_rounded,
+                        AppColors.neonGreen,
+                        () => ref
+                            .read(serverSyncServiceProvider.notifier)
+                            .resumeJob(job.id),
+                      ),
+                    if (job.isActive)
+                      _miniAction(
+                        Icons.stop_rounded,
+                        Colors.red.shade300,
+                        () => ref
+                            .read(serverSyncServiceProvider.notifier)
+                            .stopJob(job.id),
+                      ),
                   ],
                 ),
-              const SizedBox(height: 6),
-
-              // Source → Server
-              Text(
-                '${job.sourceDirectory} ${job.directionArrow} ${account?.name ?? job.serverName}',
-                style: TextStyle(
-                    fontSize: 12,
-                    color: isDark ? Colors.white54 : Colors.black45),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-
-              // Progress bar (when syncing)
-              if (job.phase == SyncJobPhase.syncing && job.totalBytes > 0) ...[
-                const SizedBox(height: 8),
-                LinearProgressIndicator(
-                  value: job.progress,
-                  backgroundColor: Colors.grey.withValues(alpha: 0.2),
-                  valueColor:
-                      AlwaysStoppedAnimation<Color>(AppColors.neonBlue),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '${job.syncedCount} / ${job.fileItems.length} files • ${job.progressPercent}',
-                  style: TextStyle(
-                      fontSize: 11,
-                      color: isDark ? Colors.white38 : Colors.black26),
-                ),
               ],
-
-              // Status text
-              if (job.status != null &&
-                  job.phase != SyncJobPhase.idle) ...[
-                const SizedBox(height: 4),
-                Text(
-                  _localizeStatus(job.status!, locale),
-                  style: TextStyle(fontSize: 12, color: phaseColor),
-                ),
-              ],
-
-              // Last sync time
-              if (job.lastSyncTime != null) ...[
-                const SizedBox(height: 4),
-                Text(
-                  '${AppLocalizations.get('syncLastSync', locale)}: ${_formatTime(job.lastSyncTime!)}',
-                  style: TextStyle(
-                      fontSize: 11,
-                      color: isDark ? Colors.white30 : Colors.black26),
-                ),
-              ],
-
-              // Controls
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  if (job.phase == SyncJobPhase.idle ||
-                      job.phase == SyncJobPhase.error)
-                    IconButton(
-                      icon: const Icon(Icons.play_arrow_rounded, size: 20),
-                      onPressed: () => ref
-                          .read(serverSyncServiceProvider.notifier)
-                          .startJob(job.id),
-                      tooltip: AppLocalizations.get('syncNow', locale),
-                      color: AppColors.neonGreen,
-                    ),
-                  if (job.phase == SyncJobPhase.syncing)
-                    IconButton(
-                      icon: const Icon(Icons.pause_rounded, size: 20),
-                      onPressed: () => ref
-                          .read(serverSyncServiceProvider.notifier)
-                          .pauseJob(job.id),
-                      color: Colors.orange,
-                    ),
-                  if (job.phase == SyncJobPhase.paused)
-                    IconButton(
-                      icon: const Icon(Icons.play_arrow_rounded, size: 20),
-                      onPressed: () => ref
-                          .read(serverSyncServiceProvider.notifier)
-                          .resumeJob(job.id),
-                      color: AppColors.neonGreen,
-                    ),
-                  if (job.isActive)
-                    IconButton(
-                      icon: const Icon(Icons.stop_rounded, size: 20),
-                      onPressed: () => ref
-                          .read(serverSyncServiceProvider.notifier)
-                          .stopJob(job.id),
-                      color: Colors.red.shade300,
-                    ),
-                  IconButton(
-                    icon: Icon(Icons.delete_outline_rounded,
-                        size: 18, color: Colors.red.shade300),
-                    onPressed: () =>
-                        _confirmDeleteJob(job, locale),
-                  ),
-                ],
-              ),
-            ],
+            ),
           ),
         ),
       ),
-    ),
     );
+  }
+
+  /// Compact icon button for job card actions.
+  Widget _miniAction(IconData icon, Color color, VoidCallback onTap) {
+    return SizedBox(
+      width: 32,
+      height: 32,
+      child: IconButton(
+        icon: Icon(icon, size: 18),
+        color: color,
+        padding: EdgeInsets.zero,
+        onPressed: onTap,
+      ),
+    );
+  }
+
+  /// Shortens a path for display — keeps last 2 segments.
+  String _shortenPath(String path) {
+    final sep = path.contains('\\') ? '\\' : '/';
+    final parts = path.split(sep).where((p) => p.isNotEmpty).toList();
+    if (parts.length <= 2) return path;
+    return '...$sep${parts.sublist(parts.length - 2).join(sep)}';
   }
 
   // ── Job context menu ──
