@@ -70,13 +70,20 @@ Future<String> _getBestLocalIp() async {
 
     for (final iface in interfaces) {
       final name = iface.name.toLowerCase();
-      // Skip known virtual adapters.
+      // Skip known virtual adapters (Windows + Linux).
       final isVirtual = name.contains('vmware') ||
           name.contains('hyper-v') ||
           name.contains('vethernet') ||
           name.contains('virtualbox') ||
           name.contains('docker') ||
-          name.contains('wsl');
+          name.contains('wsl') ||
+          name.contains('virbr') ||
+          name.contains('veth') ||
+          name.startsWith('br-') ||
+          name.startsWith('tun') ||
+          name.startsWith('tap') ||
+          name.contains('lxc') ||
+          name.contains('lxd');
 
       for (final addr in iface.addresses) {
         if (addr.isLoopback) continue;
@@ -103,7 +110,14 @@ Future<String> _getBestLocalIp() async {
           name.contains('vethernet') ||
           name.contains('virtualbox') ||
           name.contains('docker') ||
-          name.contains('wsl');
+          name.contains('wsl') ||
+          name.contains('virbr') ||
+          name.contains('veth') ||
+          name.startsWith('br-') ||
+          name.startsWith('tun') ||
+          name.startsWith('tap') ||
+          name.contains('lxc') ||
+          name.contains('lxd');
       if (isVirtual) continue;
 
       for (final addr in iface.addresses) {

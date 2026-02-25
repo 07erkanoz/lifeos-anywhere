@@ -751,21 +751,30 @@ class SyncService extends StateNotifier<SyncState> {
       return;
     }
 
-    // ── One-way: process changed files ──
+    // ── One-way: push changed files + pull missing files from remote ──
     if (pending.isNotEmpty) {
       _debounceTimers[jobId]?.cancel();
       _debounceTimers[jobId] =
           Timer(const Duration(milliseconds: 500), () => _processJobFiles(jobId, cancelToken));
-    } else {
-      _log.info('Job "$jobId": no changed files, going to watching state');
-      // Save manifest even when nothing changed (confirms sync is up-to-date).
+    }
+
+    // Also check if the remote has files we don't have locally (pull phase).
+    // This handles the case where the local folder is empty or the remote
+    // device has new files that haven't been pulled yet.
+    await _pullMissingFromRemote(jobId, targetDevice, cancelToken);
+
+    if (pending.isEmpty) {
+      // If there was nothing to push AND pull handled everything, save state.
       await store.saveLocalManifest(jobId, currentManifest);
       _pendingManifests.remove(jobId);
-      _updateJob(job.copyWith(
-        phase: SyncJobPhase.watching,
-        status: 'syncCompleted',
-        lastSyncTime: DateTime.now(),
-      ));
+      job = _findJob(jobId);
+      if (job != null && job.phase != SyncJobPhase.watching) {
+        _updateJob(job.copyWith(
+          phase: SyncJobPhase.watching,
+          status: 'syncCompleted',
+          lastSyncTime: DateTime.now(),
+        ));
+      }
     }
 
     // Start watcher.
@@ -1047,6 +1056,188 @@ class SyncService extends StateNotifier<SyncState> {
       return settings.syncReceiveFolder;
     }
     return p.join(settings.downloadPath, 'Sync');
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // One-way pull (missing files from remote)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// For one-way sync: fetches the remote manifest and pulls any files that
+  /// exist on the remote but are missing locally.  This covers the common
+  /// scenario where the initiating device has an empty folder and the target
+  /// device has the files.
+  Future<void> _pullMissingFromRemote(
+    String jobId,
+    Device targetDevice,
+    CancellationToken cancelToken,
+  ) async {
+    var job = _findJob(jobId);
+    if (job == null) return;
+
+    final sender = ref.read(syncSenderProvider);
+    final discoveryService =
+        ref.read(discoveryServiceProvider).valueOrNull;
+    final localName = discoveryService?.localDevice.name ?? 'Unknown';
+
+    // 1. Build local manifest.
+    final localManifest = await _buildLocalManifest(job);
+    if (localManifest == null) return;
+
+    // 2. Fetch remote manifest.
+    _updateJob(job.copyWith(status: 'syncFetchingRemoteManifest'));
+    final remoteManifest = await sender.getRemoteManifest(
+      targetDevice,
+      senderName: localName,
+      basePath: job.remoteBaseDir,
+      jobId: job.id,
+      jobName: job.name,
+    );
+    if (remoteManifest == null) return;
+
+    // 3. Find files that exist remotely but not locally.
+    final localMap = localManifest.toMap();
+    final pullActions = <SyncAction>[];
+    for (final entry in remoteManifest.entries) {
+      if (!localMap.containsKey(entry.relativePath)) {
+        pullActions.add(SyncAction(
+          type: SyncActionType.pullFromRemote,
+          relativePath: entry.relativePath,
+          remoteEntry: entry,
+        ));
+      }
+    }
+
+    if (pullActions.isEmpty) {
+      _log.info('Job "$jobId": no remote-only files to pull');
+      return;
+    }
+
+    _log.info('Job "$jobId": pulling ${pullActions.length} '
+        'files from remote');
+
+    // 4. Build progress tracking.
+    final fileItems = pullActions.map((a) => SyncFileItem(
+      relativePath: a.relativePath,
+      status: SyncFileStatus.pending,
+      fileSize: a.remoteEntry?.size ?? 0,
+    )).toList();
+
+    final totalBytes = fileItems.fold<int>(0, (sum, f) => sum + f.fileSize);
+
+    job = _findJob(jobId);
+    if (job == null) return;
+    job = job.copyWith(
+      status: 'syncing',
+      fileItems: fileItems,
+      totalBytes: totalBytes,
+      transferredBytes: 0,
+      syncedCount: 0,
+      failedCount: 0,
+      failedFiles: [],
+    );
+    _updateJob(job);
+
+    int successCount = 0;
+    int transferredBytes = 0;
+    final failures = <SyncError>[];
+
+    // 5. Pull each file.
+    for (int i = 0; i < pullActions.length; i++) {
+      if (cancelToken.isCancelled) break;
+      job = _findJob(jobId);
+      if (job == null || job.phase == SyncJobPhase.idle) break;
+
+      // Pause support.
+      while (job != null && job.phase == SyncJobPhase.paused) {
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+        job = _findJob(jobId);
+      }
+      if (job == null || job.phase == SyncJobPhase.idle) break;
+
+      final action = pullActions[i];
+      final items = List<SyncFileItem>.from(job.fileItems);
+      items[i] = items[i].copyWith(status: SyncFileStatus.syncing);
+      _updateJob(job.copyWith(fileItems: items));
+
+      final error = await sender.pullFile(
+        targetDevice,
+        relativePath: action.relativePath,
+        localBasePath: job.sourceDirectory,
+        senderName: localName,
+        basePath: job.remoteBaseDir,
+        jobId: job.id,
+        jobName: job.name,
+        cancel: cancelToken,
+      );
+
+      final fileSize = action.remoteEntry?.size ?? 0;
+      transferredBytes += fileSize;
+
+      job = _findJob(jobId);
+      if (job == null) break;
+
+      if (error == null) {
+        successCount++;
+        final doneItems = List<SyncFileItem>.from(job.fileItems);
+        doneItems[i] = doneItems[i].copyWith(
+          status: SyncFileStatus.completed,
+          completedAt: DateTime.now(),
+        );
+        _updateJob(job.copyWith(
+          fileItems: doneItems,
+          syncedCount: successCount,
+          transferredBytes: transferredBytes,
+        ));
+      } else {
+        failures.add(SyncError(
+          filePath: action.relativePath,
+          error: error,
+          timestamp: DateTime.now(),
+        ));
+        final failItems = List<SyncFileItem>.from(job.fileItems);
+        failItems[i] = failItems[i].copyWith(
+          status: SyncFileStatus.failed,
+          error: error,
+        );
+        _updateJob(job.copyWith(
+          fileItems: failItems,
+          failedCount: failures.length,
+          transferredBytes: transferredBytes,
+        ));
+      }
+    }
+
+    // 6. Save manifests and finalize.
+    final store = SyncManifestStore.instance;
+    final newLocalManifest = await _buildLocalManifest(
+      _findJob(jobId) ?? job,
+    );
+    if (newLocalManifest != null) {
+      await store.saveLocalManifest(jobId, newLocalManifest);
+    }
+    await store.saveRemoteManifest(jobId, remoteManifest);
+
+    job = _findJob(jobId);
+    if (job != null) {
+      _updateJob(job.copyWith(
+        phase: SyncJobPhase.watching,
+        lastSyncTime: DateTime.now(),
+        status: 'syncCompleted',
+        syncedCount: successCount,
+        failedCount: failures.length,
+        failedFiles: failures,
+      ));
+      _saveJobs();
+
+      _log.info('Job "$jobId" pull phase: $successCount pulled, '
+          '${failures.length} failed');
+
+      if (successCount > 0) {
+        onSyncBatchCompleted?.call(
+          job.name, successCount, job.targetDeviceName,
+        );
+      }
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
