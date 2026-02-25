@@ -102,20 +102,20 @@
         <h2>3. Google Drive Access</h2>
 
         <div class="warning">
-            <strong>Scope used:</strong> This app requests the <code>https://www.googleapis.com/auth/drive</code> scope (Google Drive full access).
+            <strong>Scope used:</strong> This app requests the <code>https://www.googleapis.com/auth/drive.file</code> scope (access only to files and folders created by this app).
         </div>
 
         <h3>What we access and why</h3>
         <ul>
-            <li><strong>Browse folders:</strong> We list your Google Drive folder structure so you can choose which folder to synchronize with. This is necessary because the App lets you pick any existing folder as a sync destination.</li>
+            <li><strong>Create folders:</strong> The App creates folders in your Google Drive based on the folder name you specify as the sync destination.</li>
             <li><strong>Upload files:</strong> When you configure a sync job, the App uploads files from your selected local folder to your chosen Google Drive folder.</li>
             <li><strong>Download files:</strong> For bidirectional sync, the App downloads files from your chosen Google Drive folder to your local device.</li>
-            <li><strong>Create folders:</strong> The App may create subfolders in your chosen sync destination if they don't already exist.</li>
+            <li><strong>Create subfolders:</strong> The App may create subfolders inside the sync destination to mirror your local folder structure.</li>
         </ul>
 
         <h3>What we do NOT do</h3>
         <ul>
-            <li>We do <strong>not</strong> access files outside of the folders you explicitly select for synchronization.</li>
+            <li>We can <strong>only</strong> access files and folders that the App itself has created. We cannot see or access any other files in your Google Drive.</li>
             <li>We do <strong>not</strong> copy, index, or scan your Google Drive contents for any purpose other than the sync operation you configure.</li>
             <li>We do <strong>not</strong> store your Google Drive files on any server — files are transferred directly between your device and Google's servers.</li>
             <li>We do <strong>not</strong> share your Google Drive data with any third party.</li>

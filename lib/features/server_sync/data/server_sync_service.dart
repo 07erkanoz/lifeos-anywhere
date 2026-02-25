@@ -17,6 +17,7 @@ import 'package:anyware/features/server_sync/data/gdrive_transport.dart';
 import 'package:anyware/features/server_sync/data/oauth_service.dart';
 import 'package:anyware/features/server_sync/data/onedrive_transport.dart';
 import 'package:anyware/features/server_sync/data/sftp_cloud_transport.dart';
+import 'package:anyware/features/server_sync/data/webdav_cloud_transport.dart';
 import 'package:anyware/features/server_sync/data/sftp_transport.dart';
 import 'package:anyware/features/server_sync/data/token_store.dart';
 import 'package:anyware/features/server_sync/domain/server_sync_job.dart';
@@ -492,6 +493,15 @@ class ServerSyncService extends StateNotifier<ServerSyncState> {
         return OneDriveTransport(
           oauth: ref.read(oauthServiceProvider),
           accountId: account.id,
+        );
+      case SyncProviderType.webdav:
+        final port = account.port ?? 443;
+        final scheme = port == 443 ? 'https' : 'http';
+        return WebDavCloudTransport(
+          url: '$scheme://${account.host}:$port',
+          username: account.username ?? '',
+          password: account.password ?? '',
+          basePath: account.remotePath,
         );
     }
   }

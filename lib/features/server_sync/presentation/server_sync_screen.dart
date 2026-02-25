@@ -177,6 +177,8 @@ class _ServerSyncScreenState extends ConsumerState<ServerSyncScreen> {
         return (Icons.cloud_rounded, const Color(0xFF34A853));
       case SyncProviderType.onedrive:
         return (Icons.cloud_queue_rounded, const Color(0xFF0078D4));
+      case SyncProviderType.webdav:
+        return (Icons.language_rounded, const Color(0xFF00897B));
     }
   }
 

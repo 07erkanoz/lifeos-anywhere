@@ -483,6 +483,8 @@ class ServerSyncJobDetail extends ConsumerWidget {
         return Icons.cloud_rounded;
       case SyncProviderType.onedrive:
         return Icons.cloud_queue_rounded;
+      case SyncProviderType.webdav:
+        return Icons.language_rounded;
     }
   }
 

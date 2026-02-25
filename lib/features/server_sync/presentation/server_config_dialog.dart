@@ -8,6 +8,7 @@ import 'package:uuid/uuid.dart';
 
 import 'package:anyware/core/cloud_credentials.dart';
 import 'package:anyware/features/server_sync/data/server_sync_service.dart';
+import 'package:anyware/features/server_sync/data/webdav_cloud_transport.dart';
 import 'package:anyware/features/server_sync/domain/sync_account.dart';
 import 'package:anyware/features/settings/presentation/providers.dart';
 import 'package:anyware/i18n/app_localizations.dart';
@@ -154,6 +155,16 @@ class _ServerConfigDialogState extends ConsumerState<ServerConfigDialog> {
     if (_providerType == SyncProviderType.sftp) {
       final sftpConfig = _buildAccount().toSftpConfig();
       ok = await ref.read(sftpTransportProvider).testConnection(sftpConfig);
+    } else if (_providerType == SyncProviderType.webdav) {
+      final account = _buildAccount();
+      final port = account.port ?? 443;
+      final scheme = port == 443 ? 'https' : 'http';
+      final transport = WebDavCloudTransport(
+        url: '$scheme://${account.host}:$port',
+        username: account.username ?? '',
+        password: account.password ?? '',
+      );
+      ok = await transport.testConnection();
     } else {
       // For cloud, we check if we have a valid email (== authenticated)
       ok = _cloudEmail != null && _cloudEmail!.isNotEmpty;
@@ -171,35 +182,31 @@ class _ServerConfigDialogState extends ConsumerState<ServerConfigDialog> {
   // ═══════════════════════════════════════════════════════════════════════════
 
   SyncAccount _buildAccount() {
+    final isHostBased = _providerType == SyncProviderType.sftp ||
+        _providerType == SyncProviderType.webdav;
+    final isSftp = _providerType == SyncProviderType.sftp;
     return SyncAccount(
       id: _accountId,
       name: _nameCtrl.text.trim(),
       providerType: _providerType,
       createdAt: widget.account?.createdAt ?? DateTime.now(),
       lastConnectedAt: widget.account?.lastConnectedAt,
-      host: _providerType == SyncProviderType.sftp
-          ? _hostCtrl.text.trim()
+      host: isHostBased ? _hostCtrl.text.trim() : null,
+      port: isHostBased
+          ? (int.tryParse(_portCtrl.text.trim()) ?? (isSftp ? 22 : 443))
           : null,
-      port: _providerType == SyncProviderType.sftp
-          ? (int.tryParse(_portCtrl.text.trim()) ?? 22)
-          : null,
-      username: _providerType == SyncProviderType.sftp
-          ? _usernameCtrl.text.trim()
-          : null,
-      password: _providerType == SyncProviderType.sftp
-          ? _passwordCtrl.text
-          : null,
-      privateKey: _providerType == SyncProviderType.sftp && _authMethod == 'key'
+      username: isHostBased ? _usernameCtrl.text.trim() : null,
+      password: isHostBased ? _passwordCtrl.text : null,
+      privateKey: isSftp && _authMethod == 'key'
           ? _privateKeyCtrl.text
           : null,
-      passphrase: _providerType == SyncProviderType.sftp && _authMethod == 'key'
+      passphrase: isSftp && _authMethod == 'key'
           ? _passphraseCtrl.text
           : null,
       remotePath: _remotePathCtrl.text.trim().isEmpty
           ? '/'
           : _remotePathCtrl.text.trim(),
-      authMethod:
-          _providerType == SyncProviderType.sftp ? _authMethod : null,
+      authMethod: isSftp ? _authMethod : null,
       email: _cloudEmail,
     );
   }
@@ -223,7 +230,8 @@ class _ServerConfigDialogState extends ConsumerState<ServerConfigDialog> {
 
   bool get _canSave {
     if (_nameCtrl.text.trim().isEmpty) return false;
-    if (_providerType == SyncProviderType.sftp) {
+    if (_providerType == SyncProviderType.sftp ||
+        _providerType == SyncProviderType.webdav) {
       return _hostCtrl.text.trim().isNotEmpty;
     }
     // Cloud providers require authentication
@@ -267,29 +275,17 @@ class _ServerConfigDialogState extends ConsumerState<ServerConfigDialog> {
             children: [
               // ── Provider selector (only when creating new) ──
               if (!_isEditing) ...[
-                SegmentedButton<SyncProviderType>(
-                  segments: [
-                    const ButtonSegment(
-                      value: SyncProviderType.sftp,
-                      label: Text('SFTP'),
-                      icon: Icon(Icons.dns_rounded, size: 18),
-                    ),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _providerChip(SyncProviderType.sftp, Icons.dns_rounded, 'SFTP'),
+                    _providerChip(SyncProviderType.webdav, Icons.language_rounded, 'WebDAV'),
                     if (CloudCredentials.hasGoogleCredentials)
-                      const ButtonSegment(
-                        value: SyncProviderType.gdrive,
-                        label: Text('Google Drive'),
-                        icon: Icon(Icons.cloud_rounded, size: 18),
-                      ),
+                      _providerChip(SyncProviderType.gdrive, Icons.cloud_rounded, 'Google Drive'),
                     if (CloudCredentials.hasMsCredentials)
-                      const ButtonSegment(
-                        value: SyncProviderType.onedrive,
-                        label: Text('OneDrive'),
-                        icon: Icon(Icons.cloud_queue_rounded, size: 18),
-                      ),
+                      _providerChip(SyncProviderType.onedrive, Icons.cloud_queue_rounded, 'OneDrive'),
                   ],
-                  selected: {_providerType},
-                  onSelectionChanged: (s) =>
-                      setState(() => _providerType = s.first),
                 ),
                 const SizedBox(height: 16),
               ],
@@ -301,9 +297,11 @@ class _ServerConfigDialogState extends ConsumerState<ServerConfigDialog> {
                   labelText: AppLocalizations.get('serverName', locale),
                   hintText: _providerType == SyncProviderType.sftp
                       ? 'My NAS'
-                      : _providerType == SyncProviderType.gdrive
-                          ? 'Google Drive'
-                          : 'OneDrive',
+                      : _providerType == SyncProviderType.webdav
+                          ? 'My Nextcloud'
+                          : _providerType == SyncProviderType.gdrive
+                              ? 'Google Drive'
+                              : 'OneDrive',
                   prefixIcon: const Icon(Icons.label_rounded, size: 20),
                 ),
               ),
@@ -312,13 +310,16 @@ class _ServerConfigDialogState extends ConsumerState<ServerConfigDialog> {
               // ── Provider-specific fields ──
               if (_providerType == SyncProviderType.sftp)
                 _buildSftpFields(locale)
+              else if (_providerType == SyncProviderType.webdav)
+                _buildWebDavFields(locale)
               else
                 _buildCloudFields(locale),
 
               const SizedBox(height: 12),
 
-              // ── Remote path (only for SFTP; cloud folder is chosen per job) ──
-              if (_providerType == SyncProviderType.sftp) ...[
+              // ── Remote path (for SFTP & WebDAV; cloud folder is chosen per job) ──
+              if (_providerType == SyncProviderType.sftp ||
+                  _providerType == SyncProviderType.webdav) ...[
                 TextField(
                   controller: _remotePathCtrl,
                   decoration: InputDecoration(
@@ -504,6 +505,86 @@ class _ServerConfigDialogState extends ConsumerState<ServerConfigDialog> {
           ),
         ],
       ],
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // WebDAV form fields
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  Widget _buildWebDavFields(String locale) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Host + Port
+        Row(
+          children: [
+            Expanded(
+              flex: 3,
+              child: TextField(
+                controller: _hostCtrl,
+                decoration: InputDecoration(
+                  labelText: AppLocalizations.get('serverHost', locale),
+                  hintText: 'cloud.example.com',
+                  prefixIcon: const Icon(Icons.language_rounded, size: 20),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextField(
+                controller: _portCtrl,
+                decoration: InputDecoration(
+                  labelText: AppLocalizations.get('serverPort', locale),
+                ),
+                keyboardType: TextInputType.number,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        // Username
+        TextField(
+          controller: _usernameCtrl,
+          decoration: InputDecoration(
+            labelText: AppLocalizations.get('serverUsername', locale),
+            prefixIcon: const Icon(Icons.person_rounded, size: 20),
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // Password
+        TextField(
+          controller: _passwordCtrl,
+          decoration: InputDecoration(
+            labelText: AppLocalizations.get('serverPassword', locale),
+            prefixIcon: const Icon(Icons.lock_rounded, size: 20),
+          ),
+          obscureText: true,
+        ),
+      ],
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Provider chip for the selector
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  Widget _providerChip(SyncProviderType type, IconData icon, String label) {
+    final selected = _providerType == type;
+    return ChoiceChip(
+      avatar: Icon(icon, size: 18),
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => setState(() {
+        _providerType = type;
+        if (type == SyncProviderType.sftp) {
+          _portCtrl.text = '22';
+        } else if (type == SyncProviderType.webdav) {
+          _portCtrl.text = '443';
+        }
+      }),
     );
   }
 

@@ -33,7 +33,7 @@ class CloudCredentials {
   static const googleTokenUri =
       'https://oauth2.googleapis.com/token';
   static const googleDriveScope =
-      'https://www.googleapis.com/auth/drive';
+      'https://www.googleapis.com/auth/drive.file';
 
   // ── Microsoft OAuth endpoints ──
   static const msAuthUri =

@@ -7,8 +7,8 @@ import 'package:permission_handler/permission_handler.dart';
 
 import 'package:anyware/features/server_sync/data/server_sync_service.dart';
 import 'package:anyware/features/server_sync/data/sftp_cloud_transport.dart';
-import 'package:anyware/features/server_sync/data/gdrive_transport.dart';
 import 'package:anyware/features/server_sync/data/onedrive_transport.dart';
+import 'package:anyware/features/server_sync/data/webdav_cloud_transport.dart';
 import 'package:anyware/features/server_sync/data/cloud_transport.dart';
 import 'package:anyware/features/server_sync/domain/sync_account.dart';
 import 'package:anyware/features/server_sync/presentation/remote_folder_browser.dart';
@@ -133,9 +133,17 @@ class _ServerSyncJobWizardState extends ConsumerState<ServerSyncJobWizard> {
           browser = transport;
           break;
         case SyncProviderType.gdrive:
-          final transport = GDriveTransport(
-            oauth: ref.read(oauthServiceProvider),
-            accountId: account.id,
+          // drive.file scope — folder browser cannot list existing Drive
+          // folders. Users type the path manually; the app creates it.
+          return;
+        case SyncProviderType.webdav:
+          final port = account.port ?? 443;
+          final scheme = port == 443 ? 'https' : 'http';
+          final transport = WebDavCloudTransport(
+            url: '$scheme://${account.host}:$port',
+            username: account.username ?? '',
+            password: account.password ?? '',
+            basePath: account.remotePath,
           );
           await transport.connect();
           browser = transport;
@@ -368,84 +376,144 @@ class _ServerSyncJobWizardState extends ConsumerState<ServerSyncJobWizard> {
                   secondary: Icon(
                     a.isSftp
                         ? Icons.dns_rounded
-                        : a.providerType == SyncProviderType.gdrive
-                            ? Icons.cloud_rounded
-                            : Icons.cloud_queue_rounded,
+                        : a.isWebDav
+                            ? Icons.language_rounded
+                            : a.providerType == SyncProviderType.gdrive
+                                ? Icons.cloud_rounded
+                                : Icons.cloud_queue_rounded,
                     size: 20,
                     color: a.isSftp
                         ? null
-                        : a.providerType == SyncProviderType.gdrive
-                            ? const Color(0xFF34A853)
-                            : const Color(0xFF0078D4),
+                        : a.isWebDav
+                            ? const Color(0xFF00897B)
+                            : a.providerType == SyncProviderType.gdrive
+                                ? const Color(0xFF34A853)
+                                : const Color(0xFF0078D4),
                   ),
                 )),
           const SizedBox(height: 16),
 
-          // Remote folder — browse button
+          // Remote folder
           Text(AppLocalizations.get('serverSyncRemoteSubfolder', locale),
               style:
                   const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
           const SizedBox(height: 8),
-          InkWell(
-            onTap: _targetAccount != null
-                ? () => _browseRemoteFolder(locale)
-                : null,
-            borderRadius: BorderRadius.circular(8),
-            child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-              decoration: BoxDecoration(
-                border: Border.all(
-                  color: _targetAccount != null
-                      ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.5)
-                      : Colors.grey.shade700,
-                ),
-                borderRadius: BorderRadius.circular(8),
-                color: _targetAccount != null
-                    ? Theme.of(context)
-                        .colorScheme
-                        .primary
-                        .withValues(alpha: 0.05)
-                    : null,
+
+          // Google Drive → text field (drive.file scope can't browse)
+          // SFTP / OneDrive → browse button
+          if (_targetAccount?.providerType == SyncProviderType.gdrive) ...[
+            TextField(
+              controller: _remoteSubPathController,
+              decoration: InputDecoration(
+                hintText: AppLocalizations.get('gdrivePathHint', locale),
+                prefixIcon: const Icon(Icons.cloud_rounded,
+                    size: 20, color: Color(0xFF34A853)),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8)),
               ),
-              child: Row(
-                children: [
-                  Icon(Icons.cloud_rounded,
-                      size: 20,
-                      color: _targetAccount != null
-                          ? Theme.of(context).colorScheme.primary
-                          : Colors.grey),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      _remoteSubPathController.text.isNotEmpty
-                          ? _remoteSubPathController.text
-                          : AppLocalizations.get(
-                              'browseRemoteFolder', locale),
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: _remoteSubPathController.text.isNotEmpty
-                            ? null
-                            : Colors.grey,
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 10),
+            Builder(builder: (context) {
+              final isDark = Theme.of(context).brightness == Brightness.dark;
+              final bgColor = isDark
+                  ? const Color(0xFF1565C0).withValues(alpha: 0.18)
+                  : const Color(0xFFE3F2FD);
+              final borderColor = isDark
+                  ? const Color(0xFF42A5F5).withValues(alpha: 0.5)
+                  : const Color(0xFF90CAF9);
+              final iconColor = isDark
+                  ? const Color(0xFF42A5F5)
+                  : const Color(0xFF1976D2);
+              final textColor = isDark
+                  ? const Color(0xFFBBDEFB)
+                  : const Color(0xFF1565C0);
+              return Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: bgColor,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: borderColor),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.info_outline_rounded,
+                        size: 18, color: iconColor),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        AppLocalizations.get('gdrivePathInfo', locale),
+                        style: TextStyle(
+                            fontSize: 12.5, color: textColor),
                       ),
                     ),
+                  ],
+                ),
+              );
+            }),
+          ] else ...[
+            InkWell(
+              onTap: _targetAccount != null
+                  ? () => _browseRemoteFolder(locale)
+                  : null,
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: _targetAccount != null
+                        ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.5)
+                        : Colors.grey.shade700,
                   ),
-                  if (_targetAccount != null)
-                    Icon(Icons.folder_open_rounded,
-                        size: 18,
-                        color: Theme.of(context).colorScheme.primary),
-                ],
+                  borderRadius: BorderRadius.circular(8),
+                  color: _targetAccount != null
+                      ? Theme.of(context)
+                          .colorScheme
+                          .primary
+                          .withValues(alpha: 0.05)
+                      : null,
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.cloud_rounded,
+                        size: 20,
+                        color: _targetAccount != null
+                            ? Theme.of(context).colorScheme.primary
+                            : Colors.grey),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _remoteSubPathController.text.isNotEmpty
+                            ? _remoteSubPathController.text
+                            : AppLocalizations.get(
+                                'browseRemoteFolder', locale),
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: _remoteSubPathController.text.isNotEmpty
+                              ? null
+                              : Colors.grey,
+                        ),
+                      ),
+                    ),
+                    if (_targetAccount != null)
+                      Icon(Icons.folder_open_rounded,
+                          size: 18,
+                          color: Theme.of(context).colorScheme.primary),
+                  ],
+                ),
               ),
             ),
-          ),
-          if (_targetAccount == null)
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Text(
-                AppLocalizations.get('selectServerFirst', locale),
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+            if (_targetAccount == null)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  AppLocalizations.get('selectServerFirst', locale),
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                ),
               ),
-            ),
+          ],
         ],
       ),
     );

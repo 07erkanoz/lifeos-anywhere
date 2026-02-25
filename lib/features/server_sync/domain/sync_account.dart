@@ -4,7 +4,8 @@ import 'package:anyware/features/server_sync/domain/sftp_server_config.dart';
 enum SyncProviderType {
   sftp,
   gdrive,
-  onedrive;
+  onedrive,
+  webdav;
 
   /// Human-readable display name.
   String get displayName {
@@ -15,6 +16,8 @@ enum SyncProviderType {
         return 'Google Drive';
       case SyncProviderType.onedrive:
         return 'OneDrive';
+      case SyncProviderType.webdav:
+        return 'WebDAV';
     }
   }
 
@@ -27,6 +30,8 @@ enum SyncProviderType {
         return 'GDrive';
       case SyncProviderType.onedrive:
         return 'OneDrive';
+      case SyncProviderType.webdav:
+        return 'WebDAV';
     }
   }
 }
@@ -105,13 +110,17 @@ class SyncAccount {
   // ── Computed ──
 
   bool get isSftp => providerType == SyncProviderType.sftp;
+  bool get isWebDav => providerType == SyncProviderType.webdav;
   bool get isCloud =>
       providerType == SyncProviderType.gdrive ||
       providerType == SyncProviderType.onedrive;
 
-  /// A subtitle string for list tiles: host:port for SFTP, email for cloud.
+  /// Whether this provider uses host/port/user/password (not OAuth).
+  bool get isHostBased => isSftp || isWebDav;
+
+  /// A subtitle string for list tiles: host:port for SFTP/WebDAV, email for cloud.
   String get subtitle {
-    if (isSftp) return '${host ?? ''}:${port ?? 22}';
+    if (isHostBased) return '${host ?? ''}:${port ?? (isWebDav ? 443 : 22)}';
     return email ?? providerType.displayName;
   }
 
