@@ -39,10 +39,16 @@ class _SyncSetupDialogState extends ConsumerState<SyncSetupDialog> {
   @override
   void initState() {
     super.initState();
-    // Default folder: <syncReceiveFolder>/<jobName> or <downloadPath>/Sync/<jobName>
-    final syncService = ref.read(syncServiceProvider.notifier);
-    final baseFolder = syncService.getSyncReceiveFolder();
-    _selectedFolder = p.join(baseFolder, _sanitize(widget.request.jobName));
+    // If the sender already selected a folder on this device via the remote
+    // folder browser, use that.  Otherwise fall back to the default layout.
+    final remote = widget.request.remoteBaseDir;
+    if (remote != null && remote.isNotEmpty) {
+      _selectedFolder = remote;
+    } else {
+      final syncService = ref.read(syncServiceProvider.notifier);
+      final baseFolder = syncService.getSyncReceiveFolder();
+      _selectedFolder = p.join(baseFolder, _sanitize(widget.request.jobName));
+    }
   }
 
   String _sanitize(String name) {

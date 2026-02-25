@@ -256,6 +256,39 @@ class SyncService extends StateNotifier<SyncState> {
       }
     }
 
+    // If the sender already selected a specific folder on this device via
+    // the remote folder browser, auto-accept with that folder.
+    if (request.remoteBaseDir != null && request.remoteBaseDir!.isNotEmpty) {
+      final dir = Directory(request.remoteBaseDir!);
+      try {
+        if (!await dir.exists()) {
+          await dir.create(recursive: true);
+        }
+        // Create pairing and auto-accept.
+        final pairing = SyncPairing(
+          jobId: request.jobId,
+          jobName: request.jobName,
+          senderDeviceId: request.senderDeviceId,
+          senderDeviceName: request.senderDeviceName,
+          receiveFolder: request.remoteBaseDir!,
+          direction: request.direction,
+          acceptedAt: DateTime.now(),
+        );
+        state = state.addPairing(pairing);
+        await _savePairings();
+        _log.info('Auto-accepting setup for job ${request.jobId} '
+            '(sender selected folder → ${request.remoteBaseDir})');
+        return {
+          'accepted': true,
+          'receiveFolder': request.remoteBaseDir!,
+          'autoAccepted': true,
+        };
+      } catch (e) {
+        _log.warning('Auto-accept with remoteBaseDir failed: $e');
+        // Fall through to show dialog.
+      }
+    }
+
     // No existing pairing — show dialog and wait for user response.
     _setupCompleter = Completer<Map<String, dynamic>>();
     state = state.copyWith(pendingSyncSetup: request);
@@ -712,6 +745,7 @@ class SyncService extends StateNotifier<SyncState> {
           senderDeviceId: localDevice.id,
           senderDeviceName: localDevice.name,
           senderIp: localDevice.ip,
+          remoteBaseDir: job.remoteBaseDir,
           direction: job.syncDirection,
           fileCount: pending.length,
           totalSize: scannedTotalSize,

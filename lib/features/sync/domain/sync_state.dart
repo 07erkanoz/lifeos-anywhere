@@ -700,6 +700,11 @@ class SyncSetupRequest {
   final int fileCount;
   final int totalSize;
 
+  /// The absolute path on the RECEIVER device that the sender selected via
+  /// the remote folder browser.  When present the receiver can auto-accept
+  /// without showing a dialog because the sender already chose the folder.
+  final String? remoteBaseDir;
+
   const SyncSetupRequest({
     required this.jobId,
     required this.jobName,
@@ -709,6 +714,7 @@ class SyncSetupRequest {
     required this.direction,
     this.fileCount = 0,
     this.totalSize = 0,
+    this.remoteBaseDir,
   });
 
   factory SyncSetupRequest.fromJson(Map<String, dynamic> json) =>
@@ -724,6 +730,7 @@ class SyncSetupRequest {
         ),
         fileCount: json['fileCount'] as int? ?? 0,
         totalSize: json['totalSize'] as int? ?? 0,
+        remoteBaseDir: json['remoteBaseDir'] as String?,
       );
 
   Map<String, dynamic> toJson() => {
@@ -735,6 +742,7 @@ class SyncSetupRequest {
         'direction': direction.name,
         'fileCount': fileCount,
         'totalSize': totalSize,
+        if (remoteBaseDir != null) 'remoteBaseDir': remoteBaseDir,
       };
 }
 
