@@ -778,7 +778,10 @@ class SyncService extends StateNotifier<SyncState> {
     }
 
     // Start watcher.
-    _startWatcher(jobId, job.sourceDirectory);
+    final watchJob = _findJob(jobId);
+    if (watchJob != null) {
+      _startWatcher(jobId, watchJob.sourceDirectory);
+    }
   }
 
   /// Stops a running job — goes back to idle.
@@ -1209,9 +1212,9 @@ class SyncService extends StateNotifier<SyncState> {
 
     // 6. Save manifests and finalize.
     final store = SyncManifestStore.instance;
-    final newLocalManifest = await _buildLocalManifest(
-      _findJob(jobId) ?? job,
-    );
+    final currentJob = _findJob(jobId) ?? job;
+    if (currentJob == null) return;
+    final newLocalManifest = await _buildLocalManifest(currentJob);
     if (newLocalManifest != null) {
       await store.saveLocalManifest(jobId, newLocalManifest);
     }
