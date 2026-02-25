@@ -1,4 +1,4 @@
-import 'package:file_picker/file_picker.dart';
+import 'package:anyware/core/file_picker_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -396,7 +396,7 @@ class _RelayScreenState extends ConsumerState<RelayScreen> {
   }
 
   Future<void> _pickAndSendFile() async {
-    final result = await FilePicker.platform.pickFiles();
+    final result = await FilePickerHelper.pickFiles();
     if (result == null || result.files.isEmpty) return;
 
     final file = result.files.first;

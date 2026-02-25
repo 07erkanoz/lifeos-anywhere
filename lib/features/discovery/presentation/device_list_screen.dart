@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:file_picker/file_picker.dart';
+import 'package:anyware/core/file_picker_helper.dart';
 
 import 'package:anyware/features/discovery/domain/device.dart';
 import 'package:anyware/features/discovery/presentation/providers.dart';
@@ -238,7 +238,7 @@ class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
     WidgetRef ref,
     Device target,
   ) async {
-    final result = await FilePicker.platform.pickFiles(allowMultiple: true);
+    final result = await FilePickerHelper.pickFiles(allowMultiple: true);
     if (result == null || result.files.isEmpty) return;
 
     final paths = result.files

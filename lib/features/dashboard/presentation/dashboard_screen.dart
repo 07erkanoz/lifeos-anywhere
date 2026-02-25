@@ -2,7 +2,7 @@ import 'dart:io';
 import 'dart:async';
 
 import 'package:desktop_drop/desktop_drop.dart';
-import 'package:file_picker/file_picker.dart';
+import 'package:anyware/core/file_picker_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -151,7 +151,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   /// Opens a file picker dialog and sends the selected files to the target device.
   Future<void> _pickAndSendFiles(Device target) async {
-    final result = await FilePicker.platform.pickFiles(allowMultiple: true);
+    final result = await FilePickerHelper.pickFiles(allowMultiple: true);
     if (result == null || result.files.isEmpty) return;
 
     final paths = result.files
@@ -165,7 +165,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   /// Opens a folder picker dialog and sends all files in the folder to the target device.
   Future<void> _pickAndSendFolder(Device target) async {
-    final folderPath = await FilePicker.platform.getDirectoryPath();
+    final folderPath = await FilePickerHelper.getDirectoryPath();
     if (folderPath == null || folderPath.isEmpty) return;
 
     try {

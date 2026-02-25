@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:file_picker/file_picker.dart';
+import 'package:anyware/core/file_picker_helper.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -387,7 +387,7 @@ class SettingsScreen extends ConsumerWidget {
       if (!hasPermission) return;
     }
 
-    final selectedDirectory = await FilePicker.platform.getDirectoryPath();
+    final selectedDirectory = await FilePickerHelper.getDirectoryPath();
     if (selectedDirectory != null) {
       await notifier.updateDownloadPath(selectedDirectory);
     }

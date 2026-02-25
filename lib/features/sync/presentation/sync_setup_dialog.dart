@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:file_picker/file_picker.dart';
+import 'package:anyware/core/file_picker_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
@@ -88,7 +88,7 @@ class _SyncSetupDialogState extends ConsumerState<SyncSetupDialog> {
             _log.warning('Storage permission denied for folder picker');
           }
         }
-        result = await FilePicker.platform.getDirectoryPath();
+        result = await FilePickerHelper.getDirectoryPath();
       }
 
       _log.info('Folder picker result: $result');

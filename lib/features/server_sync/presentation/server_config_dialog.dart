@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:file_picker/file_picker.dart';
+import 'package:anyware/core/file_picker_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -217,7 +217,7 @@ class _ServerConfigDialogState extends ConsumerState<ServerConfigDialog> {
       if (!status.isGranted) return;
     }
 
-    final result = await FilePicker.platform.pickFiles(type: FileType.any);
+    final result = await FilePickerHelper.pickFiles();
     if (result == null || result.files.isEmpty) return;
     final path = result.files.single.path;
     if (path == null) return;

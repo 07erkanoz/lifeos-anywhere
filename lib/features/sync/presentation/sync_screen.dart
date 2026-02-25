@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:file_picker/file_picker.dart';
+import 'package:anyware/core/file_picker_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -2246,7 +2246,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
       if (Platform.isAndroid) {
         await Permission.manageExternalStorage.request();
       }
-      final result = await FilePicker.platform.getDirectoryPath();
+      final result = await FilePickerHelper.getDirectoryPath();
       if (result != null && result.isNotEmpty) {
         ref.read(settingsProvider.notifier).updateSyncReceiveFolder(result);
       }
