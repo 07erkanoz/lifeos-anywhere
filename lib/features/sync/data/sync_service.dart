@@ -711,6 +711,7 @@ class SyncService extends StateNotifier<SyncState> {
           jobName: job.name,
           senderDeviceId: localDevice.id,
           senderDeviceName: localDevice.name,
+          senderIp: localDevice.ip,
           direction: job.syncDirection,
           fileCount: pending.length,
           totalSize: scannedTotalSize,

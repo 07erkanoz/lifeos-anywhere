@@ -62,6 +62,7 @@ class SyncSender {
     required String senderDeviceId,
     required String senderDeviceName,
     required SyncDirection direction,
+    String? senderIp,
     int fileCount = 0,
     int totalSize = 0,
   }) async {
@@ -79,7 +80,7 @@ class SyncSender {
           'jobName': jobName,
           'senderDeviceId': senderDeviceId,
           'senderDeviceName': senderDeviceName,
-          'senderIp': target.ip, // Target will use this for reverse calls.
+          'senderIp': senderIp ?? '', // Sender's own IP for reverse calls.
           'direction': direction.name,
           'fileCount': fileCount,
           'totalSize': totalSize,

@@ -669,13 +669,17 @@ class FileServer {
       final jobName = json['jobName'] as String?;
 
       // Determine the scan directory.
-      // If basePath is provided, it's relative to downloadPath.
-      // Otherwise resolve via pairing or default sync folder.
+      // basePath can be absolute (selected via remote folder browser) or
+      // relative to downloadPath.  Fall back to pairing / default layout.
       String scanDir;
       if (basePath.isNotEmpty) {
-        scanDir = p.normalize(p.join(downloadPath, basePath));
-        if (!p.isWithin(downloadPath, scanDir) && scanDir != downloadPath) {
-          return shelf.Response.forbidden('Invalid base path');
+        if (p.isAbsolute(basePath)) {
+          scanDir = p.normalize(basePath);
+        } else {
+          scanDir = p.normalize(p.join(downloadPath, basePath));
+          if (!p.isWithin(downloadPath, scanDir) && scanDir != downloadPath) {
+            return shelf.Response.forbidden('Invalid base path');
+          }
         }
       } else {
         scanDir = _resolveSyncBaseDir(senderName, jobId, jobName);
@@ -741,11 +745,16 @@ class FileServer {
       }
 
       // Determine base directory.
+      // basePath can be absolute (remote folder browser) or relative.
       String baseDir;
       if (basePath != null && basePath.isNotEmpty) {
-        baseDir = p.normalize(p.join(downloadPath, basePath));
-        if (!p.isWithin(downloadPath, baseDir) && baseDir != downloadPath) {
-          return shelf.Response.forbidden('Invalid base path');
+        if (p.isAbsolute(basePath)) {
+          baseDir = p.normalize(basePath);
+        } else {
+          baseDir = p.normalize(p.join(downloadPath, basePath));
+          if (!p.isWithin(downloadPath, baseDir) && baseDir != downloadPath) {
+            return shelf.Response.forbidden('Invalid base path');
+          }
         }
       } else {
         baseDir = _resolveSyncBaseDir(senderName, jobId, jobName);
