@@ -66,6 +66,18 @@ class App extends ConsumerWidget {
         theme: AppTheme.light,
         darkTheme: AppTheme.dark,
         themeMode: themeMode,
+        // Clamp text scaling for consistent rendering across platforms.
+        builder: (context, child) {
+          return MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              textScaler: MediaQuery.of(context).textScaler.clamp(
+                    minScaleFactor: 1.0,
+                    maxScaleFactor: 1.2,
+                  ),
+            ),
+            child: child!,
+          );
+        },
         shortcuts: <ShortcutActivator, Intent>{
           ...WidgetsApp.defaultShortcuts,
           const SingleActivator(LogicalKeyboardKey.browserBack):
@@ -499,8 +511,8 @@ class _WindowsTitleBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF1E1E2E) : const Color(0xFFF5F5F7);
-    final iconColor = isDark ? Colors.white70 : Colors.black54;
+    final bgColor = isDark ? AppColors.darkSurface : AppColors.lightSidebar;
+    final iconColor = isDark ? AppColors.textSecondary : AppColors.lightTextSecondary;
 
     return Container(
       height: 32,

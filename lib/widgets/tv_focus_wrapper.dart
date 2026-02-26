@@ -67,7 +67,7 @@ class _TvFocusWrapperState extends State<TvFocusWrapper>
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final glow = widget.glowColor ??
-        (isDark ? AppColors.neonBlue : const Color(0xFF007AFF));
+        (isDark ? AppColors.neonBlue : AppColors.lightPrimary);
 
     return Focus(
       focusNode: _focusNode,

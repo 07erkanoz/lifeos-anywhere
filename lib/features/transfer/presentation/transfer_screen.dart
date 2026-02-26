@@ -10,6 +10,7 @@ import 'package:anyware/features/transfer/domain/transfer.dart';
 import 'package:anyware/features/transfer/presentation/providers.dart';
 import 'package:anyware/features/settings/presentation/providers.dart';
 import 'package:anyware/i18n/app_localizations.dart';
+import 'package:anyware/core/theme.dart';
 import 'package:anyware/widgets/desktop_content_shell.dart';
 
 class TransferScreen extends ConsumerWidget {
@@ -639,7 +640,7 @@ class _TransferCard extends StatelessWidget {
       case TransferStatus.transferring:
         return colorScheme.primary;
       case TransferStatus.completed:
-        return const Color(0xFF34C759);
+        return AppColors.statusConnected;
       case TransferStatus.failed:
         return colorScheme.error;
       case TransferStatus.cancelled:

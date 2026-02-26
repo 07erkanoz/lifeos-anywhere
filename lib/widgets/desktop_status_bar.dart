@@ -36,7 +36,7 @@ class DesktopStatusBar extends ConsumerWidget {
     final textColor =
         isDark ? AppColors.textTertiary : AppColors.lightTextTertiary;
     final borderColor = isDark
-        ? const Color(0xFF1E1E2A)
+        ? AppColors.glassBorder
         : AppColors.lightDivider;
     const textStyle = TextStyle(fontSize: 11, fontWeight: FontWeight.w500);
 

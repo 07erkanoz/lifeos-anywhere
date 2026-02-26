@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:anyware/core/theme.dart';
 import 'package:anyware/features/server_sync/data/cloud_transport.dart';
 import 'package:anyware/i18n/app_localizations.dart';
 
@@ -151,9 +152,9 @@ class _RemoteFolderBrowserState extends State<RemoteFolderBrowser> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF1A1A2E) : Colors.white;
+    final bgColor = isDark ? AppColors.darkSurface : Colors.white;
     final cardColor =
-        isDark ? Colors.white.withValues(alpha: 0.06) : Colors.grey.shade50;
+        isDark ? AppColors.darkCard : AppColors.lightSurface;
     final locale = widget.locale;
 
     return Dialog(

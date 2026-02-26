@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:anyware/core/file_picker_helper.dart';
+import 'package:anyware/core/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -417,17 +418,17 @@ class _ServerSyncJobWizardState extends ConsumerState<ServerSyncJobWizard> {
             Builder(builder: (context) {
               final isDark = Theme.of(context).brightness == Brightness.dark;
               final bgColor = isDark
-                  ? const Color(0xFF1565C0).withValues(alpha: 0.18)
-                  : const Color(0xFFE3F2FD);
+                  ? AppColors.neonBlue.withValues(alpha: 0.12)
+                  : AppColors.lightPrimary.withValues(alpha: 0.08);
               final borderColor = isDark
-                  ? const Color(0xFF42A5F5).withValues(alpha: 0.5)
-                  : const Color(0xFF90CAF9);
+                  ? AppColors.neonBlue.withValues(alpha: 0.3)
+                  : AppColors.lightPrimary.withValues(alpha: 0.2);
               final iconColor = isDark
-                  ? const Color(0xFF42A5F5)
-                  : const Color(0xFF1976D2);
+                  ? AppColors.neonBlue
+                  : AppColors.lightPrimary;
               final textColor = isDark
-                  ? const Color(0xFFBBDEFB)
-                  : const Color(0xFF1565C0);
+                  ? AppColors.neonBlue
+                  : AppColors.lightPrimary;
               return Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(

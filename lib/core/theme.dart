@@ -1,60 +1,90 @@
 import 'package:flutter/material.dart';
 
-/// Premium color constants matching the reference TV design.
+/// Modern minimalist color palette — Indigo accent, clean whites/deep blacks.
 class AppColors {
   AppColors._();
 
-  // — Main dark backgrounds —
-  static const Color darkBg = Color(0xFF0A0A0F);
-  static const Color darkSurface = Color(0xFF12121A);
-  static const Color darkCard = Color(0xFF161622);
-  static const Color darkSidebar = Color(0xFF0E0E18);
+  // — Main dark backgrounds (Zinc scale) —
+  static const Color darkBg = Color(0xFF09090B);
+  static const Color darkSurface = Color(0xFF18181B);
+  static const Color darkCard = Color(0xFF1C1C22);
+  static const Color darkSidebar = Color(0xFF111114);
 
-  // — Light theme backgrounds —
-  static const Color lightBg = Color(0xFFF5F7FA);
-  static const Color lightSurface = Color(0xFFFFFFFF);
+  // — Light theme backgrounds (Clean white) —
+  static const Color lightBg = Color(0xFFFFFFFF);
+  static const Color lightSurface = Color(0xFFFAFAFA);
   static const Color lightCard = Color(0xFFFFFFFF);
-  static const Color lightSidebar = Color(0xFFF0F2F8);
+  static const Color lightSidebar = Color(0xFFF5F5F7);
 
-  // — Neon accents (dark theme) —
-  static const Color neonBlue = Color(0xFF00B4FF);
-  static const Color neonGreen = Color(0xFF00FF88);
-  static const Color neonPurple = Color(0xFF9D4EDD);
-  static const Color neonCyan = Color(0xFF00E5FF);
+  // — Indigo accent (dark theme — lighter for contrast) —
+  static const Color neonBlue = Color(0xFF818CF8);     // Indigo-400
+  static const Color neonGreen = Color(0xFF34D399);     // Emerald-400
+  static const Color neonPurple = Color(0xFFA78BFA);    // Violet-400
+  static const Color neonCyan = Color(0xFF818CF8);      // Indigo-400
 
-  // — Light theme accents (slightly deeper for contrast on white) —
-  static const Color lightPrimary = Color(0xFF0A84FF);
-  static const Color lightAccentGreen = Color(0xFF30D158);
-  static const Color lightAccentPurple = Color(0xFF8944D6);
+  // — Light theme accents (Indigo base) —
+  static const Color lightPrimary = Color(0xFF6366F1);       // Indigo-500
+  static const Color lightAccentGreen = Color(0xFF10B981);   // Emerald-500
+  static const Color lightAccentPurple = Color(0xFF6366F1);  // Indigo-500
 
   // — Status colors —
-  static const Color statusConnected = Color(0xFF34C759);
-  static const Color statusActive = Color(0xFF9D4EDD);
-  static const Color statusPaired = Color(0xFF00B4FF);
+  static const Color statusConnected = Color(0xFF10B981);  // Emerald-500
+  static const Color statusActive = Color(0xFF6366F1);     // Indigo-500
+  static const Color statusPaired = Color(0xFF818CF8);     // Indigo-400
 
-  // — Glass effect (glassmorphism) —
-  static const Color glassBorder = Color(0x14FFFFFF); // 8% white
-  static const Color glassBg = Color(0x0DFFFFFF);     // 5% white
-  static const Color glassBorderFocused = Color(0x33FFFFFF); // 20% white
+  // — Glass effect (dark theme card borders) —
+  static const Color glassBorder = Color(0xFF27272A);     // Zinc-800
+  static const Color glassBg = Color(0xFF1C1C22);         // Dark card
+  static const Color glassBorderFocused = Color(0xFF3F3F46); // Zinc-700
 
   // — Light card borders & shadows —
-  static const Color lightCardBorder = Color(0xFFE5E5EA);
-  static const Color lightCardBorderHover = Color(0xFFD1D1D6);
-  static const Color lightDivider = Color(0xFFE5E5EA);
+  static const Color lightCardBorder = Color(0xFFE5E7EB);
+  static const Color lightCardBorderHover = Color(0xFFD1D5DB);
+  static const Color lightDivider = Color(0xFFF3F4F6);
 
   // — Text colors (dark) —
-  static const Color textPrimary = Color(0xFFE8E8ED);
-  static const Color textSecondary = Color(0xFF8E8E93);
-  static const Color textTertiary = Color(0xFF636366);
+  static const Color textPrimary = Color(0xFFFAFAFA);     // Zinc-50
+  static const Color textSecondary = Color(0xFFA1A1AA);   // Zinc-400
+  static const Color textTertiary = Color(0xFF71717A);    // Zinc-500
 
   // — Text colors (light) —
-  static const Color lightTextPrimary = Color(0xFF1C1C1E);
-  static const Color lightTextSecondary = Color(0xFF636366);
-  static const Color lightTextTertiary = Color(0xFF8E8E93);
+  static const Color lightTextPrimary = Color(0xFF111827);   // Gray-900
+  static const Color lightTextSecondary = Color(0xFF6B7280); // Gray-500
+  static const Color lightTextTertiary = Color(0xFF9CA3AF);  // Gray-400
 }
 
+/// Explicit text theme for cross-platform consistency (Inter font).
+const _appTextTheme = TextTheme(
+  displayLarge: TextStyle(
+      fontSize: 32, fontWeight: FontWeight.w700, height: 1.2, letterSpacing: -0.5),
+  displayMedium: TextStyle(
+      fontSize: 28, fontWeight: FontWeight.w600, height: 1.2, letterSpacing: -0.5),
+  headlineLarge: TextStyle(
+      fontSize: 24, fontWeight: FontWeight.w600, height: 1.3),
+  headlineMedium: TextStyle(
+      fontSize: 20, fontWeight: FontWeight.w600, height: 1.3),
+  titleLarge: TextStyle(
+      fontSize: 18, fontWeight: FontWeight.w600, height: 1.4),
+  titleMedium: TextStyle(
+      fontSize: 16, fontWeight: FontWeight.w500, height: 1.4),
+  titleSmall: TextStyle(
+      fontSize: 14, fontWeight: FontWeight.w500, height: 1.4),
+  bodyLarge: TextStyle(
+      fontSize: 16, fontWeight: FontWeight.w400, height: 1.5),
+  bodyMedium: TextStyle(
+      fontSize: 14, fontWeight: FontWeight.w400, height: 1.5),
+  bodySmall: TextStyle(
+      fontSize: 12, fontWeight: FontWeight.w400, height: 1.5),
+  labelLarge: TextStyle(
+      fontSize: 14, fontWeight: FontWeight.w500, height: 1.4),
+  labelMedium: TextStyle(
+      fontSize: 12, fontWeight: FontWeight.w500, height: 1.4),
+  labelSmall: TextStyle(
+      fontSize: 11, fontWeight: FontWeight.w500, height: 1.4),
+);
+
 class AppTheme {
-  static const Color _seedColor = Color(0xFF007AFF);
+  static const Color _seedColor = Color(0xFF6366F1); // Indigo-500
 
   static ThemeData get light {
     final colorScheme = ColorScheme.fromSeed(
@@ -64,6 +94,8 @@ class AppTheme {
 
     return ThemeData(
       useMaterial3: true,
+      fontFamily: 'Inter',
+      textTheme: _appTextTheme,
       colorScheme: colorScheme.copyWith(
         surface: AppColors.lightBg,
         primary: AppColors.lightPrimary,
@@ -78,6 +110,7 @@ class AppTheme {
         scrolledUnderElevation: 0,
         backgroundColor: Colors.transparent,
         titleTextStyle: TextStyle(
+          fontFamily: 'Inter',
           color: AppColors.lightTextPrimary,
           fontSize: 17,
           fontWeight: FontWeight.w600,
@@ -158,6 +191,7 @@ class AppTheme {
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           final selected = states.contains(WidgetState.selected);
           return TextStyle(
+            fontFamily: 'Inter',
             fontSize: 10,
             fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
             color: selected
@@ -180,7 +214,7 @@ class AppTheme {
           if (states.contains(WidgetState.selected)) {
             return AppColors.lightAccentGreen;
           }
-          return const Color(0xFFE5E5EA);
+          return const Color(0xFFE5E7EB);
         }),
         thumbColor: WidgetStateProperty.all(Colors.white),
       ),
@@ -212,7 +246,7 @@ class AppTheme {
     );
   }
 
-  /// Premium dark theme — matching the reference TV design.
+  /// Premium dark theme — deep black with Indigo accents.
   static ThemeData get dark {
     final colorScheme = ColorScheme.fromSeed(
       seedColor: _seedColor,
@@ -221,6 +255,8 @@ class AppTheme {
 
     return ThemeData(
       useMaterial3: true,
+      fontFamily: 'Inter',
+      textTheme: _appTextTheme,
       colorScheme: colorScheme.copyWith(
         surface: AppColors.darkSurface,
         primary: AppColors.neonBlue,
@@ -235,6 +271,7 @@ class AppTheme {
         scrolledUnderElevation: 0,
         backgroundColor: AppColors.darkBg,
         titleTextStyle: TextStyle(
+          fontFamily: 'Inter',
           color: AppColors.textPrimary,
           fontSize: 17,
           fontWeight: FontWeight.w600,
@@ -315,6 +352,7 @@ class AppTheme {
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           final selected = states.contains(WidgetState.selected);
           return TextStyle(
+            fontFamily: 'Inter',
             fontSize: 10,
             fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
             color: selected ? AppColors.neonBlue : AppColors.textSecondary,
@@ -333,7 +371,7 @@ class AppTheme {
           if (states.contains(WidgetState.selected)) {
             return AppColors.neonGreen;
           }
-          return const Color(0xFF38383A);
+          return const Color(0xFF3F3F46); // Zinc-700
         }),
         thumbColor: WidgetStateProperty.all(Colors.white),
       ),
@@ -351,7 +389,7 @@ class AppTheme {
         borderRadius: BorderRadius.circular(4),
       ),
       dividerTheme: const DividerThemeData(
-        color: Color(0xFF1E1E2A),
+        color: Color(0xFF27272A), // Zinc-800
         thickness: 0.5,
         space: 0.5,
       ),

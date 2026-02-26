@@ -206,7 +206,7 @@ class TvSidebar extends StatelessWidget {
             indent: isCollapsed ? 12 : 16,
             endIndent: isCollapsed ? 12 : 16,
             color: isDark
-                ? Colors.white.withValues(alpha: 0.06)
+                ? AppColors.glassBorder
                 : AppColors.lightDivider,
           ),
           Padding(
