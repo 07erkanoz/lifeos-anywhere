@@ -248,7 +248,7 @@ class _TransferCard extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final statusColor = _statusColor(transfer.status, colorScheme);
-    final isIncoming = transfer.receiverDevice != null;
+    final isIncoming = !transfer.isSending;
 
     return GestureDetector(
       onSecondaryTapUp: (details) =>
@@ -377,18 +377,46 @@ class _TransferCard extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      '${transfer.progressPercent}%',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: statusColor,
-                        fontWeight: FontWeight.w700,
-                      ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '${transfer.progressPercent}%',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: statusColor,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        if (transfer.speed != null && transfer.speed! > 0) ...[
+                          const SizedBox(width: 8),
+                          Text(
+                            '${_humanSize(transfer.speed!.round())}/s',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
-                    Text(
-                      _formatTransferredSize(transfer),
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _formatTransferredSize(transfer),
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        if (transfer.estimatedTimeLeft != null) ...[
+                          const SizedBox(width: 8),
+                          Text(
+                            _formatEta(transfer.estimatedTimeLeft!),
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ],
                 ),
@@ -597,6 +625,15 @@ class _TransferCard extends StatelessWidget {
     } else {
       return '${dt.day.toString().padLeft(2, '0')}.${dt.month.toString().padLeft(2, '0')} $time';
     }
+  }
+
+  String _formatEta(Duration eta) {
+    if (eta.inHours > 0) {
+      return '~${eta.inHours}h ${eta.inMinutes.remainder(60)}m';
+    } else if (eta.inMinutes > 0) {
+      return '~${eta.inMinutes}m ${eta.inSeconds.remainder(60)}s';
+    }
+    return '~${eta.inSeconds}s';
   }
 
   String _formatTransferredSize(Transfer t) {

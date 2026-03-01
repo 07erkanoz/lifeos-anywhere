@@ -11,6 +11,7 @@ import 'package:anyware/features/settings/data/settings_repository.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:network_info_plus/network_info_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
 /// Provides the [Device] representing the current machine.
@@ -21,12 +22,19 @@ import 'package:uuid/uuid.dart';
 final localDeviceProvider = FutureProvider<Device>((ref) async {
   final settingsRepo = ref.watch(settingsRepositoryProvider);
   final deviceName = await settingsRepo.getDeviceName();
+  final prefs = await SharedPreferences.getInstance();
 
   final platform = _resolvePlatform();
-  final id = const Uuid().v4();
+
+  // Persist device ID across restarts so other devices recognize us.
+  var id = prefs.getString('device_id');
+  if (id == null || id.isEmpty) {
+    id = const Uuid().v4();
+    await prefs.setString('device_id', id);
+  }
 
   final ip = await _getBestLocalIp();
-  AppLogger('LocalDevice').info('Selected IP = $ip');
+  AppLogger('LocalDevice').info('Selected IP = $ip, ID = $id');
 
   return Device(
     id: id,
@@ -175,6 +183,7 @@ final discoveryServiceProvider = FutureProvider<DiscoveryService>((ref) async {
               AppLogger('DiscoveryProvider').info('IP changed to $newIp');
             }
 
+            service.clearDevices();
             service.stop();
             // Small delay to let the network settle.
             await Future<void>.delayed(const Duration(seconds: 1));
@@ -206,7 +215,30 @@ final discoveryServiceProvider = FutureProvider<DiscoveryService>((ref) async {
     AppLogger('DiscoveryProvider').error('Could not monitor connectivity', error: e);
   }
 
+  // Periodic IP change detection — connectivity_plus misses WiFi→WiFi switches
+  // (e.g. work WiFi → home WiFi). Poll every 10 s and restart if IP changed.
+  Timer? ipPollTimer;
+  ipPollTimer = Timer.periodic(const Duration(seconds: 10), (_) async {
+    if (!service.isRunning) return;
+    try {
+      final currentIp = await _getBestLocalIp();
+      if (currentIp.isNotEmpty && currentIp != service.localDevice.ip) {
+        AppLogger('DiscoveryProvider')
+            .info('IP changed: ${service.localDevice.ip} → $currentIp');
+        service.localDevice = service.localDevice.copyWith(ip: currentIp);
+        service.clearDevices();
+        service.stop();
+        await Future<void>.delayed(const Duration(seconds: 1));
+        await service.start();
+        AppLogger('DiscoveryProvider').info('Discovery restarted after IP change.');
+      }
+    } catch (e) {
+      AppLogger('DiscoveryProvider').warning('IP poll check failed: $e');
+    }
+  });
+
   ref.onDispose(() {
+    ipPollTimer?.cancel();
     connectivitySub?.cancel();
     service.dispose();
   });
@@ -223,11 +255,10 @@ final devicesProvider = StreamProvider<List<Device>>((ref) async* {
   final service = await ref.watch(discoveryServiceProvider.future);
   final localDevice = await ref.watch(localDeviceProvider.future);
 
-  // Filter out our own device from the discovered list.
+  // Filter out our own device from the discovered list (by stable ID,
+  // not IP — IP can change when switching networks).
   List<Device> filterSelf(List<Device> devices) {
-    return devices
-        .where((d) => d.ip != localDevice.ip || d.port != localDevice.port)
-        .toList();
+    return devices.where((d) => d.id != localDevice.id).toList();
   }
 
   // Emit the current snapshot first (may be empty).

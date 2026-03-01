@@ -1138,6 +1138,7 @@ class FileServer {
         receiverDevice: localDevice,
         status: TransferStatus.pending,
         createdAt: DateTime.now(),
+        isSending: false,
       );
 
       _transfers[transferId] = transfer;

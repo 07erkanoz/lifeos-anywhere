@@ -64,6 +64,7 @@ class Transfer {
       filePath: json['filePath'] as String?,
       error: json['error'] as String?,
       createdAt: DateTime.parse(json['createdAt'] as String),
+      isSending: json['isSending'] as bool? ?? true,
     );
   }
 
@@ -79,6 +80,7 @@ class Transfer {
       'filePath': filePath,
       'error': error,
       'createdAt': createdAt.toIso8601String(),
+      'isSending': isSending,
     };
   }
 
