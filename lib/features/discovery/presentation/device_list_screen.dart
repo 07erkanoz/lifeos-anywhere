@@ -65,6 +65,7 @@ class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
       final service = ref.read(sharingServiceProvider);
 
       // Listen to media coming from outside while the app is in memory.
+      // At this point discovery is already running, so devices are available.
       _intentSub =
           service.getMediaStream().listen((List<SharedMediaFile> value) {
         if (value.isNotEmpty && mounted) {
@@ -77,13 +78,23 @@ class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
       });
 
       // Get the media intent that started / resumed the app.
-      service.getInitialMedia().then((List<SharedMediaFile> value) {
-        if (value.isNotEmpty && mounted) {
-          final paths = value.map((f) => f.path).toList();
-          final locale = AppLocalizations.detectLocale();
-          _showDevicePickerDialog(context, ref, paths, locale);
-          service.reset();
+      // Delay to let discovery find devices on the network first.
+      service.getInitialMedia().then((List<SharedMediaFile> value) async {
+        if (value.isEmpty) return;
+
+        // Wait for discovery to find devices (cold start scenario).
+        for (int i = 0; i < 6; i++) {
+          await Future<void>.delayed(const Duration(seconds: 1));
+          if (!mounted) return;
+          final devs = ref.read(devicesProvider).valueOrNull ?? [];
+          if (devs.isNotEmpty) break;
         }
+
+        if (!mounted) return;
+        final paths = value.map((f) => f.path).toList();
+        final locale = AppLocalizations.detectLocale();
+        _showDevicePickerDialog(context, ref, paths, locale);
+        service.reset();
       });
     } catch (e) {
       _log.error('Sharing intent initialization error: $e', error: e);
@@ -332,7 +343,8 @@ class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
     List<String> filePaths,
     String locale,
   ) async {
-    final devices = _currentDevices;
+    // Read devices from provider (fresher than _currentDevices cache).
+    final devices = ref.read(devicesProvider).valueOrNull ?? _currentDevices;
     if (devices.isEmpty) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

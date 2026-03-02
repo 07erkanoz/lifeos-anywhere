@@ -83,10 +83,14 @@ Future<void> main(List<String> args) async {
     await AndroidPlatformService.instance.acquireMulticastLock();
 
     // Request battery optimization exemption after a short delay
-    // so the main UI loads first.
+    // so the main UI loads first. Only ask if not already exempt.
     Future<void>.delayed(const Duration(seconds: 3), () async {
-      await AndroidPlatformService.instance
-          .requestBatteryOptimizationExemption();
+      final isExempt = await AndroidPlatformService.instance
+          .isBatteryOptimizationExempt();
+      if (!isExempt) {
+        await AndroidPlatformService.instance
+            .requestBatteryOptimizationExemption();
+      }
     });
   }
 
