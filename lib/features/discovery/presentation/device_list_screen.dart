@@ -381,12 +381,6 @@ class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
       return;
     }
 
-    // If only one device, send directly.
-    if (devices.length == 1) {
-      await _sendFilesToDevice(context, ref, devices.first, filePaths);
-      return;
-    }
-
     if (!context.mounted) return;
 
     final fileNames = filePaths
