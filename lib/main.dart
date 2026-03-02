@@ -267,7 +267,7 @@ Future<bool> _checkSingleInstance(List<String> args) async {
     // Forward our args to the running instance.
     try {
       final socket =
-          await Socket.connect(InternetAddress.loopbackIPv4, 42099);
+          await Socket.connect(InternetAddress.loopbackIPv4, AppConstants.singleInstancePort);
 
       // Check if we have a --share argument to forward.
       final shareIndex = args.indexOf('--share');

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'package:anyware/core/constants.dart';
 import 'package:anyware/core/logger.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:vibration/vibration.dart';
@@ -169,7 +170,7 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> {
     final ssid = json['ssid'] as String? ?? '';
     final password = json['password'] as String? ?? '';
     final serverIp = json['serverIp'] as String? ?? '';
-    final serverPort = json['serverPort'] as int? ?? 42017;
+    final serverPort = json['serverPort'] as int? ?? AppConstants.defaultPort;
     final deviceId = json['deviceId'] as String? ?? '';
     final deviceName = json['deviceName'] as String? ?? 'Unknown';
 

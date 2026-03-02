@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
+import 'package:anyware/core/constants.dart';
 import 'package:anyware/core/theme.dart';
 import 'package:anyware/core/wifi_hotspot_service.dart';
 import 'package:anyware/features/discovery/presentation/providers.dart';
@@ -108,7 +109,7 @@ class _HotspotHostScreenState extends ConsumerState<HotspotHostScreen> {
         '"ssid":"${info.ssid}",'
         '"password":"${info.password}",'
         '"serverIp":"${info.ip}",'
-        '"serverPort":42017,'
+        '"serverPort":${AppConstants.defaultPort},'
         '"deviceId":"${localDevice?.id ?? ""}",'
         '"deviceName":"${localDevice?.name ?? Platform.localHostname}"'
         '}';

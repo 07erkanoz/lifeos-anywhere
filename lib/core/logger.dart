@@ -59,7 +59,7 @@ class LogEntry {
 /// Usage:
 /// ```dart
 /// final _log = AppLogger('FileServer');
-/// _log.info('Started on port 42017');
+/// _log.info('Started on port 48739');
 /// _log.error('Failed to bind', error: e);
 /// ```
 class AppLogger {

@@ -6,9 +6,9 @@ class AppConstants {
   static const String githubUrl = 'https://github.com/07erkanoz/lifeos-anywhere';
 
   // Network ports
-  static const int defaultPort = 42017;
-  static const int discoveryPort = 42018;
-  static const int singleInstancePort = 42099;
+  static const int defaultPort = 48739;
+  static const int discoveryPort = 48740;
+  static const int singleInstancePort = 48799;
   static const String multicastGroup = '224.0.0.167';
 
   // Discovery timing
