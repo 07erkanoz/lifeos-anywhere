@@ -82,16 +82,17 @@ Future<void> main(List<String> args) async {
     );
     await AndroidPlatformService.instance.acquireMulticastLock();
 
-    // Request battery optimization exemption after a short delay
-    // so the main UI loads first. Only ask if not already exempt.
-    Future<void>.delayed(const Duration(seconds: 3), () async {
-      final isExempt = await AndroidPlatformService.instance
-          .isBatteryOptimizationExempt();
-      if (!isExempt) {
+    // Request battery optimization exemption once (first launch only).
+    // Some OEM skins always return false from isIgnoringBatteryOptimizations
+    // even after the user grants it, so we use a prefs flag instead.
+    final batteryAsked = prefs.getBool('batteryOptAsked') ?? false;
+    if (!batteryAsked) {
+      Future<void>.delayed(const Duration(seconds: 3), () async {
         await AndroidPlatformService.instance
             .requestBatteryOptimizationExemption();
-      }
-    });
+        await prefs.setBool('batteryOptAsked', true);
+      });
+    }
   }
 
   // File path from --share argument (Explorer context menu).

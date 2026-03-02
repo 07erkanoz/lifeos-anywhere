@@ -44,6 +44,14 @@ class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
   /// Subscription for Android/iOS share intent stream.
   StreamSubscription? _intentSub;
 
+  /// File paths from a share intent waiting for devices to be discovered.
+  /// Set in [_handleSharingIntent], consumed in [build] when devices arrive.
+  List<String>? _pendingIntentPaths;
+
+  /// Whether the share-intent picker has already been shown for
+  /// [_pendingIntentPaths] so we don't re-trigger on every rebuild.
+  bool _intentPickerShown = false;
+
   @override
   void initState() {
     super.initState();
@@ -57,48 +65,60 @@ class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
   }
 
   /// Listens for files shared from other Android/iOS apps via the system
-  /// share sheet. Shows the device picker so the user can pick a target.
+  /// share sheet. Stores the file paths and lets [build] show the picker
+  /// once devices have been discovered.
   void _handleSharingIntent() {
     if (!Platform.isAndroid && !Platform.isIOS) return;
 
     try {
       final service = ref.read(sharingServiceProvider);
 
-      // Listen to media coming from outside while the app is in memory.
-      // At this point discovery is already running, so devices are available.
+      // Stream: media shared while the app is already in memory.
       _intentSub =
           service.getMediaStream().listen((List<SharedMediaFile> value) {
         if (value.isNotEmpty && mounted) {
           final paths = value.map((f) => f.path).toList();
-          final locale = AppLocalizations.detectLocale();
-          _showDevicePickerDialog(context, ref, paths, locale);
+          _log.info('Share stream received ${paths.length} files');
+          setState(() {
+            _pendingIntentPaths = paths;
+            _intentPickerShown = false;
+          });
         }
       }, onError: (err) {
         _log.warning('getIntentDataStream error: $err');
       });
 
-      // Get the media intent that started / resumed the app.
-      // Delay to let discovery find devices on the network first.
-      service.getInitialMedia().then((List<SharedMediaFile> value) async {
-        if (value.isEmpty) return;
-
-        // Wait for discovery to find devices (cold start scenario).
-        for (int i = 0; i < 6; i++) {
-          await Future<void>.delayed(const Duration(seconds: 1));
-          if (!mounted) return;
-          final devs = ref.read(devicesProvider).valueOrNull ?? [];
-          if (devs.isNotEmpty) break;
+      // Initial: media intent that launched / resumed the app.
+      service.getInitialMedia().then((List<SharedMediaFile> value) {
+        if (value.isNotEmpty && mounted) {
+          final paths = value.map((f) => f.path).toList();
+          _log.info('Share initial received ${paths.length} files');
+          setState(() {
+            _pendingIntentPaths = paths;
+            _intentPickerShown = false;
+          });
+          service.reset();
         }
-
-        if (!mounted) return;
-        final paths = value.map((f) => f.path).toList();
-        final locale = AppLocalizations.detectLocale();
-        _showDevicePickerDialog(context, ref, paths, locale);
-        service.reset();
       });
     } catch (e) {
       _log.error('Sharing intent initialization error: $e', error: e);
     }
+  }
+
+  /// Tries to show the device picker for pending intent paths.
+  /// Called from [build] when devices become available.
+  void _tryShowIntentPicker(String locale) {
+    if (_pendingIntentPaths == null || _intentPickerShown) return;
+    if (_currentDevices.isEmpty) return;
+
+    _intentPickerShown = true;
+    final paths = _pendingIntentPaths!;
+    _pendingIntentPaths = null;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _showDevicePickerDialog(context, ref, paths, locale);
+    });
   }
 
   @override
@@ -122,6 +142,11 @@ class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
     devicesAsync.whenData((devices) {
       _currentDevices = devices;
     });
+
+    // When devices arrive and a share intent is waiting, show picker.
+    if (_pendingIntentPaths != null && _currentDevices.isNotEmpty) {
+      _tryShowIntentPicker(locale);
+    }
 
     final headerActions = <Widget>[
       IconButton(
