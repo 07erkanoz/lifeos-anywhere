@@ -547,6 +547,8 @@ class AppLocalizations {
       'notifSyncActive': 'Sync active',
       'notifFoldersWatching': '{count} folders monitoring',
       'notifBatchComplete': '\u2705 {count} files from {device}',
+      'notifPersistentTitle': 'LifeOS AnyWhere',
+      'notifPersistentText': 'Ready \u2014 discovery active',
     },
 
     // =========================================================================
@@ -1043,6 +1045,8 @@ class AppLocalizations {
       'notifSyncActive': 'Sync aktif',
       'notifFoldersWatching': '{count} klasör izleniyor',
       'notifBatchComplete': '\u2705 {device} cihazından {count} dosya',
+      'notifPersistentTitle': 'LifeOS AnyWhere',
+      'notifPersistentText': 'Hazır \u2014 keşif aktif',
     },
 
     // =========================================================================
@@ -1529,6 +1533,8 @@ class AppLocalizations {
       'notifSyncActive': 'Sync aktiv',
       'notifFoldersWatching': '{count} Ordner werden überwacht',
       'notifBatchComplete': '\u2705 {count} Dateien von {device}',
+      'notifPersistentTitle': 'LifeOS AnyWhere',
+      'notifPersistentText': 'Bereit \u2014 Erkennung aktiv',
     },
 
     // =========================================================================
@@ -2015,6 +2021,8 @@ class AppLocalizations {
       'notifSyncActive': 'Sync active',
       'notifFoldersWatching': '{count} dossiers surveillés',
       'notifBatchComplete': '\u2705 {count} fichiers de {device}',
+      'notifPersistentTitle': 'LifeOS AnyWhere',
+      'notifPersistentText': 'Prêt \u2014 découverte active',
     },
 
     // =========================================================================
@@ -2501,6 +2509,8 @@ class AppLocalizations {
       'notifSyncActive': 'Sync activo',
       'notifFoldersWatching': '{count} carpetas en vigilancia',
       'notifBatchComplete': '\u2705 {count} archivos de {device}',
+      'notifPersistentTitle': 'LifeOS AnyWhere',
+      'notifPersistentText': 'Listo \u2014 descubrimiento activo',
     },
 
     // =========================================================================
@@ -2987,6 +2997,8 @@ class AppLocalizations {
       'notifSyncActive': 'Sync attivo',
       'notifFoldersWatching': '{count} cartelle monitorate',
       'notifBatchComplete': '\u2705 {count} file da {device}',
+      'notifPersistentTitle': 'LifeOS AnyWhere',
+      'notifPersistentText': 'Pronto \u2014 rilevamento attivo',
     },
 
     // =========================================================================
@@ -3473,6 +3485,8 @@ class AppLocalizations {
       'notifSyncActive': 'Синхронизация активна',
       'notifFoldersWatching': '{count} папок отслеживается',
       'notifBatchComplete': '\u2705 {count} файлов от {device}',
+      'notifPersistentTitle': 'LifeOS AnyWhere',
+      'notifPersistentText': 'Готов \u2014 обнаружение активно',
     },
 
     // =========================================================================
@@ -3959,6 +3973,8 @@ class AppLocalizations {
       'notifSyncActive': '同步活跃',
       'notifFoldersWatching': '正在监控 {count} 个文件夹',
       'notifBatchComplete': '\u2705 来自 {device} 的 {count} 个文件',
+      'notifPersistentTitle': 'LifeOS AnyWhere',
+      'notifPersistentText': '就绪 \u2014 发现已激活',
     },
 
     // =========================================================================
@@ -4445,6 +4461,8 @@ class AppLocalizations {
       'notifSyncActive': '同期アクティブ',
       'notifFoldersWatching': '{count} フォルダを監視中',
       'notifBatchComplete': '\u2705 {device} から {count} ファイル',
+      'notifPersistentTitle': 'LifeOS AnyWhere',
+      'notifPersistentText': '準備完了 \u2014 探索アクティブ',
     },
 
     // =========================================================================
@@ -4931,6 +4949,8 @@ class AppLocalizations {
       'notifSyncActive': 'المزامنة نشطة',
       'notifFoldersWatching': '{count} مجلدات قيد المراقبة',
       'notifBatchComplete': '\u2705 {count} ملفات من {device}',
+      'notifPersistentTitle': 'LifeOS AnyWhere',
+      'notifPersistentText': 'جاهز \u2014 الاكتشاف نشط',
     },
   };
 

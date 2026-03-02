@@ -1,11 +1,15 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'package:anyware/core/file_picker_helper.dart';
+import 'package:anyware/core/logger.dart';
 
 import 'package:anyware/features/discovery/domain/device.dart';
+import 'package:anyware/features/sharing/data/sharing_service.dart';
 import 'package:anyware/features/discovery/presentation/providers.dart';
 import 'package:anyware/features/pairing/presentation/manual_ip_dialog.dart';
 import 'package:anyware/features/pairing/presentation/qr_options_dialog.dart';
@@ -26,6 +30,8 @@ class DeviceListScreen extends ConsumerStatefulWidget {
 }
 
 class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
+  static final _log = AppLogger('DeviceListScreen');
+
   bool _isDragging = false;
 
   /// Set to true when a card-level DropTarget handles the drop.
@@ -34,6 +40,55 @@ class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
 
   /// Cached device list used by drop-on-card detection.
   List<Device> _currentDevices = [];
+
+  /// Subscription for Android/iOS share intent stream.
+  StreamSubscription? _intentSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _handleSharingIntent();
+  }
+
+  @override
+  void dispose() {
+    _intentSub?.cancel();
+    super.dispose();
+  }
+
+  /// Listens for files shared from other Android/iOS apps via the system
+  /// share sheet. Shows the device picker so the user can pick a target.
+  void _handleSharingIntent() {
+    if (!Platform.isAndroid && !Platform.isIOS) return;
+
+    try {
+      final service = ref.read(sharingServiceProvider);
+
+      // Listen to media coming from outside while the app is in memory.
+      _intentSub =
+          service.getMediaStream().listen((List<SharedMediaFile> value) {
+        if (value.isNotEmpty && mounted) {
+          final paths = value.map((f) => f.path).toList();
+          final locale = AppLocalizations.detectLocale();
+          _showDevicePickerDialog(context, ref, paths, locale);
+        }
+      }, onError: (err) {
+        _log.warning('getIntentDataStream error: $err');
+      });
+
+      // Get the media intent that started / resumed the app.
+      service.getInitialMedia().then((List<SharedMediaFile> value) {
+        if (value.isNotEmpty && mounted) {
+          final paths = value.map((f) => f.path).toList();
+          final locale = AppLocalizations.detectLocale();
+          _showDevicePickerDialog(context, ref, paths, locale);
+          service.reset();
+        }
+      });
+    } catch (e) {
+      _log.error('Sharing intent initialization error: $e', error: e);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

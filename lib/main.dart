@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'package:anyware/app.dart';
+import 'package:anyware/core/android_platform_service.dart';
 import 'package:anyware/core/background_service.dart';
 import 'package:anyware/core/constants.dart';
 import 'package:anyware/core/tv_detector.dart';
@@ -72,6 +73,22 @@ Future<void> main(List<String> args) async {
 
   // Initialize background transfer service (foreground service + wakelock).
   await BackgroundTransferService.instance.init();
+
+  // Start persistent foreground service on Android so the OS never kills us.
+  if (Platform.isAndroid) {
+    await BackgroundTransferService.instance.startPersistentService(
+      title: 'LifeOS AnyWhere',
+      text: 'Ready — discovery active',
+    );
+    await AndroidPlatformService.instance.acquireMulticastLock();
+
+    // Request battery optimization exemption after a short delay
+    // so the main UI loads first.
+    Future<void>.delayed(const Duration(seconds: 3), () async {
+      await AndroidPlatformService.instance
+          .requestBatteryOptimizationExemption();
+    });
+  }
 
   // File path from --share argument (Explorer context menu).
   String? pendingSharePath;

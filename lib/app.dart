@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:anyware/core/background_service.dart';
 import 'package:anyware/core/constants.dart';
 import 'package:anyware/core/logger.dart';
 import 'package:anyware/core/theme.dart';
@@ -311,6 +312,14 @@ class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
         );
       }
     });
+
+    // Update persistent notification text when the locale changes (Android).
+    if (Platform.isAndroid) {
+      BackgroundTransferService.instance.updatePersistentNotifStrings(
+        title: AppLocalizations.get('notifPersistentTitle', locale),
+        text: AppLocalizations.get('notifPersistentText', locale),
+      );
+    }
 
     final screenCount = _screens.length;
 

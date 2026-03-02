@@ -14,6 +14,7 @@ import android.net.NetworkRequest
 import android.net.wifi.WifiManager
 import android.net.wifi.WifiNetworkSpecifier
 import android.os.Build
+import android.os.PowerManager
 import android.provider.Settings
 import android.webkit.MimeTypeMap
 import androidx.core.content.FileProvider
@@ -25,6 +26,7 @@ import java.io.File
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.lifeos.anyware/platform"
     private var hotspotReservation: WifiManager.LocalOnlyHotspotReservation? = null
+    private var multicastLock: WifiManager.MulticastLock? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -309,8 +311,65 @@ class MainActivity : FlutterActivity() {
                             result.error("WIFI_ERROR", "WiFi connect error: ${e.message}", null)
                         }
                     }
+                    "acquireMulticastLock" -> {
+                        try {
+                            if (multicastLock == null || !multicastLock!!.isHeld) {
+                                val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+                                multicastLock = wifiManager.createMulticastLock("lifeos_discovery")
+                                multicastLock!!.setReferenceCounted(false)
+                                multicastLock!!.acquire()
+                            }
+                            result.success(true)
+                        } catch (e: Exception) {
+                            result.error("MULTICAST_ERROR", "Failed to acquire multicast lock: ${e.message}", null)
+                        }
+                    }
+                    "releaseMulticastLock" -> {
+                        try {
+                            if (multicastLock != null && multicastLock!!.isHeld) {
+                                multicastLock!!.release()
+                            }
+                            multicastLock = null
+                            result.success(true)
+                        } catch (e: Exception) {
+                            result.error("MULTICAST_ERROR", "Failed to release multicast lock: ${e.message}", null)
+                        }
+                    }
+                    "isBatteryOptimizationExempt" -> {
+                        try {
+                            val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+                            result.success(pm.isIgnoringBatteryOptimizations(packageName))
+                        } catch (e: Exception) {
+                            result.error("BATTERY_OPT_ERROR", "Check failed: ${e.message}", null)
+                        }
+                    }
+                    "requestBatteryOptimizationExemption" -> {
+                        try {
+                            val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+                            if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+                                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                    data = Uri.parse("package:$packageName")
+                                }
+                                startActivity(intent)
+                                result.success(false)
+                            } else {
+                                result.success(true)
+                            }
+                        } catch (e: Exception) {
+                            result.error("BATTERY_OPT_ERROR", "Failed to request battery exemption: ${e.message}", null)
+                        }
+                    }
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    override fun onDestroy() {
+        try {
+            if (multicastLock != null && multicastLock!!.isHeld) {
+                multicastLock!!.release()
+            }
+        } catch (_: Exception) {}
+        super.onDestroy()
     }
 }
