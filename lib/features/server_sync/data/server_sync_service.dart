@@ -17,6 +17,7 @@ import 'package:anyware/features/server_sync/data/gdrive_transport.dart';
 import 'package:anyware/features/server_sync/data/oauth_service.dart';
 import 'package:anyware/features/server_sync/data/onedrive_transport.dart';
 import 'package:anyware/features/server_sync/data/sftp_cloud_transport.dart';
+import 'package:anyware/features/server_sync/data/ftp_cloud_transport.dart';
 import 'package:anyware/features/server_sync/data/webdav_cloud_transport.dart';
 import 'package:anyware/features/server_sync/data/sftp_transport.dart';
 import 'package:anyware/features/server_sync/data/token_store.dart';
@@ -495,14 +496,80 @@ class ServerSyncService extends StateNotifier<ServerSyncState> {
           accountId: account.id,
         );
       case SyncProviderType.webdav:
-        final port = account.port ?? 443;
-        final scheme = port == 443 ? 'https' : 'http';
         return WebDavCloudTransport(
-          url: '$scheme://${account.host}:$port',
+          url: _buildWebDavUrl(account),
           username: account.username ?? '',
           password: account.password ?? '',
           basePath: account.remotePath,
         );
+      case SyncProviderType.ftp:
+        return FtpCloudTransport(
+          host: account.host ?? '',
+          port: account.port ?? 21,
+          username: account.username ?? '',
+          password: account.password ?? '',
+          basePath: account.remotePath,
+        );
+    }
+  }
+
+  /// Build the WebDAV URL from [account].
+  ///
+  /// If the host field already contains a full URL (starts with http:// or
+  /// https://), use it as-is. This lets users specify a custom path like
+  /// `https://seafile.example.com/seafdav/`. Otherwise, build the URL from
+  /// host + port as before.
+  static String _buildWebDavUrl(SyncAccount account) {
+    final host = account.host ?? '';
+    if (host.startsWith('http://') || host.startsWith('https://')) {
+      // Strip trailing slash for consistency — webdav_client adds its own.
+      return host.endsWith('/') ? host.substring(0, host.length - 1) : host;
+    }
+    final port = account.port ?? 443;
+    final scheme = port == 443 ? 'https' : 'http';
+    return '$scheme://$host:$port';
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Quick upload (single files to server, no sync job needed)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Uploads files to a server account without requiring a sync job.
+  ///
+  /// Yields `(completedCount, totalCount, currentFileName)` for progress
+  /// tracking. Throws if the account is not found or the connection fails.
+  Stream<(int, int, String)> uploadFilesToAccount(
+    String accountId,
+    List<String> localPaths,
+    String remoteDir,
+  ) async* {
+    final account = state.accountById(accountId);
+    if (account == null) throw Exception('Account not found');
+
+    final transport = _createTransport(account);
+    try {
+      await transport.connect();
+      await transport.ensureRemoteDir(remoteDir);
+
+      for (int i = 0; i < localPaths.length; i++) {
+        final localPath = localPaths[i];
+        final fileName = localPath.split(Platform.pathSeparator).last;
+        yield (i, localPaths.length, fileName);
+
+        final remotePath = remoteDir.endsWith('/')
+            ? '$remoteDir$fileName'
+            : '$remoteDir/$fileName';
+        final err = await transport.uploadFile(localPath, remotePath);
+        if (err != null) {
+          throw Exception('Upload failed ($fileName): $err');
+        }
+      }
+      yield (localPaths.length, localPaths.length, '');
+
+      // Update lastConnectedAt on success.
+      await updateAccount(account.copyWith(lastConnectedAt: DateTime.now()));
+    } finally {
+      await transport.disconnect();
     }
   }
 

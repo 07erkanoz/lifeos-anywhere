@@ -56,7 +56,7 @@ class _ManualIpDialogState extends ConsumerState<ManualIpDialog> {
 
       // Try to reach the device's /api/info endpoint
       final httpClient = HttpClient()
-        ..connectionTimeout = const Duration(seconds: 5);
+        ..connectionTimeout = const Duration(seconds: 10);
 
       final request = await httpClient.getUrl(
         Uri.http('$ip:$port', '/api/info'),

@@ -51,5 +51,9 @@ app.*.map.json
 # Flutter generated plugin registrant (auto-generated)
 .flutter-plugins
 
+# Keystores (never commit)
+*.jks
+*.keystore
+
 # Environment credentials (never commit)
 .env

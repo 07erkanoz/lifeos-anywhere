@@ -74,6 +74,7 @@ dependencies:
   googleapis: ^13.2.0
   googleapis_auth: ^1.6.0
   webdav_client: ^1.2.2
+  ftpconnect: ^2.0.4
 
 dev_dependencies:
   flutter_test:

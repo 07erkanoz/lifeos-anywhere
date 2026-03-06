@@ -1,31 +1,32 @@
-import 'dart:convert';
 import 'dart:io';
 
-import 'package:webdav_client/webdav_client.dart' as webdav;
+import 'package:ftpconnect/ftpconnect.dart';
 
 import 'package:anyware/core/logger.dart';
 import 'package:anyware/features/server_sync/data/cloud_transport.dart';
 import 'package:anyware/features/sync/data/cancellation_token.dart';
 import 'package:anyware/features/sync/domain/sync_manifest.dart';
 
-final _log = AppLogger('WebDavTransport');
+final _log = AppLogger('FtpTransport');
 
-/// CloudTransport + RemoteBrowser implementation for WebDAV servers
-/// (Nextcloud, ownCloud, Synology NAS, pCloud, Box, etc.).
-class WebDavCloudTransport implements CloudTransport, RemoteBrowser {
-  final String _url;
+/// CloudTransport + RemoteBrowser implementation for plain FTP servers.
+class FtpCloudTransport implements CloudTransport, RemoteBrowser {
+  final String _host;
+  final int _port;
   final String _username;
   final String _password;
   final String _basePath;
 
-  webdav.Client? _client;
+  FTPConnect? _ftp;
 
-  WebDavCloudTransport({
-    required String url,
+  FtpCloudTransport({
+    required String host,
+    required int port,
     required String username,
     required String password,
     String basePath = '/',
-  })  : _url = url,
+  })  : _host = host,
+        _port = port,
         _username = username,
         _password = password,
         _basePath = basePath;
@@ -34,54 +35,63 @@ class WebDavCloudTransport implements CloudTransport, RemoteBrowser {
   // Connection lifecycle
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Pre-compute Basic auth header so the very first request is authenticated.
-  /// The webdav_client package normally sends unauthenticated first, waits for
-  /// 401, then retries.  Some reverse-proxies (Seafile/nginx) return 502
-  /// instead of forwarding the 401, breaking the challenge-response flow.
-  String get _basicAuth =>
-      'Basic ${base64Encode(utf8.encode('$_username:$_password'))}';
-
   @override
   Future<void> connect() async {
-    if (_client != null) return;
-    _client = webdav.newClient(_url, user: _username, password: _password);
-    // Pre-set Basic auth header to avoid 401 challenge-response issues.
-    _client!.setHeaders({'authorization': _basicAuth});
-    // Generous timeout for large files / slow networks.
-    _client!.setConnectTimeout(15000);
-    _client!.setSendTimeout(0); // unlimited for uploads
-    _client!.setReceiveTimeout(0); // unlimited for downloads
-    _log.info('Connected to $_url');
+    if (_ftp != null) return;
+    _ftp = FTPConnect(
+      _host,
+      port: _port,
+      user: _username,
+      pass: _password,
+      timeout: 15,
+    );
+    final ok = await _ftp!.connect();
+    if (!ok) {
+      _ftp = null;
+      throw Exception('FTP connection failed to $_host:$_port');
+    }
+    _log.info('Connected to $_host:$_port');
   }
 
   @override
   Future<void> disconnect() async {
-    _client = null;
-    _log.info('Disconnected from $_url');
+    try {
+      await _ftp?.disconnect();
+    } catch (_) {}
+    _ftp = null;
+    _log.info('Disconnected from $_host');
   }
 
   @override
   Future<bool> testConnection() async {
+    FTPConnect? testFtp;
     try {
-      final c = webdav.newClient(_url, user: _username, password: _password);
-      c.setHeaders({'authorization': _basicAuth});
-      c.setConnectTimeout(10000);
-      c.setReceiveTimeout(10000);
-      // Use PROPFIND on the base path instead of just OPTIONS (ping).
-      // OPTIONS can return 200 on any HTTP server even when WebDAV is
-      // not available at that path (e.g. Seafile serves WebDAV at /seafdav/).
-      await c.readDir(_basePath.isEmpty ? '/' : _basePath);
+      testFtp = FTPConnect(
+        _host,
+        port: _port,
+        user: _username,
+        pass: _password,
+        timeout: 10,
+      );
+      final ok = await testFtp.connect();
+      if (!ok) return false;
+      // Try to list root to verify access.
+      await testFtp.listDirectoryContent();
       return true;
     } catch (e) {
       _log.warning('Test connection failed: $e');
-      rethrow;
+      return false;
+    } finally {
+      try {
+        await testFtp?.disconnect();
+      } catch (_) {}
     }
   }
 
-  webdav.Client get _c {
-    final c = _client;
+  FTPConnect get _c {
+    final c = _ftp;
     if (c == null) {
-      throw StateError('WebDavCloudTransport not connected. Call connect() first.');
+      throw StateError('FtpCloudTransport not connected. Call connect() first.');
     }
     return c;
   }
@@ -96,23 +106,26 @@ class WebDavCloudTransport implements CloudTransport, RemoteBrowser {
   @override
   Future<List<RemoteEntry>> listDirectory(String path) async {
     final targetPath = path.isEmpty ? _basePath : path;
-    _log.debug('listDirectory: url=$_url targetPath=$targetPath');
-    final items = await _c.readDir(targetPath);
-    _log.debug('listDirectory: ${items.length} items returned');
+    await _c.changeDirectory(targetPath);
+    final items = await _c.listDirectoryContent();
 
-    final entries = items
-        .where((f) => f.name != null && f.name != '.' && f.name != '..')
-        .map((f) {
-      final name = f.name!;
-      final filePath = f.path ?? '$targetPath/$name';
-      return RemoteEntry(
+    final entries = <RemoteEntry>[];
+    for (final item in items) {
+      final name = item.name;
+      if (name == '.' || name == '..') continue;
+
+      final fullPath = targetPath.endsWith('/')
+          ? '$targetPath$name'
+          : '$targetPath/$name';
+
+      entries.add(RemoteEntry(
         name: name,
-        path: filePath,
-        isDirectory: f.isDir ?? false,
-        size: (f.isDir ?? false) ? null : f.size,
-        modified: f.mTime,
-      );
-    }).toList();
+        path: fullPath,
+        isDirectory: item.type == FTPEntryType.DIR,
+        size: item.type == FTPEntryType.FILE ? (item.size ?? 0) : null,
+        modified: item.modifyTime,
+      ));
+    }
 
     // Sort: directories first, then alphabetical.
     entries.sort((a, b) {
@@ -136,14 +149,13 @@ class WebDavCloudTransport implements CloudTransport, RemoteBrowser {
     await _scanDir(remotePath, remotePath, entries);
 
     return SyncManifest(
-      deviceId: 'webdav-$accountId',
+      deviceId: 'ftp-$accountId',
       basePath: remotePath,
       createdAt: DateTime.now().toUtc(),
       entries: entries,
     );
   }
 
-  /// Recursive directory scanner for building manifests.
   Future<void> _scanDir(
     String basePath,
     String currentPath,
@@ -152,7 +164,6 @@ class WebDavCloudTransport implements CloudTransport, RemoteBrowser {
     final items = await listDirectory(currentPath);
 
     for (final item in items) {
-      // Compute relative path from base.
       var relPath = item.path;
       if (relPath.startsWith(basePath)) {
         relPath = relPath.substring(basePath.length);
@@ -186,19 +197,26 @@ class WebDavCloudTransport implements CloudTransport, RemoteBrowser {
     try {
       if (cancel != null && cancel.isCancelled) return 'Cancelled';
 
-      await _c.writeFromFile(
-        localPath,
-        remotePath,
-        onProgress: onProgress != null
-            ? (count, total) {
-                onProgress(count);
-                // Check cancellation on each progress tick.
-                if (cancel != null && cancel.isCancelled) {
-                  throw CancelledException();
-                }
-              }
-            : null,
-      );
+      final file = File(localPath);
+      if (!await file.exists()) return 'Local file not found: $localPath';
+
+      // Ensure remote directory exists.
+      final remoteDir = remotePath.substring(0, remotePath.lastIndexOf('/'));
+      if (remoteDir.isNotEmpty) {
+        await ensureRemoteDir(remoteDir);
+      }
+
+      // Navigate to the remote directory.
+      await _c.changeDirectory(remoteDir.isEmpty ? '/' : remoteDir);
+
+      final ok = await _c.uploadFile(file);
+      if (!ok) return 'FTP upload failed for $remotePath';
+
+      // Report final size as progress.
+      if (onProgress != null) {
+        final size = await file.length();
+        onProgress(size);
+      }
 
       return null; // success
     } on CancelledException {
@@ -221,13 +239,19 @@ class WebDavCloudTransport implements CloudTransport, RemoteBrowser {
       final dir = Directory(localPath).parent;
       if (!await dir.exists()) await dir.create(recursive: true);
 
-      await _c.read2File(
-        remotePath,
-        localPath,
-        onProgress: onProgress != null
-            ? (count, total) => onProgress(count)
-            : null,
-      );
+      // Navigate to the remote directory.
+      final remoteDir = remotePath.substring(0, remotePath.lastIndexOf('/'));
+      await _c.changeDirectory(remoteDir.isEmpty ? '/' : remoteDir);
+
+      final outFile = File(localPath);
+      final ok = await _c.downloadFile(remotePath, outFile);
+      if (!ok) return 'FTP download failed for $remotePath';
+
+      // Report file size as progress.
+      if (onProgress != null) {
+        final size = await outFile.length();
+        onProgress(size);
+      }
 
       return null; // success
     } catch (e) {
@@ -239,8 +263,8 @@ class WebDavCloudTransport implements CloudTransport, RemoteBrowser {
   @override
   Future<bool> deleteRemoteFile(String remotePath) async {
     try {
-      await _c.remove(remotePath);
-      return true;
+      final ok = await _c.deleteFile(remotePath);
+      return ok;
     } catch (e) {
       _log.warning('Delete failed ($remotePath): $e');
       return false;
@@ -250,14 +274,20 @@ class WebDavCloudTransport implements CloudTransport, RemoteBrowser {
   @override
   Future<void> ensureRemoteDir(String path) async {
     try {
-      await _c.mkdirAll(path);
+      await _c.makeDirectory(path);
     } catch (e) {
-      _log.warning('mkdir failed ($path): $e');
-      rethrow;
+      // Directory may already exist — FTP MKD returns error in that case.
+      // We ignore the error and verify by trying to CWD into it.
+      try {
+        await _c.changeDirectory(path);
+      } catch (_) {
+        _log.warning('ensureRemoteDir failed ($path): $e');
+        rethrow;
+      }
     }
   }
 
-  /// WebDAV does not support delta queries — always returns `null`.
+  /// FTP does not support delta queries — always returns `null`.
   @override
   Future<DeltaResult?> getDelta(String? lastToken) async => null;
 }

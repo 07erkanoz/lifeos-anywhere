@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import 'package:anyware/features/server_sync/data/server_sync_service.dart';
+import 'package:anyware/features/server_sync/data/ftp_cloud_transport.dart';
 import 'package:anyware/features/server_sync/data/sftp_cloud_transport.dart';
 import 'package:anyware/features/server_sync/data/onedrive_transport.dart';
 import 'package:anyware/features/server_sync/data/webdav_cloud_transport.dart';
@@ -118,6 +119,17 @@ class _ServerSyncJobWizardState extends ConsumerState<ServerSyncJobWizard> {
     }
   }
 
+  /// Build WebDAV URL — accepts full URL in host field.
+  static String _buildWebDavUrl(SyncAccount account) {
+    final host = account.host ?? '';
+    if (host.startsWith('http://') || host.startsWith('https://')) {
+      return host.endsWith('/') ? host.substring(0, host.length - 1) : host;
+    }
+    final port = account.port ?? 443;
+    final scheme = port == 443 ? 'https' : 'http';
+    return '$scheme://$host:$port';
+  }
+
   Future<void> _browseRemoteFolder(String locale) async {
     final account = _targetAccount;
     if (account == null) return;
@@ -133,15 +145,24 @@ class _ServerSyncJobWizardState extends ConsumerState<ServerSyncJobWizard> {
           await transport.connect();
           browser = transport;
           break;
+        case SyncProviderType.ftp:
+          final ftpTransport = FtpCloudTransport(
+            host: account.host ?? '',
+            port: account.port ?? 21,
+            username: account.username ?? '',
+            password: account.password ?? '',
+            basePath: account.remotePath,
+          );
+          await ftpTransport.connect();
+          browser = ftpTransport;
+          break;
         case SyncProviderType.gdrive:
           // drive.file scope — folder browser cannot list existing Drive
           // folders. Users type the path manually; the app creates it.
           return;
         case SyncProviderType.webdav:
-          final port = account.port ?? 443;
-          final scheme = port == 443 ? 'https' : 'http';
           final transport = WebDavCloudTransport(
-            url: '$scheme://${account.host}:$port',
+            url: _buildWebDavUrl(account),
             username: account.username ?? '',
             password: account.password ?? '',
             basePath: account.remotePath,
@@ -377,13 +398,15 @@ class _ServerSyncJobWizardState extends ConsumerState<ServerSyncJobWizard> {
                   secondary: Icon(
                     a.isSftp
                         ? Icons.dns_rounded
-                        : a.isWebDav
-                            ? Icons.language_rounded
-                            : a.providerType == SyncProviderType.gdrive
-                                ? Icons.cloud_rounded
-                                : Icons.cloud_queue_rounded,
+                        : a.isFtp
+                            ? Icons.folder_shared_rounded
+                            : a.isWebDav
+                                ? Icons.language_rounded
+                                : a.providerType == SyncProviderType.gdrive
+                                    ? Icons.cloud_rounded
+                                    : Icons.cloud_queue_rounded,
                     size: 20,
-                    color: a.isSftp
+                    color: a.isSftp || a.isFtp
                         ? null
                         : a.isWebDav
                             ? const Color(0xFF00897B)

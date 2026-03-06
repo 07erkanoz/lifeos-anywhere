@@ -35,6 +35,12 @@ class CloudCredentials {
   static const googleDriveScope =
       'https://www.googleapis.com/auth/drive.file';
 
+  // ── TURN Server (WebRTC relay) ──
+  static const turnUsername =
+      String.fromEnvironment('TURN_USERNAME');
+  static const turnCredential =
+      String.fromEnvironment('TURN_CREDENTIAL');
+
   // ── Microsoft OAuth endpoints ──
   static const msAuthUri =
       'https://login.microsoftonline.com/common/oauth2/v2.0/authorize';

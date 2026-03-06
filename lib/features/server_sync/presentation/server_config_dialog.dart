@@ -8,6 +8,7 @@ import 'package:uuid/uuid.dart';
 
 import 'package:anyware/core/cloud_credentials.dart';
 import 'package:anyware/features/server_sync/data/server_sync_service.dart';
+import 'package:anyware/features/server_sync/data/ftp_cloud_transport.dart';
 import 'package:anyware/features/server_sync/data/webdav_cloud_transport.dart';
 import 'package:anyware/features/server_sync/domain/sync_account.dart';
 import 'package:anyware/features/settings/presentation/providers.dart';
@@ -48,6 +49,7 @@ class _ServerConfigDialogState extends ConsumerState<ServerConfigDialog> {
   // ── Testing ──
   bool _isTesting = false;
   String? _testResult;
+  String? _testErrorMsg;
 
   /// Stable ID for this account — generated once so the OAuth token and
   /// the persisted [SyncAccount] always share the same identifier.
@@ -65,7 +67,8 @@ class _ServerConfigDialogState extends ConsumerState<ServerConfigDialog> {
       _nameCtrl.text = a.name;
       _remotePathCtrl.text = a.remotePath;
       _hostCtrl.text = a.host ?? '';
-      _portCtrl.text = (a.port ?? 22).toString();
+      final defaultPort = a.isFtp ? 21 : (a.isWebDav ? 443 : 22);
+      _portCtrl.text = (a.port ?? defaultPort).toString();
       _usernameCtrl.text = a.username ?? '';
       _passwordCtrl.text = a.password ?? '';
       _privateKeyCtrl.text = a.privateKey ?? '';
@@ -142,6 +145,21 @@ class _ServerConfigDialogState extends ConsumerState<ServerConfigDialog> {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // WebDAV URL helper
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Build WebDAV URL — accepts full URL in host field (e.g. https://seafile.com/seafdav/).
+  static String _buildWebDavUrl(SyncAccount account) {
+    final host = account.host ?? '';
+    if (host.startsWith('http://') || host.startsWith('https://')) {
+      return host.endsWith('/') ? host.substring(0, host.length - 1) : host;
+    }
+    final port = account.port ?? 443;
+    final scheme = port == 443 ? 'https' : 'http';
+    return '$scheme://$host:$port';
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // Test connection
   // ═══════════════════════════════════════════════════════════════════════════
 
@@ -149,31 +167,48 @@ class _ServerConfigDialogState extends ConsumerState<ServerConfigDialog> {
     setState(() {
       _isTesting = true;
       _testResult = null;
+      _testErrorMsg = null;
     });
 
     bool ok = false;
-    if (_providerType == SyncProviderType.sftp) {
-      final sftpConfig = _buildAccount().toSftpConfig();
-      ok = await ref.read(sftpTransportProvider).testConnection(sftpConfig);
-    } else if (_providerType == SyncProviderType.webdav) {
-      final account = _buildAccount();
-      final port = account.port ?? 443;
-      final scheme = port == 443 ? 'https' : 'http';
-      final transport = WebDavCloudTransport(
-        url: '$scheme://${account.host}:$port',
-        username: account.username ?? '',
-        password: account.password ?? '',
-      );
-      ok = await transport.testConnection();
-    } else {
-      // For cloud, we check if we have a valid email (== authenticated)
-      ok = _cloudEmail != null && _cloudEmail!.isNotEmpty;
+    String? errorMsg;
+    try {
+      if (_providerType == SyncProviderType.sftp) {
+        final sftpConfig = _buildAccount().toSftpConfig();
+        ok = await ref.read(sftpTransportProvider).testConnection(sftpConfig);
+      } else if (_providerType == SyncProviderType.ftp) {
+        final account = _buildAccount();
+        final transport = FtpCloudTransport(
+          host: account.host ?? '',
+          port: account.port ?? 21,
+          username: account.username ?? '',
+          password: account.password ?? '',
+          basePath: account.remotePath,
+        );
+        ok = await transport.testConnection();
+      } else if (_providerType == SyncProviderType.webdav) {
+        final account = _buildAccount();
+        final transport = WebDavCloudTransport(
+          url: _buildWebDavUrl(account),
+          username: account.username ?? '',
+          password: account.password ?? '',
+          basePath: account.remotePath,
+        );
+        ok = await transport.testConnection();
+      } else {
+        // For cloud, we check if we have a valid email (== authenticated)
+        ok = _cloudEmail != null && _cloudEmail!.isNotEmpty;
+      }
+    } catch (e) {
+      ok = false;
+      errorMsg = e.toString();
     }
 
     if (!mounted) return;
     setState(() {
       _isTesting = false;
       _testResult = ok ? 'ok' : 'fail';
+      _testErrorMsg = errorMsg;
     });
   }
 
@@ -183,8 +218,11 @@ class _ServerConfigDialogState extends ConsumerState<ServerConfigDialog> {
 
   SyncAccount _buildAccount() {
     final isHostBased = _providerType == SyncProviderType.sftp ||
+        _providerType == SyncProviderType.ftp ||
         _providerType == SyncProviderType.webdav;
     final isSftp = _providerType == SyncProviderType.sftp;
+    final isFtp = _providerType == SyncProviderType.ftp;
+    final defaultPort = isSftp ? 22 : (isFtp ? 21 : 443);
     return SyncAccount(
       id: _accountId,
       name: _nameCtrl.text.trim(),
@@ -193,7 +231,7 @@ class _ServerConfigDialogState extends ConsumerState<ServerConfigDialog> {
       lastConnectedAt: widget.account?.lastConnectedAt,
       host: isHostBased ? _hostCtrl.text.trim() : null,
       port: isHostBased
-          ? (int.tryParse(_portCtrl.text.trim()) ?? (isSftp ? 22 : 443))
+          ? (int.tryParse(_portCtrl.text.trim()) ?? defaultPort)
           : null,
       username: isHostBased ? _usernameCtrl.text.trim() : null,
       password: isHostBased ? _passwordCtrl.text : null,
@@ -231,6 +269,7 @@ class _ServerConfigDialogState extends ConsumerState<ServerConfigDialog> {
   bool get _canSave {
     if (_nameCtrl.text.trim().isEmpty) return false;
     if (_providerType == SyncProviderType.sftp ||
+        _providerType == SyncProviderType.ftp ||
         _providerType == SyncProviderType.webdav) {
       return _hostCtrl.text.trim().isNotEmpty;
     }
@@ -280,6 +319,7 @@ class _ServerConfigDialogState extends ConsumerState<ServerConfigDialog> {
                   runSpacing: 8,
                   children: [
                     _providerChip(SyncProviderType.sftp, Icons.dns_rounded, 'SFTP'),
+                    _providerChip(SyncProviderType.ftp, Icons.folder_shared_rounded, 'FTP'),
                     _providerChip(SyncProviderType.webdav, Icons.language_rounded, 'WebDAV'),
                     if (CloudCredentials.hasGoogleCredentials)
                       _providerChip(SyncProviderType.gdrive, Icons.cloud_rounded, 'Google Drive'),
@@ -297,11 +337,13 @@ class _ServerConfigDialogState extends ConsumerState<ServerConfigDialog> {
                   labelText: AppLocalizations.get('serverName', locale),
                   hintText: _providerType == SyncProviderType.sftp
                       ? 'My NAS'
-                      : _providerType == SyncProviderType.webdav
-                          ? 'My Nextcloud'
-                          : _providerType == SyncProviderType.gdrive
-                              ? 'Google Drive'
-                              : 'OneDrive',
+                      : _providerType == SyncProviderType.ftp
+                          ? 'My FTP Server'
+                          : _providerType == SyncProviderType.webdav
+                              ? 'My Nextcloud'
+                              : _providerType == SyncProviderType.gdrive
+                                  ? 'Google Drive'
+                                  : 'OneDrive',
                   prefixIcon: const Icon(Icons.label_rounded, size: 20),
                 ),
               ),
@@ -310,6 +352,8 @@ class _ServerConfigDialogState extends ConsumerState<ServerConfigDialog> {
               // ── Provider-specific fields ──
               if (_providerType == SyncProviderType.sftp)
                 _buildSftpFields(locale)
+              else if (_providerType == SyncProviderType.ftp)
+                _buildFtpFields(locale)
               else if (_providerType == SyncProviderType.webdav)
                 _buildWebDavFields(locale)
               else
@@ -317,15 +361,20 @@ class _ServerConfigDialogState extends ConsumerState<ServerConfigDialog> {
 
               const SizedBox(height: 12),
 
-              // ── Remote path (for SFTP & WebDAV; cloud folder is chosen per job) ──
+              // ── Remote path (for SFTP, FTP & WebDAV; cloud folder is chosen per job) ──
               if (_providerType == SyncProviderType.sftp ||
+                  _providerType == SyncProviderType.ftp ||
                   _providerType == SyncProviderType.webdav) ...[
                 TextField(
                   controller: _remotePathCtrl,
                   decoration: InputDecoration(
                     labelText:
                         AppLocalizations.get('serverRemotePath', locale),
-                    hintText: '/home/user/sync',
+                    hintText: _providerType == SyncProviderType.webdav
+                        ? '/dav/files/user  or  /'
+                        : _providerType == SyncProviderType.ftp
+                            ? '/upload'
+                            : '/home/user/sync',
                     prefixIcon:
                         const Icon(Icons.folder_rounded, size: 20),
                   ),
@@ -366,6 +415,16 @@ class _ServerConfigDialogState extends ConsumerState<ServerConfigDialog> {
                             : AppLocalizations.get(
                                 'testConnection', locale)),
               ),
+              // Show error details when test fails
+              if (_testResult == 'fail' && _testErrorMsg != null) ...[
+                const SizedBox(height: 6),
+                Text(
+                  _testErrorMsg!,
+                  style: const TextStyle(fontSize: 12, color: Colors.red),
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ],
           ),
         ),
@@ -509,6 +568,65 @@ class _ServerConfigDialogState extends ConsumerState<ServerConfigDialog> {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // FTP form fields (host, port, username, password — no key auth)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  Widget _buildFtpFields(String locale) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Host + Port
+        Row(
+          children: [
+            Expanded(
+              flex: 3,
+              child: TextField(
+                controller: _hostCtrl,
+                decoration: InputDecoration(
+                  labelText: AppLocalizations.get('serverHost', locale),
+                  hintText: '192.168.1.100',
+                  prefixIcon: const Icon(Icons.folder_shared_rounded, size: 20),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextField(
+                controller: _portCtrl,
+                decoration: InputDecoration(
+                  labelText: AppLocalizations.get('serverPort', locale),
+                ),
+                keyboardType: TextInputType.number,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        // Username
+        TextField(
+          controller: _usernameCtrl,
+          decoration: InputDecoration(
+            labelText: AppLocalizations.get('serverUsername', locale),
+            prefixIcon: const Icon(Icons.person_rounded, size: 20),
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // Password
+        TextField(
+          controller: _passwordCtrl,
+          decoration: InputDecoration(
+            labelText: AppLocalizations.get('serverPassword', locale),
+            prefixIcon: const Icon(Icons.lock_rounded, size: 20),
+          ),
+          obscureText: true,
+        ),
+      ],
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // WebDAV form fields
   // ═══════════════════════════════════════════════════════════════════════════
 
@@ -525,7 +643,7 @@ class _ServerConfigDialogState extends ConsumerState<ServerConfigDialog> {
                 controller: _hostCtrl,
                 decoration: InputDecoration(
                   labelText: AppLocalizations.get('serverHost', locale),
-                  hintText: 'cloud.example.com',
+                  hintText: 'nas.example.com or https://seafile.com/seafdav/',
                   prefixIcon: const Icon(Icons.language_rounded, size: 20),
                 ),
               ),
@@ -581,6 +699,8 @@ class _ServerConfigDialogState extends ConsumerState<ServerConfigDialog> {
         _providerType = type;
         if (type == SyncProviderType.sftp) {
           _portCtrl.text = '22';
+        } else if (type == SyncProviderType.ftp) {
+          _portCtrl.text = '21';
         } else if (type == SyncProviderType.webdav) {
           _portCtrl.text = '443';
         }

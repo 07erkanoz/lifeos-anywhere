@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
+import 'package:anyware/core/cloud_credentials.dart';
 import 'package:anyware/core/logger.dart';
 import 'package:anyware/features/relay/data/signaling_client.dart';
 
@@ -71,13 +72,13 @@ class WebRTCTransfer {
     'iceServers': [
       {'urls': 'stun:stun.l.google.com:19302'},
       {'urls': 'stun:stun1.l.google.com:19302'},
-      {
+      if (CloudCredentials.turnUsername.isNotEmpty) {
         'urls': [
           'turn:141.98.112.130:3479?transport=udp',
           'turn:141.98.112.130:3479?transport=tcp',
         ],
-        'username': 'lifeos',
-        'credential': 'lifeos2025turn',
+        'username': CloudCredentials.turnUsername,
+        'credential': CloudCredentials.turnCredential,
       },
     ],
     'iceTransportPolicy': 'all',

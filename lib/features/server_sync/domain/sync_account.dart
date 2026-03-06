@@ -5,7 +5,8 @@ enum SyncProviderType {
   sftp,
   gdrive,
   onedrive,
-  webdav;
+  webdav,
+  ftp;
 
   /// Human-readable display name.
   String get displayName {
@@ -18,6 +19,8 @@ enum SyncProviderType {
         return 'OneDrive';
       case SyncProviderType.webdav:
         return 'WebDAV';
+      case SyncProviderType.ftp:
+        return 'FTP';
     }
   }
 
@@ -32,6 +35,8 @@ enum SyncProviderType {
         return 'OneDrive';
       case SyncProviderType.webdav:
         return 'WebDAV';
+      case SyncProviderType.ftp:
+        return 'FTP';
     }
   }
 }
@@ -110,17 +115,21 @@ class SyncAccount {
   // ── Computed ──
 
   bool get isSftp => providerType == SyncProviderType.sftp;
+  bool get isFtp => providerType == SyncProviderType.ftp;
   bool get isWebDav => providerType == SyncProviderType.webdav;
   bool get isCloud =>
       providerType == SyncProviderType.gdrive ||
       providerType == SyncProviderType.onedrive;
 
   /// Whether this provider uses host/port/user/password (not OAuth).
-  bool get isHostBased => isSftp || isWebDav;
+  bool get isHostBased => isSftp || isWebDav || isFtp;
 
-  /// A subtitle string for list tiles: host:port for SFTP/WebDAV, email for cloud.
+  /// A subtitle string for list tiles: host:port for SFTP/WebDAV/FTP, email for cloud.
   String get subtitle {
-    if (isHostBased) return '${host ?? ''}:${port ?? (isWebDav ? 443 : 22)}';
+    if (isHostBased) {
+      final defaultPort = isFtp ? 21 : (isWebDav ? 443 : 22);
+      return '${host ?? ''}:${port ?? defaultPort}';
+    }
     return email ?? providerType.displayName;
   }
 

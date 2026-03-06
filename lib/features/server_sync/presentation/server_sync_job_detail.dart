@@ -485,6 +485,8 @@ class ServerSyncJobDetail extends ConsumerWidget {
         return Icons.cloud_queue_rounded;
       case SyncProviderType.webdav:
         return Icons.language_rounded;
+      case SyncProviderType.ftp:
+        return Icons.folder_shared_rounded;
     }
   }
 

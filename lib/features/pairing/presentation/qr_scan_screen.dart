@@ -73,7 +73,16 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> {
         }
 
         // ── Type 3: JSON ──
-        final json = jsonDecode(rawValue) as Map<String, dynamic>;
+        final dynamic decoded;
+        try {
+          decoded = jsonDecode(rawValue);
+        } on FormatException {
+          throw const FormatException('QR code is not a valid format');
+        }
+        if (decoded is! Map<String, dynamic>) {
+          throw const FormatException('Invalid QR code format');
+        }
+        final json = decoded;
 
         // ── Type 3a: Hotspot connection data ──
         if (json['type'] == 'lifeos_hotspot') {

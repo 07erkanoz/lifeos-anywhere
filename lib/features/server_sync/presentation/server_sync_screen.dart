@@ -179,6 +179,8 @@ class _ServerSyncScreenState extends ConsumerState<ServerSyncScreen> {
         return (Icons.cloud_queue_rounded, const Color(0xFF0078D4));
       case SyncProviderType.webdav:
         return (Icons.language_rounded, const Color(0xFF00897B));
+      case SyncProviderType.ftp:
+        return (Icons.folder_shared_rounded, const Color(0xFF795548));
     }
   }
 

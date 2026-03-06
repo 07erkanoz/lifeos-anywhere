@@ -160,8 +160,8 @@ class SignalingClient {
     _messageController = null;
   }
 
-  void dispose() {
-    disconnect();
+  Future<void> dispose() async {
+    await disconnect();
     _httpClient.close();
   }
 }

@@ -31,6 +31,7 @@ class DiscoveryService {
   Device localDevice;
 
   RawDatagramSocket? _socket;
+  StreamSubscription<RawSocketEvent>? _socketSub;
   Timer? _broadcastTimer;
   Timer? _cleanupTimer;
   Timer? _rejoinTimer;
@@ -144,7 +145,7 @@ class DiscoveryService {
     _lastPacketReceived = DateTime.now();
 
     // Listen for incoming datagrams.
-    _socket!.listen(
+    _socketSub = _socket!.listen(
       (RawSocketEvent event) {
         if (event == RawSocketEvent.read) {
           _handleIncoming();
@@ -205,6 +206,9 @@ class DiscoveryService {
 
     _healthCheckTimer?.cancel();
     _healthCheckTimer = null;
+
+    _socketSub?.cancel();
+    _socketSub = null;
 
     try {
       _socket?.close();

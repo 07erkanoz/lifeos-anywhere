@@ -13,6 +13,8 @@ import 'package:anyware/features/sharing/data/sharing_service.dart';
 import 'package:anyware/features/discovery/presentation/providers.dart';
 import 'package:anyware/features/pairing/presentation/manual_ip_dialog.dart';
 import 'package:anyware/features/pairing/presentation/qr_options_dialog.dart';
+import 'package:anyware/features/server_sync/data/server_sync_service.dart';
+import 'package:anyware/features/server_sync/domain/sync_account.dart';
 import 'package:anyware/features/transfer/presentation/providers.dart';
 import 'package:anyware/features/settings/presentation/providers.dart';
 import 'package:anyware/i18n/app_localizations.dart';
@@ -370,7 +372,10 @@ class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
   ) async {
     // Read devices from provider (fresher than _currentDevices cache).
     final devices = ref.read(devicesProvider).valueOrNull ?? _currentDevices;
-    if (devices.isEmpty) {
+    // Read configured server accounts.
+    final accounts = ref.read(serverSyncServiceProvider).accounts;
+
+    if (devices.isEmpty && accounts.isEmpty) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -387,7 +392,8 @@ class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
         .map((p) => p.split(Platform.pathSeparator).last)
         .join(', ');
 
-    final selectedDevice = await showDialog<Device>(
+    // Dialog can return either a Device or a SyncAccount.
+    final selected = await showDialog<Object>(
       context: context,
       builder: (context) {
         final theme = Theme.of(context);
@@ -396,42 +402,83 @@ class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
           title: Text(AppLocalizations.get('selectDeviceToSend', locale)),
           content: SizedBox(
             width: double.maxFinite,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // File name(s) preview
-                Text(
-                  fileNames,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 16),
-                // Device list
-                ...devices.map((device) => ListTile(
-                  leading: CircleAvatar(
-                    radius: 20,
-                    backgroundColor: colorScheme.secondaryContainer,
-                    child: Icon(
-                      _platformIconData(device.platformIcon),
-                      color: colorScheme.onSecondaryContainer,
-                      size: 20,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // File name(s) preview
+                  Text(
+                    fileNames,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
                     ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  title: Text(device.name),
-                  subtitle: Text(
-                    '${device.ip}  \u00b7  ${device.platformLabel}',
-                    style: theme.textTheme.bodySmall,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  onTap: () => Navigator.of(context).pop(device),
-                )),
-              ],
+                  const SizedBox(height: 16),
+                  // ── LAN Devices ──
+                  if (devices.isNotEmpty) ...[
+                    ...devices.map((device) => ListTile(
+                      leading: CircleAvatar(
+                        radius: 20,
+                        backgroundColor: colorScheme.secondaryContainer,
+                        child: Icon(
+                          _platformIconData(device.platformIcon),
+                          color: colorScheme.onSecondaryContainer,
+                          size: 20,
+                        ),
+                      ),
+                      title: Text(device.name),
+                      subtitle: Text(
+                        '${device.ip}  \u00b7  ${device.platformLabel}',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      onTap: () => Navigator.of(context).pop(device),
+                    )),
+                  ],
+                  // ── Server accounts ──
+                  if (accounts.isNotEmpty) ...[
+                    if (devices.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Divider(color: colorScheme.outlineVariant),
+                      const SizedBox(height: 4),
+                      Padding(
+                        padding: const EdgeInsets.only(left: 4, bottom: 4),
+                        child: Text(
+                          AppLocalizations.get('servers', locale),
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                    ],
+                    ...accounts.map((account) => ListTile(
+                      leading: CircleAvatar(
+                        radius: 20,
+                        backgroundColor: colorScheme.tertiaryContainer,
+                        child: Icon(
+                          _serverIconData(account.providerType),
+                          color: colorScheme.onTertiaryContainer,
+                          size: 20,
+                        ),
+                      ),
+                      title: Text(account.name),
+                      subtitle: Text(
+                        account.subtitle,
+                        style: theme.textTheme.bodySmall,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      onTap: () => Navigator.of(context).pop(account),
+                    )),
+                  ],
+                ],
+              ),
             ),
           ),
           actions: [
@@ -444,9 +491,178 @@ class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
       },
     );
 
-    if (selectedDevice != null && context.mounted) {
-      await _sendFilesToDevice(context, ref, selectedDevice, filePaths);
+    if (selected == null || !context.mounted) return;
+
+    if (selected is Device) {
+      await _sendFilesToDevice(context, ref, selected, filePaths);
+    } else if (selected is SyncAccount) {
+      await _sendFilesToServer(context, ref, selected, filePaths, locale);
     }
+  }
+
+  static IconData _serverIconData(SyncProviderType type) {
+    switch (type) {
+      case SyncProviderType.sftp:
+        return Icons.dns_rounded;
+      case SyncProviderType.ftp:
+        return Icons.folder_shared_rounded;
+      case SyncProviderType.webdav:
+        return Icons.language_rounded;
+      case SyncProviderType.gdrive:
+        return Icons.cloud_rounded;
+      case SyncProviderType.onedrive:
+        return Icons.cloud_queue_rounded;
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Send files to a server account (quick upload)
+  // -------------------------------------------------------------------------
+
+  Future<void> _sendFilesToServer(
+    BuildContext context,
+    WidgetRef ref,
+    SyncAccount account,
+    List<String> filePaths,
+    String locale,
+  ) async {
+    final service = ref.read(serverSyncServiceProvider.notifier);
+    final remoteDir = account.remotePath.isEmpty ? '/' : account.remotePath;
+
+    if (!context.mounted) return;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _ServerUploadProgressDialog(
+        stream: service.uploadFilesToAccount(account.id, filePaths, remoteDir),
+        totalFiles: filePaths.length,
+        serverName: account.name,
+        locale: locale,
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Server upload progress dialog
+// ---------------------------------------------------------------------------
+
+class _ServerUploadProgressDialog extends StatefulWidget {
+  final Stream<(int, int, String)> stream;
+  final int totalFiles;
+  final String serverName;
+  final String locale;
+
+  const _ServerUploadProgressDialog({
+    required this.stream,
+    required this.totalFiles,
+    required this.serverName,
+    required this.locale,
+  });
+
+  @override
+  State<_ServerUploadProgressDialog> createState() =>
+      _ServerUploadProgressDialogState();
+}
+
+class _ServerUploadProgressDialogState
+    extends State<_ServerUploadProgressDialog> {
+  int _completed = 0;
+  String _currentFile = '';
+  String? _error;
+  bool _done = false;
+  StreamSubscription? _sub;
+
+  @override
+  void initState() {
+    super.initState();
+    _sub = widget.stream.listen(
+      (event) {
+        final (completed, total, fileName) = event;
+        if (!mounted) return;
+        setState(() {
+          _completed = completed;
+          _currentFile = fileName;
+          if (completed >= total) _done = true;
+        });
+      },
+      onError: (e) {
+        if (!mounted) return;
+        setState(() => _error = e.toString());
+      },
+      onDone: () {
+        if (!mounted) return;
+        setState(() => _done = true);
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    if (_done && _error == null) {
+      // Auto-close after a brief delay.
+      Future.delayed(const Duration(milliseconds: 400), () {
+        if (mounted) Navigator.of(context).pop();
+      });
+    }
+
+    return AlertDialog(
+      title: Text(_error != null
+          ? AppLocalizations.get('uploadFailed', widget.locale)
+          : _done
+              ? AppLocalizations.get('uploadComplete', widget.locale)
+              : AppLocalizations.get('uploadingToServer', widget.locale)),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            widget.serverName,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (_error != null)
+            Text(
+              _error!,
+              style: const TextStyle(color: Colors.red, fontSize: 13),
+              maxLines: 4,
+              overflow: TextOverflow.ellipsis,
+            )
+          else ...[
+            LinearProgressIndicator(
+              value: widget.totalFiles > 0
+                  ? _completed / widget.totalFiles
+                  : null,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _done
+                  ? '$_completed / ${widget.totalFiles}'
+                  : '$_completed / ${widget.totalFiles}  —  $_currentFile',
+              style: theme.textTheme.bodySmall,
+            ),
+          ],
+        ],
+      ),
+      actions: [
+        if (_error != null || _done)
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(AppLocalizations.get('ok', widget.locale)),
+          ),
+      ],
+    );
   }
 }
 
