@@ -27,8 +27,7 @@
     <!-- Allow requesting battery optimization bypass for persistent background operation -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
 
-    <!-- Required for opening/installing APK files -->
-    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
+    <!-- Removed: REQUEST_INSTALL_PACKAGES not needed for file transfer -->
 
     <!-- Required for background sync scheduling after device reboot -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>

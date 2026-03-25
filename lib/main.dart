@@ -13,6 +13,7 @@ import 'package:anyware/app.dart';
 import 'package:anyware/core/android_platform_service.dart';
 import 'package:anyware/core/background_service.dart';
 import 'package:anyware/core/constants.dart';
+import 'package:anyware/core/licensing/purchase_service.dart';
 import 'package:anyware/core/tv_detector.dart';
 import 'package:anyware/features/discovery/presentation/device_list_screen.dart';
 import 'package:anyware/features/platform/tray_service.dart';
@@ -191,6 +192,13 @@ Future<void> main(List<String> args) async {
   // Set pending share path if launched with --share.
   if (pendingSharePath != null) {
     _container.read(pendingShareProvider.notifier).state = [pendingSharePath];
+  }
+
+  // Initialize RevenueCat (mobile only).
+  try {
+    await _container.read(purchaseServiceProvider).init();
+  } catch (e) {
+    _log.warning('RevenueCat init failed: $e');
   }
 
   runApp(

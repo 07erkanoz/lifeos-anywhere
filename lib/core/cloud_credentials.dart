@@ -41,6 +41,16 @@ class CloudCredentials {
   static const turnCredential =
       String.fromEnvironment('TURN_CREDENTIAL');
 
+  // ── RevenueCat ──
+  static const revenueCatApiKey =
+      String.fromEnvironment('REVENUECAT_API_KEY');
+
+  // ── Supabase ──
+  static const supabaseUrl =
+      String.fromEnvironment('SUPABASE_URL');
+  static const supabaseAnonKey =
+      String.fromEnvironment('SUPABASE_ANON_KEY');
+
   // ── Microsoft OAuth endpoints ──
   static const msAuthUri =
       'https://login.microsoftonline.com/common/oauth2/v2.0/authorize';
@@ -69,4 +79,11 @@ class CloudCredentials {
   /// Whether OneDrive credentials are configured.
   static bool get hasMsCredentials =>
       msClientId.isNotEmpty && msClientSecret.isNotEmpty;
+
+  /// Whether RevenueCat is configured.
+  static bool get hasRevenueCat => revenueCatApiKey.isNotEmpty;
+
+  /// Whether Supabase is configured.
+  static bool get hasSupabase =>
+      supabaseUrl.isNotEmpty && supabaseAnonKey.isNotEmpty;
 }

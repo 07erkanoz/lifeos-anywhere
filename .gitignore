@@ -57,3 +57,7 @@ app.*.map.json
 
 # Environment credentials (never commit)
 .env
+
+# Supabase local config (contains secrets)
+supabase/.env
+supabase/.temp/

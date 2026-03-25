@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:desktop_drop/desktop_drop.dart';
@@ -6,8 +7,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'package:anyware/core/file_picker_helper.dart';
+import 'package:anyware/core/constants.dart';
 import 'package:anyware/core/logger.dart';
 
+import 'package:anyware/core/licensing/license_service.dart';
 import 'package:anyware/features/discovery/domain/device.dart';
 import 'package:anyware/features/sharing/data/sharing_service.dart';
 import 'package:anyware/features/discovery/presentation/providers.dart';
@@ -216,6 +219,10 @@ class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
               if (devices.isEmpty) {
                 return _EmptyDevicesView(locale: locale);
               }
+              final licenseInfo = ref.watch(licenseServiceProvider);
+              final localIsPro = licenseInfo.isPro;
+              final activationCode = licenseInfo.activationCode;
+
               return Column(
                 children: [
                   for (int i = 0; i < devices.length; i++)
@@ -230,6 +237,12 @@ class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
                         _dropHandledByCard = true;
                         _sendFilesToDevice(context, ref, devices[i], paths);
                       },
+                      onSharePro: (localIsPro &&
+                              activationCode.isNotEmpty &&
+                              !devices[i].isPro)
+                          ? () => _sharePro(
+                              context, ref, devices[i], activationCode, locale)
+                          : null,
                     ),
                 ],
               );
@@ -356,6 +369,86 @@ class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('${AppLocalizations.get('sendFileFailed', AppLocalizations.detectLocale())}: $e')),
+      );
+    }
+  }
+
+  /// Share Pro activation code with a discovered device over LAN.
+  Future<void> _sharePro(
+    BuildContext context,
+    WidgetRef ref,
+    Device target,
+    String activationCode,
+    String locale,
+  ) async {
+    // Confirm before sharing.
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(AppLocalizations.get('shareProLan', locale)),
+        content: Text(AppLocalizations.format(
+          'shareProLanConfirm',
+          locale,
+          {'name': target.name},
+        )),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(AppLocalizations.get('cancel', locale)),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(AppLocalizations.get('share', locale)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !context.mounted) return;
+
+    try {
+      final localDevice = await ref.read(localDeviceProvider.future);
+      final client = HttpClient();
+      final uri = Uri.http(
+        '${target.ip}:${target.port}',
+        '/api/pro-activate',
+      );
+      final request = await client.postUrl(uri);
+      request.headers.contentType = ContentType.json;
+      request.write(jsonEncode({
+        'sender_name': localDevice.name,
+        'activation_code': activationCode,
+      }));
+      final response = await request.close().timeout(
+            const Duration(seconds: 10),
+          );
+
+      if (!context.mounted) return;
+
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(AppLocalizations.format(
+              'shareProLanSuccess',
+              locale,
+              {'name': target.name},
+            )),
+            backgroundColor: const Color(0xFF39FF14),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(AppLocalizations.get('shareProLanFailed', locale)),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(AppLocalizations.get('shareProLanFailed', locale)),
+        ),
       );
     }
   }
@@ -730,6 +823,7 @@ class _DeviceDropTarget extends StatefulWidget {
     required this.onSendFile,
     required this.onFilesDropped,
     this.autofocus = false,
+    this.onSharePro,
   });
 
   final Device device;
@@ -738,6 +832,7 @@ class _DeviceDropTarget extends StatefulWidget {
   final VoidCallback onSendFile;
   final void Function(List<String> paths) onFilesDropped;
   final bool autofocus;
+  final VoidCallback? onSharePro;
 
   @override
   State<_DeviceDropTarget> createState() => _DeviceDropTargetState();
@@ -767,6 +862,7 @@ class _DeviceDropTargetState extends State<_DeviceDropTarget> {
           isDropHovering: _isHovering,
           isDragging: widget.isDragging,
           autofocus: widget.autofocus,
+          onSharePro: widget.onSharePro,
         ),
       );
     }
@@ -778,6 +874,7 @@ class _DeviceDropTargetState extends State<_DeviceDropTarget> {
       isDropHovering: false,
       isDragging: false,
       autofocus: widget.autofocus,
+      onSharePro: widget.onSharePro,
     );
   }
 }
@@ -862,16 +959,16 @@ class _LocalDeviceCard extends StatelessWidget {
 // Empty state with scanning animation
 // ---------------------------------------------------------------------------
 
-class _EmptyDevicesView extends StatefulWidget {
+class _EmptyDevicesView extends ConsumerStatefulWidget {
   const _EmptyDevicesView({required this.locale});
 
   final String locale;
 
   @override
-  State<_EmptyDevicesView> createState() => _EmptyDevicesViewState();
+  ConsumerState<_EmptyDevicesView> createState() => _EmptyDevicesViewState();
 }
 
-class _EmptyDevicesViewState extends State<_EmptyDevicesView>
+class _EmptyDevicesViewState extends ConsumerState<_EmptyDevicesView>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
 
@@ -894,9 +991,10 @@ class _EmptyDevicesViewState extends State<_EmptyDevicesView>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final diagnostics = ref.watch(networkDiagnosticsProvider);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 64, horizontal: 32),
+      padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 32),
       child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -923,8 +1021,102 @@ class _EmptyDevicesViewState extends State<_EmptyDevicesView>
                 color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
               ),
             ),
+            // Show diagnostic tips when issues are detected.
+            diagnostics.whenOrNull(
+              data: (diag) {
+                if (!diag.hasIssues) return null;
+                return _MobileDiagnosticTips(
+                  diagnostics: diag,
+                  locale: widget.locale,
+                );
+              },
+            ) ?? const SizedBox.shrink(),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _MobileDiagnosticTips extends StatelessWidget {
+  const _MobileDiagnosticTips({
+    required this.diagnostics,
+    required this.locale,
+  });
+
+  final NetworkDiagnostics diagnostics;
+  final String locale;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    final tips = <String>[];
+
+    for (final issue in diagnostics.issues) {
+      switch (issue) {
+        case NetworkIssue.noNetwork:
+          tips.add(AppLocalizations.get('diagNoNetwork', locale));
+          break;
+        case NetworkIssue.virtualAdapters:
+          tips.add(
+            AppLocalizations.get('diagVirtualAdapter', locale).replaceAll(
+              '{names}',
+              diagnostics.virtualAdapterNames.join(', '),
+            ),
+          );
+          break;
+      }
+    }
+
+    tips.add(AppLocalizations.get('diagSameNetwork', locale));
+    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+      tips.add(
+        AppLocalizations.get('diagFirewall', locale).replaceAll(
+          '{port}',
+          '${AppConstants.discoveryPort}',
+        ),
+      );
+    }
+    tips.add(AppLocalizations.get('diagTryManualIp', locale));
+
+    return Container(
+      margin: const EdgeInsets.only(top: 24),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colorScheme.errorContainer.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.info_outline, size: 16, color: colorScheme.error),
+              const SizedBox(width: 6),
+              Text(
+                AppLocalizations.get('networkTroubleshooting', locale),
+                style: theme.textTheme.labelMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: colorScheme.error,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ...tips.map(
+            (tip) => Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(
+                '\u2022 $tip',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -942,6 +1134,7 @@ class _DeviceCard extends StatelessWidget {
     this.isDropHovering = false,
     this.isDragging = false,
     this.autofocus = false,
+    this.onSharePro,
   });
 
   final Device device;
@@ -950,6 +1143,7 @@ class _DeviceCard extends StatelessWidget {
   final bool isDropHovering;
   final bool isDragging;
   final bool autofocus;
+  final VoidCallback? onSharePro;
 
   @override
   Widget build(BuildContext context) {
@@ -995,12 +1189,38 @@ class _DeviceCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        device.name,
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                        overflow: TextOverflow.ellipsis,
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              device.name,
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (device.isPro) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF39FF14)
+                                    .withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Text(
+                                'Pro',
+                                style: TextStyle(
+                                  color: Color(0xFF39FF14),
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                       const SizedBox(height: 2),
                       Text(
@@ -1013,6 +1233,17 @@ class _DeviceCard extends StatelessWidget {
                     ],
                   ),
                 ),
+                if (onSharePro != null) ...[
+                  const SizedBox(width: 4),
+                  IconButton(
+                    icon: const Icon(Icons.workspace_premium, size: 20),
+                    tooltip: AppLocalizations.get('shareProLan', locale),
+                    style: IconButton.styleFrom(
+                      foregroundColor: const Color(0xFF39FF14),
+                    ),
+                    onPressed: onSharePro,
+                  ),
+                ],
                 const SizedBox(width: 8),
                 if (isDropHovering)
                   Container(

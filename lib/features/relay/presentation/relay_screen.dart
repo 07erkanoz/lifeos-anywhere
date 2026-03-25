@@ -3,12 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:anyware/core/licensing/feature_gate.dart';
+import 'package:anyware/core/licensing/license_service.dart';
 import 'package:anyware/core/theme.dart';
 import 'package:anyware/features/discovery/presentation/providers.dart';
 import 'package:anyware/features/relay/domain/relay_room.dart';
 import 'package:anyware/features/relay/presentation/providers.dart';
 import 'package:anyware/features/settings/presentation/providers.dart';
 import 'package:anyware/i18n/app_localizations.dart';
+import 'package:anyware/widgets/pro_upgrade_dialog.dart';
 
 class RelayScreen extends ConsumerStatefulWidget {
   const RelayScreen({super.key});
@@ -381,12 +384,26 @@ class _RelayScreenState extends ConsumerState<RelayScreen> {
   }
 
   Future<void> _createRoom() async {
+    final plan = ref.read(licenseServiceProvider).plan;
+    if (!FeatureGate.isAvailable(ProFeature.relayTransfer, plan)) {
+      final locale = ref.read(settingsProvider).locale;
+      if (mounted) showProUpgradeDialog(context, ProFeature.relayTransfer, locale);
+      return;
+    }
+
     final deviceAsync = ref.read(localDeviceProvider);
     final deviceName = deviceAsync.value?.name ?? 'Unknown';
     ref.read(relayProvider.notifier).createRoom(deviceName);
   }
 
   Future<void> _joinRoom() async {
+    final plan = ref.read(licenseServiceProvider).plan;
+    if (!FeatureGate.isAvailable(ProFeature.relayTransfer, plan)) {
+      final locale = ref.read(settingsProvider).locale;
+      if (mounted) showProUpgradeDialog(context, ProFeature.relayTransfer, locale);
+      return;
+    }
+
     final roomId = _pinController.text.trim();
     if (roomId.isEmpty) return;
 

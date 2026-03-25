@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:anyware/core/licensing/feature_gate.dart';
+import 'package:anyware/core/licensing/license_service.dart';
 import 'package:anyware/core/theme.dart';
+import 'package:anyware/widgets/pro_upgrade_dialog.dart';
 import 'package:anyware/features/server_sync/data/server_sync_service.dart';
 import 'package:anyware/features/server_sync/domain/server_sync_job.dart';
 import 'package:anyware/features/server_sync/domain/server_sync_state.dart';
@@ -760,6 +763,12 @@ class _ServerSyncScreenState extends ConsumerState<ServerSyncScreen> {
   /// @deprecated Use [_showAccountDialog].
   void _showServerDialog(BuildContext context,
       {SyncAccount? server}) {
+    final plan = ref.read(licenseServiceProvider).plan;
+    if (!FeatureGate.isAvailable(ProFeature.serverSync, plan)) {
+      final locale = ref.read(settingsProvider).locale;
+      showProUpgradeDialog(context, ProFeature.serverSync, locale);
+      return;
+    }
     _showAccountDialog(context, account: server);
   }
 
@@ -771,6 +780,12 @@ class _ServerSyncScreenState extends ConsumerState<ServerSyncScreen> {
   }
 
   void _openJobWizard(BuildContext context, {SyncAccount? preselectedAccount}) {
+    final plan = ref.read(licenseServiceProvider).plan;
+    if (!FeatureGate.isAvailable(ProFeature.serverSync, plan)) {
+      final locale = ref.read(settingsProvider).locale;
+      showProUpgradeDialog(context, ProFeature.serverSync, locale);
+      return;
+    }
     Navigator.of(context).push(
       MaterialPageRoute(
           builder: (_) => ServerSyncJobWizard(

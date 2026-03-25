@@ -8,6 +8,7 @@ import 'package:anyware/features/platform/windows/notification_service.dart';
 import 'package:anyware/features/settings/presentation/providers.dart';
 import 'package:anyware/features/settings/data/settings_repository.dart';
 import 'package:anyware/features/settings/domain/settings.dart';
+import 'package:anyware/core/licensing/license_service.dart';
 import 'package:anyware/features/transfer/data/file_sender.dart';
 import 'package:anyware/features/clipboard/data/clipboard_service.dart';
 import 'package:anyware/features/transfer/data/file_server.dart';
@@ -52,6 +53,18 @@ final fileServerProvider = FutureProvider.autoDispose<FileServer>((ref) async {
     downloadPath: downloadPath,
     overwriteFiles: overwriteFiles,
     syncReceiveFolder: syncReceiveFolder,
+    onProActivationReceived: (senderName, code) async {
+      try {
+        await ref
+            .read(licenseServiceProvider.notifier)
+            .activateWithCode(code);
+        _log.info('LAN Pro activation from $senderName succeeded');
+        return true;
+      } catch (e) {
+        _log.warning('LAN Pro activation failed: $e');
+        return false;
+      }
+    },
   );
 
   // Wire clipboard receive events to persistent history.
@@ -200,7 +213,8 @@ final fileSenderProvider = FutureProvider.autoDispose<FileSender>((ref) async {
   final device = await ref.watch(localDeviceProvider.future);
   final settings = ref.watch(settingsProvider);
 
-  final sender = FileSender(localDevice: device)
+  final plan = ref.read(licenseServiceProvider).plan;
+  final sender = FileSender(localDevice: device, currentPlan: plan)
     ..maxUploadSpeedKBps = settings.maxUploadSpeedKBps;
 
   ref.onDispose(() {

@@ -240,7 +240,26 @@ class DiscoveryService {
   // Private helpers
   // ---------------------------------------------------------------------------
 
-  /// Joins the multicast group on every available IPv4 network interface.
+  /// Whether a [NetworkInterface] is a virtual adapter (Hyper-V, VMware, etc.).
+  static bool _isVirtualInterface(NetworkInterface iface) {
+    final name = iface.name.toLowerCase();
+    return name.contains('vmware') ||
+        name.contains('hyper-v') ||
+        name.contains('vethernet') ||
+        name.contains('virtualbox') ||
+        name.contains('docker') ||
+        name.contains('wsl') ||
+        name.contains('virbr') ||
+        name.contains('veth') ||
+        name.startsWith('br-') ||
+        name.startsWith('tun') ||
+        name.startsWith('tap') ||
+        name.contains('lxc') ||
+        name.contains('lxd');
+  }
+
+  /// Joins the multicast group on every available IPv4 network interface,
+  /// skipping virtual adapters (Hyper-V, VMware, Docker, etc.).
   ///
   /// This ensures that devices on any connected LAN segment can be discovered.
   /// Errors for individual interfaces are silently ignored (the interface may
@@ -256,14 +275,20 @@ class DiscoveryService {
       _log.debug('Plain multicast join failed (may be normal): $e');
     }
 
-    // 2. Then try joining on each specific interface for better coverage.
+    // 2. Then try joining on each specific interface for better coverage,
+    //    but skip virtual adapters that can interfere with multicast.
     try {
       final interfaces = await NetworkInterface.list(
         type: InternetAddressType.IPv4,
       );
       for (final iface in interfaces) {
+        if (_isVirtualInterface(iface)) {
+          _log.debug('Skipping virtual interface for multicast: ${iface.name}');
+          continue;
+        }
         try {
           _socket!.joinMulticast(multicastAddress, iface);
+          _log.debug('Multicast joined on ${iface.name}');
         } catch (e) {
           _log.debug('Multicast join on ${iface.name} failed: $e');
         }
@@ -486,26 +511,10 @@ class DiscoveryService {
       String? fallback;
 
       for (final iface in interfaces) {
-        final name = iface.name.toLowerCase();
-        // Skip known virtual adapters (Windows + Linux).
-        final isVirtual = name.contains('vmware') ||
-            name.contains('hyper-v') ||
-            name.contains('vethernet') ||
-            name.contains('virtualbox') ||
-            name.contains('docker') ||
-            name.contains('wsl') ||
-            name.contains('virbr') ||
-            name.contains('veth') ||
-            name.startsWith('br-') ||
-            name.startsWith('tun') ||
-            name.startsWith('tap') ||
-            name.contains('lxc') ||
-            name.contains('lxd');
-
         for (final addr in iface.addresses) {
           if (addr.isLoopback) continue;
           fallback ??= addr.address;
-          if (isVirtual) continue;
+          if (_isVirtualInterface(iface)) continue;
           if (addr.address.startsWith('192.168.') ||
               addr.address.startsWith('10.')) {
             return addr.address;
@@ -515,21 +524,7 @@ class DiscoveryService {
 
       // Any non-virtual, non-loopback.
       for (final iface in interfaces) {
-        final name = iface.name.toLowerCase();
-        final isVirtual = name.contains('vmware') ||
-            name.contains('hyper-v') ||
-            name.contains('vethernet') ||
-            name.contains('virtualbox') ||
-            name.contains('docker') ||
-            name.contains('wsl') ||
-            name.contains('virbr') ||
-            name.contains('veth') ||
-            name.startsWith('br-') ||
-            name.startsWith('tun') ||
-            name.startsWith('tap') ||
-            name.contains('lxc') ||
-            name.contains('lxd');
-        if (isVirtual) continue;
+        if (_isVirtualInterface(iface)) continue;
         for (final addr in iface.addresses) {
           if (!addr.isLoopback) return addr.address;
         }

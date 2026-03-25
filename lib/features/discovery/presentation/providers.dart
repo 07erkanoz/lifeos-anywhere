@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:anyware/core/constants.dart';
 import 'package:anyware/core/logger.dart';
+import 'package:anyware/core/licensing/license_service.dart';
 import 'package:anyware/features/discovery/data/discovery_service.dart';
 import 'package:anyware/features/discovery/data/latency_service.dart';
 import 'package:anyware/features/discovery/domain/device.dart';
@@ -36,6 +37,9 @@ final localDeviceProvider = FutureProvider<Device>((ref) async {
   final ip = await _getBestLocalIp();
   AppLogger('LocalDevice').info('Selected IP = $ip, ID = $id');
 
+  // Check if this device has an active Pro license.
+  final isPro = ref.read(licenseServiceProvider).isPro;
+
   return Device(
     id: id,
     name: deviceName,
@@ -44,6 +48,7 @@ final localDeviceProvider = FutureProvider<Device>((ref) async {
     platform: platform,
     version: AppConstants.protocolVersion,
     lastSeen: DateTime.now(),
+    isPro: isPro,
   );
 });
 
@@ -297,6 +302,89 @@ final refreshDiscoveryProvider = Provider<Future<void> Function()>((ref) {
       AppLogger('DiscoveryProvider').error('Manual refresh failed', error: e);
     }
   };
+});
+
+// ---------------------------------------------------------------------------
+// Network diagnostics
+// ---------------------------------------------------------------------------
+
+/// Diagnostic issue detected on the network.
+enum NetworkIssue {
+  /// No Wi-Fi or Ethernet connection detected.
+  noNetwork,
+
+  /// Virtual adapters detected that might interfere with multicast.
+  virtualAdapters,
+}
+
+/// Result of a network diagnostics check.
+class NetworkDiagnostics {
+  const NetworkDiagnostics({
+    required this.issues,
+    this.virtualAdapterNames = const [],
+  });
+
+  final List<NetworkIssue> issues;
+  final List<String> virtualAdapterNames;
+
+  bool get hasIssues => issues.isNotEmpty;
+}
+
+/// Runs lightweight network diagnostics to detect issues that might prevent
+/// device discovery from working.
+final networkDiagnosticsProvider = FutureProvider<NetworkDiagnostics>((ref) async {
+  final issues = <NetworkIssue>[];
+  final virtualNames = <String>[];
+
+  // 1. Check network connectivity.
+  try {
+    final results = await Connectivity().checkConnectivity();
+    final hasNetwork = results.any(
+      (r) =>
+          r == ConnectivityResult.wifi ||
+          r == ConnectivityResult.ethernet ||
+          r == ConnectivityResult.mobile,
+    );
+    if (!hasNetwork) {
+      issues.add(NetworkIssue.noNetwork);
+    }
+  } catch (_) {}
+
+  // 2. Check for virtual adapters (Windows/Linux/macOS).
+  if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+    try {
+      final interfaces = await NetworkInterface.list(
+        type: InternetAddressType.IPv4,
+      );
+      for (final iface in interfaces) {
+        final name = iface.name.toLowerCase();
+        final isVirtual = name.contains('vmware') ||
+            name.contains('hyper-v') ||
+            name.contains('vethernet') ||
+            name.contains('virtualbox') ||
+            name.contains('docker') ||
+            name.contains('wsl') ||
+            name.contains('virbr') ||
+            name.contains('veth') ||
+            name.startsWith('br-') ||
+            name.startsWith('tun') ||
+            name.startsWith('tap') ||
+            name.contains('lxc') ||
+            name.contains('lxd');
+        if (isVirtual) {
+          virtualNames.add(iface.name);
+        }
+      }
+      if (virtualNames.isNotEmpty) {
+        issues.add(NetworkIssue.virtualAdapters);
+      }
+    } catch (_) {}
+  }
+
+  return NetworkDiagnostics(
+    issues: issues,
+    virtualAdapterNames: virtualNames,
+  );
 });
 
 // ---------------------------------------------------------------------------

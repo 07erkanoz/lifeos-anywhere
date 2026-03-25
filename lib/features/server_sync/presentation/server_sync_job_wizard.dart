@@ -14,9 +14,12 @@ import 'package:anyware/features/server_sync/data/webdav_cloud_transport.dart';
 import 'package:anyware/features/server_sync/data/cloud_transport.dart';
 import 'package:anyware/features/server_sync/domain/sync_account.dart';
 import 'package:anyware/features/server_sync/presentation/remote_folder_browser.dart';
+import 'package:anyware/core/licensing/feature_gate.dart';
+import 'package:anyware/core/licensing/license_service.dart';
 import 'package:anyware/features/settings/presentation/providers.dart';
 import 'package:anyware/features/sync/domain/sync_state.dart';
 import 'package:anyware/i18n/app_localizations.dart';
+import 'package:anyware/widgets/pro_upgrade_dialog.dart';
 
 /// 3-step wizard for creating a new server sync job.
 class ServerSyncJobWizard extends ConsumerStatefulWidget {
@@ -568,11 +571,24 @@ class _ServerSyncJobWizardState extends ConsumerState<ServerSyncJobWizard> {
                 label:
                     Text(AppLocalizations.get('syncBidirectional', locale)),
                 icon: const Icon(Icons.sync_rounded, size: 18),
+                enabled: FeatureGate.isAvailable(
+                    ProFeature.bidirectionalSync,
+                    ref.read(licenseServiceProvider).plan),
               ),
             ],
             selected: {_syncDirection},
-            onSelectionChanged: (s) =>
-                setState(() => _syncDirection = s.first),
+            onSelectionChanged: (s) {
+              final plan = ref.read(licenseServiceProvider).plan;
+              if (s.first == SyncDirection.bidirectional &&
+                  !FeatureGate.isAvailable(
+                      ProFeature.bidirectionalSync, plan)) {
+                final locale = ref.read(settingsProvider).locale;
+                showProUpgradeDialog(
+                    context, ProFeature.bidirectionalSync, locale);
+                return;
+              }
+              setState(() => _syncDirection = s.first);
+            },
           ),
           const SizedBox(height: 16),
 
@@ -618,7 +634,15 @@ class _ServerSyncJobWizardState extends ConsumerState<ServerSyncJobWizard> {
             subtitle: Text(AppLocalizations.get(
                 'serverSyncLiveWatchDesc', locale)),
             value: _liveWatch,
-            onChanged: (v) => setState(() => _liveWatch = v),
+            onChanged: (v) {
+              final plan = ref.read(licenseServiceProvider).plan;
+              if (v && !FeatureGate.isAvailable(ProFeature.liveWatch, plan)) {
+                final locale = ref.read(settingsProvider).locale;
+                showProUpgradeDialog(context, ProFeature.liveWatch, locale);
+                return;
+              }
+              setState(() => _liveWatch = v);
+            },
           ),
         ],
       ),

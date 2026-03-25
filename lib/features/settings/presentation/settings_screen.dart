@@ -9,11 +9,14 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/services.dart';
 
 import 'package:anyware/core/constants.dart';
+import 'package:anyware/core/theme.dart';
 import 'package:anyware/core/tv_detector.dart';
 import 'package:anyware/features/discovery/presentation/providers.dart';
 import 'package:anyware/features/settings/presentation/providers.dart';
 import 'package:anyware/features/settings/presentation/help_screen.dart';
 import 'package:anyware/features/settings/presentation/about_screen.dart';
+import 'package:anyware/features/settings/presentation/subscription_screen.dart';
+import 'package:anyware/core/licensing/license_service.dart';
 import 'package:anyware/i18n/app_localizations.dart';
 import 'package:anyware/widgets/desktop_content_shell.dart';
 
@@ -245,6 +248,13 @@ class SettingsScreen extends ConsumerWidget {
               onChanged: (_) => notifier.toggleExplorerMenu(),
             ),
           ],
+
+          const Divider(indent: 16, endIndent: 16, height: 24),
+
+          // =================================================================
+          // Subscription section
+          // =================================================================
+          _SubscriptionTile(locale: locale),
 
           const Divider(indent: 16, endIndent: 16, height: 24),
 
@@ -599,6 +609,43 @@ class _SectionHeader extends StatelessWidget {
           fontWeight: FontWeight.w600,
         ),
       ),
+    );
+  }
+}
+
+class _SubscriptionTile extends ConsumerWidget {
+  const _SubscriptionTile({required this.locale});
+
+  final String locale;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final licenseInfo = ref.watch(licenseServiceProvider);
+    final isPro = licenseInfo.isPro;
+    final theme = Theme.of(context);
+
+    return ListTile(
+      leading: Icon(
+        isPro ? Icons.workspace_premium : Icons.card_membership,
+        color: isPro ? AppColors.neonGreen : null,
+      ),
+      title: Text(AppLocalizations.get('subscription', locale)),
+      subtitle: Text(
+        isPro
+            ? 'Pro ${licenseInfo.plan.id == 'lifetime' ? 'Lifetime' : licenseInfo.maxDevices.toString()}'
+            : AppLocalizations.get('freePlan', locale),
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: isPro ? AppColors.neonGreen : theme.colorScheme.onSurfaceVariant,
+        ),
+      ),
+      trailing: const Icon(Icons.chevron_right, size: 20),
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => SubscriptionScreen(locale: locale),
+          ),
+        );
+      },
     );
   }
 }

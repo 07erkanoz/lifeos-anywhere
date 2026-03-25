@@ -473,6 +473,19 @@ class _TransferCard extends StatelessWidget {
                 ),
               ],
 
+              // ── Cancel button for active transfers ──
+              if (transfer.isActive) ...[
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    _CancelTransferChip(
+                      transfer: transfer,
+                      locale: locale,
+                    ),
+                  ],
+                ),
+              ],
+
               // ── Action buttons for completed files ──
               if (transfer.status == TransferStatus.completed &&
                   transfer.filePath != null) ...[
@@ -808,6 +821,85 @@ class _ActionChip extends StatelessWidget {
                 label,
                 style: theme.textTheme.labelSmall?.copyWith(
                   color: colorScheme.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Cancel transfer chip
+// ---------------------------------------------------------------------------
+
+class _CancelTransferChip extends ConsumerWidget {
+  const _CancelTransferChip({
+    required this.transfer,
+    required this.locale,
+  });
+
+  final Transfer transfer;
+  final String locale;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Material(
+      color: colorScheme.errorContainer.withValues(alpha: 0.4),
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () async {
+          final confirmed = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: Text(AppLocalizations.get('cancelTransfer', locale)),
+              content: Text(AppLocalizations.get('cancelTransferConfirm', locale)),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(false),
+                  child: Text(AppLocalizations.get('no', locale)),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(ctx).pop(true),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: colorScheme.error,
+                  ),
+                  child: Text(AppLocalizations.get('yes', locale)),
+                ),
+              ],
+            ),
+          );
+
+          if (confirmed == true) {
+            // Cancel outgoing transfer via FileSender
+            if (transfer.isSending) {
+              final senderAsync = ref.read(fileSenderProvider);
+              senderAsync.whenData((sender) => sender.cancel());
+            }
+            // Update transfer status to cancelled
+            ref.read(activeTransfersProvider.notifier).addOrUpdate(
+              transfer.copyWith(status: TransferStatus.cancelled),
+            );
+          }
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.close_rounded, size: 15, color: colorScheme.error),
+              const SizedBox(width: 5),
+              Text(
+                AppLocalizations.get('cancel', locale),
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: colorScheme.error,
                   fontWeight: FontWeight.w600,
                 ),
               ),

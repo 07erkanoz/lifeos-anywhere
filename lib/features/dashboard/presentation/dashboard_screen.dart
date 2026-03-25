@@ -6,6 +6,7 @@ import 'package:anyware/core/file_picker_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'package:anyware/core/constants.dart';
 import 'package:anyware/core/logger.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -20,6 +21,7 @@ import 'package:anyware/features/pairing/presentation/qr_options_dialog.dart';
 import 'package:anyware/features/transfer/domain/transfer.dart';
 import 'package:anyware/features/transfer/presentation/providers.dart';
 import 'package:anyware/features/settings/presentation/providers.dart';
+import 'package:anyware/core/licensing/license_service.dart';
 import 'package:anyware/i18n/app_localizations.dart';
 import 'package:anyware/widgets/glassmorphism.dart';
 import 'package:anyware/widgets/desktop_content_shell.dart';
@@ -179,6 +181,74 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('${AppLocalizations.get('sendFolderFailed', AppLocalizations.detectLocale())}: $e')),
       );
+    }
+  }
+
+  /// Share Pro license with a LAN device.
+  Future<void> _sharePro(
+      Device target, String activationCode, String locale) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(AppLocalizations.get('shareProLan', locale)),
+        content: Text(AppLocalizations.get('shareProLanConfirm', locale)
+            .replaceAll('{name}', target.name)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(AppLocalizations.get('cancel', locale)),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(AppLocalizations.get('share', locale)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      final uri = Uri.http(
+        '${target.ip}:${target.port}',
+        '/api/pro-activate',
+      );
+      final client = HttpClient()..connectionTimeout = const Duration(seconds: 5);
+      final request = await client.postUrl(uri);
+      request.headers.contentType = ContentType.json;
+      request.write('{"sender_name":"${_localDeviceName()}","activation_code":"$activationCode"}');
+      final response = await request.close();
+      client.close();
+
+      if (!mounted) return;
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(AppLocalizations.get('shareProLanSuccess', locale)
+                .replaceAll('{name}', target.name)),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(AppLocalizations.get('shareProLanFailed', locale)),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(AppLocalizations.get('shareProLanFailed', locale)),
+        ),
+      );
+    }
+  }
+
+  String _localDeviceName() {
+    try {
+      return Platform.localHostname;
+    } catch (_) {
+      return 'Unknown';
     }
   }
 
@@ -438,6 +508,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     if (devices.isEmpty) {
                       return _EmptyDevices(locale: locale, isDark: isDark);
                     }
+                    final licenseInfo = ref.watch(licenseServiceProvider);
+                    final localIsPro = licenseInfo.isPro;
+                    final activationCode = licenseInfo.activationCode;
                     return ListView.builder(
                       scrollDirection: Axis.horizontal,
                       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -451,6 +524,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         latencyMs: latencyMap[devices[index].id],
                         autofocus: index == 0,
                         onTap: () => _showSendOptions(devices[index], locale),
+                        onSharePro: (localIsPro &&
+                                activationCode.isNotEmpty &&
+                                !devices[index].isPro)
+                            ? () => _sharePro(
+                                devices[index], activationCode, locale)
+                            : null,
                         onFilesDropped: (paths) {
                           _dropHandledByCard = true;
                           // Debounce: ignore if another drop just happened (<500ms).
@@ -694,6 +773,7 @@ class _DeviceGlassCard extends StatefulWidget {
     required this.onFilesDropped,
     this.latencyMs,
     this.autofocus = false,
+    this.onSharePro,
   });
 
   final Device device;
@@ -705,6 +785,7 @@ class _DeviceGlassCard extends StatefulWidget {
   final void Function(List<String> paths) onFilesDropped;
   final int? latencyMs;
   final bool autofocus;
+  final VoidCallback? onSharePro;
 
   @override
   State<_DeviceGlassCard> createState() => _DeviceGlassCardState();
@@ -782,18 +863,55 @@ class _DeviceGlassCardState extends State<_DeviceGlassCard> {
                   ),
                   const Spacer(),
 
-                  // Device name
-                  Text(
-                    widget.device.name,
-                    style: TextStyle(
-                      fontSize: widget.isTV ? 16 : 14,
-                      fontWeight: FontWeight.w700,
-                      color: widget.isDark
-                          ? AppColors.textPrimary
-                          : Colors.black87,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+                  // Device name + Pro badge
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          widget.device.name,
+                          style: TextStyle(
+                            fontSize: widget.isTV ? 16 : 14,
+                            fontWeight: FontWeight.w700,
+                            color: widget.isDark
+                                ? AppColors.textPrimary
+                                : Colors.black87,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (widget.device.isPro) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 5, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF39FF14)
+                                .withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Text(
+                            'Pro',
+                            style: TextStyle(
+                              color: Color(0xFF39FF14),
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                      if (widget.onSharePro != null) ...[
+                        const Spacer(),
+                        GestureDetector(
+                          onTap: widget.onSharePro,
+                          child: const Icon(
+                            Icons.workspace_premium,
+                            color: Color(0xFF39FF14),
+                            size: 18,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                   const SizedBox(height: 2),
 
@@ -1060,40 +1178,144 @@ class _TransferCard extends StatelessWidget {
 // Empty state widgets
 // =============================================================================
 
-class _EmptyDevices extends StatelessWidget {
+class _EmptyDevices extends ConsumerWidget {
   const _EmptyDevices({required this.locale, required this.isDark});
   final String locale;
   final bool isDark;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final diagnostics = ref.watch(networkDiagnosticsProvider);
+
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.devices_other,
-            size: 48,
-            color: isDark ? AppColors.textTertiary : Colors.grey.shade400,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            AppLocalizations.get('noDevices', locale),
-            style: TextStyle(
-              fontSize: 14,
-              color: isDark ? AppColors.textSecondary : Colors.grey.shade600,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            AppLocalizations.get('scanning', locale),
-            style: TextStyle(
-              fontSize: 12,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.devices_other,
+              size: 48,
               color: isDark ? AppColors.textTertiary : Colors.grey.shade400,
             ),
-          ),
-        ],
+            const SizedBox(height: 12),
+            Text(
+              AppLocalizations.get('noDevices', locale),
+              style: TextStyle(
+                fontSize: 14,
+                color: isDark ? AppColors.textSecondary : Colors.grey.shade600,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              AppLocalizations.get('scanning', locale),
+              style: TextStyle(
+                fontSize: 12,
+                color: isDark ? AppColors.textTertiary : Colors.grey.shade400,
+              ),
+            ),
+            // Show diagnostic tips when issues are detected.
+            diagnostics.whenOrNull(
+              data: (diag) {
+                if (!diag.hasIssues) return null;
+                return Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: _DiagnosticTips(
+                    diagnostics: diag,
+                    locale: locale,
+                    isDark: isDark,
+                  ),
+                );
+              },
+            ) ?? const SizedBox.shrink(),
+          ],
+        ),
       ),
+    );
+  }
+}
+
+class _DiagnosticTips extends StatelessWidget {
+  const _DiagnosticTips({
+    required this.diagnostics,
+    required this.locale,
+    required this.isDark,
+  });
+
+  final NetworkDiagnostics diagnostics;
+  final String locale;
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    final tips = <String>[];
+
+    for (final issue in diagnostics.issues) {
+      switch (issue) {
+        case NetworkIssue.noNetwork:
+          tips.add(AppLocalizations.get('diagNoNetwork', locale));
+          break;
+        case NetworkIssue.virtualAdapters:
+          tips.add(
+            AppLocalizations.get('diagVirtualAdapter', locale).replaceAll(
+              '{names}',
+              diagnostics.virtualAdapterNames.join(', '),
+            ),
+          );
+          break;
+      }
+    }
+
+    // Always add general tips.
+    tips.add(AppLocalizations.get('diagSameNetwork', locale));
+    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+      tips.add(
+        AppLocalizations.get('diagFirewall', locale).replaceAll(
+          '{port}',
+          '${AppConstants.discoveryPort}',
+        ),
+      );
+    }
+    tips.add(AppLocalizations.get('diagTryManualIp', locale));
+
+    final warnColor = isDark
+        ? Colors.amber.shade300
+        : Colors.orange.shade700;
+    final tipColor = isDark
+        ? AppColors.textSecondary
+        : Colors.grey.shade600;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.info_outline, size: 14, color: warnColor),
+            const SizedBox(width: 4),
+            Text(
+              AppLocalizations.get('networkTroubleshooting', locale),
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: warnColor,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        ...tips.map(
+          (tip) => Padding(
+            padding: const EdgeInsets.only(bottom: 2),
+            child: Text(
+              '\u2022 $tip',
+              style: TextStyle(fontSize: 10, color: tipColor),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

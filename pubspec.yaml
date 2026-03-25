@@ -1,7 +1,7 @@
 name: anyware
 description: "LifeOS AnyWhere - Cross-platform local network file sharing"
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.0+4
 
 environment:
   sdk: ^3.11.0
@@ -75,6 +75,8 @@ dependencies:
   googleapis_auth: ^1.6.0
   webdav_client: ^1.2.2
   ftpconnect: ^2.0.4
+  purchases_flutter: ^9.13.1
+  purchases_ui_flutter: ^9.13.1
 
 dev_dependencies:
   flutter_test:

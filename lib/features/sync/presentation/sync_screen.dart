@@ -7,8 +7,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:permission_handler/permission_handler.dart';
 
+import 'package:anyware/core/licensing/feature_gate.dart';
+import 'package:anyware/core/licensing/license_service.dart';
 import 'package:anyware/core/theme.dart';
 import 'package:anyware/features/sync/data/sync_service.dart';
+import 'package:anyware/widgets/pro_upgrade_dialog.dart';
 import 'package:anyware/features/sync/domain/sync_state.dart';
 import 'package:anyware/features/sync/presentation/sync_job_wizard.dart';
 import 'package:anyware/features/settings/presentation/providers.dart';
@@ -356,6 +359,16 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   }
 
   void _openWizard(BuildContext context) {
+    final licenseInfo = ref.read(licenseServiceProvider);
+    final syncState = ref.read(syncServiceProvider);
+    final jobCount = syncState.jobs.length;
+
+    if (!FeatureGate.canCreateSyncJob(licenseInfo.plan, jobCount)) {
+      final locale = ref.read(settingsProvider).locale;
+      showProUpgradeDialog(context, ProFeature.unlimitedSync, locale);
+      return;
+    }
+
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const SyncJobWizard()),
     );
