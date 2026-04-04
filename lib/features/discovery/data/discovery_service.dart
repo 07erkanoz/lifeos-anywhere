@@ -175,10 +175,11 @@ class DiscoveryService {
       (_) => _cleanupStaleDevices(),
     );
 
-    // Periodically re-join multicast group every 2 minutes.
-    // Some OS/router combos silently drop the IGMP membership after a while.
+    // Periodically re-join multicast group every 30 seconds.
+    // Some OS/router combos silently drop the IGMP membership, and Wi-Fi
+    // power save can cause the chipset to leave the multicast group.
     _rejoinTimer = Timer.periodic(
-      const Duration(minutes: 2),
+      const Duration(seconds: 30),
       (_) => _rejoinMulticast(),
     );
 
@@ -366,9 +367,11 @@ class DiscoveryService {
 
   /// Sends a single UDP multicast datagram containing the local device JSON.
   ///
-  /// Broadcasts to both the multicast group AND the subnet broadcast address
-  /// (255.255.255.255) for maximum compatibility. Some network configurations
-  /// and firewalls block multicast but allow broadcast.
+  /// Uses a triple-send strategy for maximum reliability:
+  /// 1. Multicast to the group address (standard discovery).
+  /// 2. Subnet broadcast (255.255.255.255) for networks blocking multicast.
+  /// 3. Direct unicast to every known device (guarantees delivery even when
+  ///    both multicast and broadcast are flaky on Wi-Fi).
   ///
   /// Tracks consecutive failures. If [_maxConsecutiveFailures] is reached,
   /// triggers a full socket restart.
@@ -391,6 +394,37 @@ class DiscoveryService {
         InternetAddress('255.255.255.255'),
         AppConstants.discoveryPort,
       );
+
+      // 3. Subnet-specific broadcast (e.g. 192.168.1.255).
+      //    Some routers drop 255.255.255.255 but honour directed broadcast.
+      final myIp = localDevice.ip;
+      if (myIp.isNotEmpty && myIp.contains('.')) {
+        try {
+          final parts = myIp.split('.');
+          if (parts.length == 4) {
+            final subnetBroadcast = '${parts[0]}.${parts[1]}.${parts[2]}.255';
+            _socket!.send(
+              data,
+              InternetAddress(subnetBroadcast),
+              AppConstants.discoveryPort,
+            );
+          }
+        } catch (_) {}
+      }
+
+      // 4. Direct unicast to every known device — guarantees delivery even
+      //    when multicast/broadcast packets are dropped by Wi-Fi power save.
+      for (final device in _devices.values) {
+        if (device.ip.isNotEmpty && device.ip != localDevice.ip) {
+          try {
+            _socket!.send(
+              data,
+              InternetAddress(device.ip),
+              AppConstants.discoveryPort,
+            );
+          } catch (_) {}
+        }
+      }
 
       // Reset failure counter on success.
       _consecutiveBroadcastFailures = 0;
