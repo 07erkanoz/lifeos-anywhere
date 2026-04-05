@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mime/mime.dart';
 import 'package:open_file/open_file.dart';
 
+import 'package:anyware/core/logger.dart';
 import 'package:anyware/features/transfer/domain/transfer.dart';
 import 'package:anyware/features/transfer/presentation/providers.dart';
 import 'package:anyware/features/settings/presentation/providers.dart';
@@ -149,7 +150,7 @@ Future<void> _openFileStatic(String path) async {
       OpenFile.open(path, type: mimeType);
     }
   } catch (e) {
-    // ignore — file may not have a handler
+    AppLogger('Transfer').warning('Failed to open file: $e');
   }
 }
 
@@ -168,7 +169,7 @@ Future<void> _openFolderStatic(String path) async {
       });
     }
   } catch (e) {
-    // ignore
+    AppLogger('Transfer').warning('Failed to open folder: $e');
   }
 }
 

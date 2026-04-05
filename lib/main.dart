@@ -150,6 +150,10 @@ Future<void> main(List<String> args) async {
       windowButtonVisibility: false,
     );
 
+    // Set the taskbar icon explicitly. With TitleBarStyle.hidden, the default
+    // window class icon may not propagate to the taskbar on some systems.
+    await windowManager.setIcon('windows/runner/resources/app_icon.ico');
+
     // Load persisted settings so we can pass them to WindowsService.
     final settingsRepo = SettingsRepository(prefs);
     final AppSettings settings = await settingsRepo.load();

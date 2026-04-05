@@ -85,11 +85,17 @@ class MainActivity : FlutterActivity() {
                                     }
                                 }
 
-                                val uri = FileProvider.getUriForFile(
-                                    this@MainActivity,
-                                    "${packageName}.fileprovider",
-                                    file
-                                )
+                                // Try FileProvider URI first, fall back to direct file URI
+                                // if the file is outside FileProvider paths.
+                                val uri: Uri = try {
+                                    FileProvider.getUriForFile(
+                                        this@MainActivity,
+                                        "${packageName}.fileprovider",
+                                        file
+                                    )
+                                } catch (_: IllegalArgumentException) {
+                                    Uri.fromFile(file)
+                                }
 
                                 val intent = Intent(Intent.ACTION_VIEW).apply {
                                     setDataAndType(uri, resolvedMimeType)
@@ -110,8 +116,6 @@ class MainActivity : FlutterActivity() {
                                         result.error("NO_APP", "No app to open: $resolvedMimeType", null)
                                     }
                                 }
-                            } catch (e: IllegalArgumentException) {
-                                result.error("PROVIDER_ERROR", "FileProvider error: ${e.message}", null)
                             } catch (e: Exception) {
                                 result.error("OPEN_ERROR", "Failed to open file: ${e.message}", null)
                             }
@@ -126,46 +130,73 @@ class MainActivity : FlutterActivity() {
                                 val file = File(path)
                                 val dir = if (file.isDirectory) file else file.parentFile
 
-                                // Build a content URI for the Downloads provider
+                                // Build a content URI that Android file managers understand.
                                 val relativePath = dir?.absolutePath
                                     ?.removePrefix("/storage/emulated/0/") ?: ""
                                 val encodedPath = Uri.encode(relativePath, "/")
-                                val uri = Uri.parse(
+
+                                // Strategy 1: Open the Documents UI directly to the folder.
+                                // This works on most stock Android file managers.
+                                val treeUri = Uri.parse(
                                     "content://com.android.externalstorage.documents/document/primary:$encodedPath"
                                 )
+                                var opened = false
 
-                                val intent = Intent(Intent.ACTION_VIEW).apply {
-                                    setDataAndType(uri, "vnd.android.document/directory")
-                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                // Try ACTION_VIEW with document URI (works on Samsung, Pixel)
+                                try {
+                                    val intent = Intent(Intent.ACTION_VIEW).apply {
+                                        setDataAndType(treeUri, "resource/folder")
+                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    }
+                                    startActivity(intent)
+                                    opened = true
+                                } catch (_: Exception) {}
+
+                                // Strategy 2: Open with vnd.android.document/directory
+                                if (!opened) {
+                                    try {
+                                        val intent = Intent(Intent.ACTION_VIEW).apply {
+                                            setDataAndType(treeUri, "vnd.android.document/directory")
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                        }
+                                        startActivity(intent)
+                                        opened = true
+                                    } catch (_: Exception) {}
                                 }
 
-                                try {
-                                    startActivity(intent)
-                                    result.success(true)
-                                } catch (e: ActivityNotFoundException) {
-                                    // Fallback: open system file manager via BROWSE_DOCUMENT
-                                    val browseIntent = Intent("android.provider.action.BROWSE").apply {
-                                        data = uri
-                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                    }
+                                // Strategy 3: Use the system file manager package directly
+                                if (!opened) {
                                     try {
-                                        startActivity(browseIntent)
-                                        result.success(true)
-                                    } catch (e2: ActivityNotFoundException) {
-                                        // Last resort: just open Files app
-                                        val filesIntent = Intent(Intent.ACTION_VIEW).apply {
+                                        val intent = packageManager
+                                            .getLaunchIntentForPackage("com.google.android.documentsui")
+                                            ?: packageManager
+                                                .getLaunchIntentForPackage("com.android.documentsui")
+                                        if (intent != null) {
+                                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                            startActivity(intent)
+                                            opened = true
+                                        }
+                                    } catch (_: Exception) {}
+                                }
+
+                                // Strategy 4: Generic file manager intent
+                                if (!opened) {
+                                    try {
+                                        val intent = Intent(Intent.ACTION_VIEW).apply {
                                             data = Uri.parse("content://com.android.externalstorage.documents/root/primary")
-                                            type = "vnd.android.document/root"
                                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                         }
-                                        try {
-                                            startActivity(filesIntent)
-                                            result.success(true)
-                                        } catch (e3: Exception) {
-                                            result.error("NO_FILE_MANAGER", "No file manager found", null)
-                                        }
-                                    }
+                                        startActivity(intent)
+                                        opened = true
+                                    } catch (_: Exception) {}
+                                }
+
+                                if (opened) {
+                                    result.success(true)
+                                } else {
+                                    result.error("NO_FILE_MANAGER", "No file manager found", null)
                                 }
                             } catch (e: Exception) {
                                 result.error("OPEN_ERROR", "Failed to open folder: ${e.message}", null)

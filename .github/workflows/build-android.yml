@@ -1,4 +1,4 @@
-name: Build Windows Installer
+name: Build Android APK
 
 on:
   push:
@@ -6,14 +6,20 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-windows-installer:
-    runs-on: windows-latest
+  build-android-apk:
+    runs-on: ubuntu-latest
     permissions:
       contents: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -25,7 +31,7 @@ jobs:
 
       - name: Create .env for build
         run: |
-          @"
+          cat > .env <<'EOF'
           GDRIVE_CLIENT_ID=${{ secrets.GDRIVE_CLIENT_ID }}
           GDRIVE_CLIENT_SECRET=${{ secrets.GDRIVE_CLIENT_SECRET }}
           GDRIVE_ANDROID_CLIENT_ID=${{ secrets.GDRIVE_ANDROID_CLIENT_ID }}
@@ -36,16 +42,22 @@ jobs:
           REVENUECAT_API_KEY=${{ secrets.REVENUECAT_API_KEY }}
           TURN_USERNAME=${{ secrets.TURN_USERNAME }}
           TURN_CREDENTIAL=${{ secrets.TURN_CREDENTIAL }}
-          "@ -replace '(?m)^\s+', '' | Out-File -FilePath .env -Encoding utf8NoBOM
-        shell: pwsh
+          EOF
+          sed -i 's/^[[:space:]]*//' .env
 
-      - name: Build Windows release
-        run: flutter build windows --release --dart-define-from-file=.env
+      - name: Decode keystore
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > upload-keystore.jks
+          cat > android/key.properties <<EOF
+          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+          keyPassword=${{ secrets.KEY_PASSWORD }}
+          keyAlias=${{ secrets.KEY_ALIAS }}
+          storeFile=../upload-keystore.jks
+          EOF
+          sed -i 's/^[[:space:]]*//' android/key.properties
 
-      - name: Create Inno Setup installer
-        uses: Minionguyjpro/Inno-Setup-Action@v1.2.5
-        with:
-          path: installer/windows/setup.iss
+      - name: Build APK
+        run: flutter build apk --release --dart-define-from-file=.env
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -53,5 +65,5 @@ jobs:
           tag_name: build-${{ github.run_number }}
           name: Build #${{ github.run_number }}
           body: "Automated build from commit ${{ github.sha }}"
-          files: build/installer/LifeOS-AnyWhere-Setup-*.exe
+          files: build/app/outputs/flutter-apk/app-release.apk
           make_latest: true

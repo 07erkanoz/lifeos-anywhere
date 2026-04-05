@@ -1321,6 +1321,16 @@ class FileServer {
       // Atomic rename: temp file → final path.
       // On Android with Scoped Storage, rename across directories may fail.
       // Fall back to copy + delete in that case.
+      // When overwriting, delete the existing file first so rename/copy
+      // doesn't fail on Android.
+      final destFile = File(savePath);
+      if (await destFile.exists()) {
+        try {
+          await destFile.delete();
+        } catch (e) {
+          _log.warning('Could not delete existing file for overwrite: $e');
+        }
+      }
       try {
         await tempFile.rename(savePath);
       } catch (_) {
