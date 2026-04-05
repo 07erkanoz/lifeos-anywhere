@@ -9,9 +9,6 @@ class Device {
   final String version;
   final DateTime lastSeen;
 
-  /// Whether this device has an active Pro license.
-  final bool isPro;
-
   const Device({
     required this.id,
     required this.name,
@@ -20,7 +17,6 @@ class Device {
     required this.platform,
     required this.version,
     required this.lastSeen,
-    this.isPro = false,
   });
 
   factory Device.create({
@@ -29,7 +25,6 @@ class Device {
     required int port,
     required String platform,
     required String version,
-    bool isPro = false,
   }) {
     return Device(
       id: const Uuid().v4(),
@@ -39,7 +34,6 @@ class Device {
       platform: platform,
       version: version,
       lastSeen: DateTime.now(),
-      isPro: isPro,
     );
   }
 
@@ -52,7 +46,6 @@ class Device {
       platform: json['platform'] as String,
       version: json['version'] as String,
       lastSeen: DateTime.parse(json['lastSeen'] as String),
-      isPro: json['isPro'] as bool? ?? false,
     );
   }
 
@@ -65,7 +58,6 @@ class Device {
       'platform': platform,
       'version': version,
       'lastSeen': lastSeen.toIso8601String(),
-      'isPro': isPro,
     };
   }
 
@@ -77,7 +69,6 @@ class Device {
     String? platform,
     String? version,
     DateTime? lastSeen,
-    bool? isPro,
   }) {
     return Device(
       id: id ?? this.id,
@@ -87,7 +78,6 @@ class Device {
       platform: platform ?? this.platform,
       version: version ?? this.version,
       lastSeen: lastSeen ?? this.lastSeen,
-      isPro: isPro ?? this.isPro,
     );
   }
 

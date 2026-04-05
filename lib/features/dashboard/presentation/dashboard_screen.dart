@@ -21,7 +21,6 @@ import 'package:anyware/features/pairing/presentation/qr_options_dialog.dart';
 import 'package:anyware/features/transfer/domain/transfer.dart';
 import 'package:anyware/features/transfer/presentation/providers.dart';
 import 'package:anyware/features/settings/presentation/providers.dart';
-import 'package:anyware/core/licensing/license_service.dart';
 import 'package:anyware/i18n/app_localizations.dart';
 import 'package:anyware/widgets/glassmorphism.dart';
 import 'package:anyware/widgets/desktop_content_shell.dart';
@@ -180,66 +179,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('${AppLocalizations.get('sendFolderFailed', AppLocalizations.detectLocale())}: $e')),
-      );
-    }
-  }
-
-  /// Share Pro license with a LAN device.
-  Future<void> _sharePro(
-      Device target, String activationCode, String locale) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text(AppLocalizations.get('shareProLan', locale)),
-        content: Text(AppLocalizations.get('shareProLanConfirm', locale)
-            .replaceAll('{name}', target.name)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(AppLocalizations.get('cancel', locale)),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(AppLocalizations.get('share', locale)),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-
-    try {
-      final uri = Uri.http(
-        '${target.ip}:${target.port}',
-        '/api/pro-activate',
-      );
-      final client = HttpClient()..connectionTimeout = const Duration(seconds: 5);
-      final request = await client.postUrl(uri);
-      request.headers.contentType = ContentType.json;
-      request.write('{"sender_name":"${_localDeviceName()}","activation_code":"$activationCode"}');
-      final response = await request.close();
-      client.close();
-
-      if (!mounted) return;
-      if (response.statusCode == 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(AppLocalizations.get('shareProLanSuccess', locale)
-                .replaceAll('{name}', target.name)),
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(AppLocalizations.get('shareProLanFailed', locale)),
-          ),
-        );
-      }
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(AppLocalizations.get('shareProLanFailed', locale)),
-        ),
       );
     }
   }
@@ -508,9 +447,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     if (devices.isEmpty) {
                       return _EmptyDevices(locale: locale, isDark: isDark);
                     }
-                    final licenseInfo = ref.watch(licenseServiceProvider);
-                    final localIsPro = licenseInfo.isPro;
-                    final activationCode = licenseInfo.activationCode;
                     return ListView.builder(
                       scrollDirection: Axis.horizontal,
                       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -524,12 +460,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         latencyMs: latencyMap[devices[index].id],
                         autofocus: index == 0,
                         onTap: () => _showSendOptions(devices[index], locale),
-                        onSharePro: (localIsPro &&
-                                activationCode.isNotEmpty &&
-                                !devices[index].isPro)
-                            ? () => _sharePro(
-                                devices[index], activationCode, locale)
-                            : null,
                         onFilesDropped: (paths) {
                           _dropHandledByCard = true;
                           // Debounce: ignore if another drop just happened (<500ms).
@@ -773,7 +703,6 @@ class _DeviceGlassCard extends StatefulWidget {
     required this.onFilesDropped,
     this.latencyMs,
     this.autofocus = false,
-    this.onSharePro,
   });
 
   final Device device;
@@ -785,7 +714,6 @@ class _DeviceGlassCard extends StatefulWidget {
   final void Function(List<String> paths) onFilesDropped;
   final int? latencyMs;
   final bool autofocus;
-  final VoidCallback? onSharePro;
 
   @override
   State<_DeviceGlassCard> createState() => _DeviceGlassCardState();
@@ -880,37 +808,6 @@ class _DeviceGlassCardState extends State<_DeviceGlassCard> {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      if (widget.device.isPro) ...[
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 5, vertical: 1),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF39FF14)
-                                .withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: const Text(
-                            'Pro',
-                            style: TextStyle(
-                              color: Color(0xFF39FF14),
-                              fontSize: 9,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
-                      if (widget.onSharePro != null) ...[
-                        const Spacer(),
-                        GestureDetector(
-                          onTap: widget.onSharePro,
-                          child: const Icon(
-                            Icons.workspace_premium,
-                            color: Color(0xFF39FF14),
-                            size: 18,
-                          ),
-                        ),
-                      ],
                     ],
                   ),
                   const SizedBox(height: 2),

@@ -32,6 +32,12 @@ class DiscoveryService {
 
   RawDatagramSocket? _socket;
   StreamSubscription<RawSocketEvent>? _socketSub;
+
+  /// Dedicated send socket on Windows, bound to the real LAN IP so outbound
+  /// packets go through the physical adapter instead of a virtual one
+  /// (Hyper-V, WSL). Null on non-Windows or if creation failed.
+  RawDatagramSocket? _sendSocket;
+
   Timer? _broadcastTimer;
   Timer? _cleanupTimer;
   Timer? _rejoinTimer;
@@ -91,11 +97,12 @@ class DiscoveryService {
     final multicastAddress =
         InternetAddress(AppConstants.multicastGroup, type: InternetAddressType.IPv4);
 
-    // Bind to the discovery port. On Windows we bind to anyIPv4; on other
-    // platforms we bind to the multicast group address directly so that the
-    // OS routes multicast traffic to this socket.
+    // Windows & Android/iOS: bind to anyIPv4 so we receive all packet types.
+    // Linux/macOS: bind to multicast address (required by kernel for multicast).
     final bindAddress =
-        Platform.isWindows ? InternetAddress.anyIPv4 : multicastAddress;
+        (Platform.isWindows || Platform.isAndroid || Platform.isIOS)
+            ? InternetAddress.anyIPv4
+            : multicastAddress;
 
     // On Windows, binding to a specific UDP port can fail with errno 10013
     // (WSAEACCES) if the Windows Firewall hasn't granted inbound access yet.
@@ -140,6 +147,27 @@ class DiscoveryService {
 
     _log.info('Multicast joined. Listening on port $boundPort, broadcasting to ${AppConstants.discoveryPort}.');
 
+    // On Windows with virtual adapters (Hyper-V, WSL), the main socket bound
+    // to anyIPv4 may send multicast/broadcast through the wrong interface
+    // (the one with the lowest routing metric). Open a dedicated send socket
+    // bound to the real LAN IP so all outbound discovery packets go through
+    // the physical adapter. The main socket remains on anyIPv4 for receiving.
+    if (Platform.isWindows && localIp != null && localIp.isNotEmpty) {
+      try {
+        _sendSocket = await RawDatagramSocket.bind(
+          InternetAddress(localIp),
+          0, // ephemeral port — we only send from this socket
+          reuseAddress: true,
+        );
+        _sendSocket!.broadcastEnabled = true;
+        _sendSocket!.multicastLoopback = true;
+        _log.info('Dedicated send socket bound to $localIp (ensures correct interface).');
+      } catch (e) {
+        _log.warning('Could not create dedicated send socket: $e');
+        // Fall back to main socket for sending.
+      }
+    }
+
     // Reset failure counters.
     _consecutiveBroadcastFailures = 0;
     _lastPacketReceived = DateTime.now();
@@ -156,6 +184,7 @@ class DiscoveryService {
         _scheduleRestart();
       },
       onDone: () {
+        if (_isStopping) return; // Deliberate stop, not unexpected.
         _log.warning('Socket stream closed unexpectedly — triggering restart');
         _socket = null;
         _scheduleRestart();
@@ -192,10 +221,15 @@ class DiscoveryService {
     );
   }
 
+  /// Whether a deliberate stop is in progress (suppresses onDone restart).
+  bool _isStopping = false;
+
   /// Stops the discovery service without disposing streams.
   ///
   /// The service can be restarted via [start] after stopping.
   void stop() {
+    _isStopping = true;
+
     _broadcastTimer?.cancel();
     _broadcastTimer = null;
 
@@ -212,11 +246,18 @@ class DiscoveryService {
     _socketSub = null;
 
     try {
+      _sendSocket?.close();
+    } catch (_) {}
+    _sendSocket = null;
+
+    try {
       _socket?.close();
     } catch (_) {
       // Ignore close errors.
     }
     _socket = null;
+
+    _isStopping = false;
   }
 
   /// Clears discovered devices and emits an empty list.
@@ -381,14 +422,21 @@ class DiscoveryService {
     try {
       final data = utf8.encode(jsonEncode(localDevice.toJson()));
 
+      // Use the dedicated send socket (bound to real LAN IP) on Windows to
+      // avoid Hyper-V / WSL virtual adapter routing. Falls back to the main
+      // socket on other platforms or if the send socket wasn't created.
+      final outSock = _sendSocket ?? _socket!;
+
       // 1. Multicast
-      _socket!.send(
+      outSock.send(
         data,
         InternetAddress(AppConstants.multicastGroup),
         AppConstants.discoveryPort,
       );
 
       // 2. Subnet broadcast fallback (works even when multicast is blocked).
+      //    Send from BOTH sockets on Windows: the main socket (anyIPv4) can
+      //    reach the global broadcast while the send socket targets the LAN.
       _socket!.send(
         data,
         InternetAddress('255.255.255.255'),
@@ -403,7 +451,7 @@ class DiscoveryService {
           final parts = myIp.split('.');
           if (parts.length == 4) {
             final subnetBroadcast = '${parts[0]}.${parts[1]}.${parts[2]}.255';
-            _socket!.send(
+            outSock.send(
               data,
               InternetAddress(subnetBroadcast),
               AppConstants.discoveryPort,
@@ -417,7 +465,7 @@ class DiscoveryService {
       for (final device in _devices.values) {
         if (device.ip.isNotEmpty && device.ip != localDevice.ip) {
           try {
-            _socket!.send(
+            outSock.send(
               data,
               InternetAddress(device.ip),
               AppConstants.discoveryPort,
@@ -471,9 +519,19 @@ class DiscoveryService {
         return;
       }
 
-      // Update the IP to the actual source address if the device didn't set it.
+      // Always use the datagram source address as the canonical IP.
+      // The payload IP may be wrong (e.g. Android without location permission
+      // picks the wrong interface), but the source address is always the real,
+      // routable IP that delivered the packet to us.
+      final sourceIp = datagram.address.address;
+      if (device.ip.isNotEmpty && device.ip != sourceIp) {
+        _log.debug(
+          'IP mismatch for ${device.name}: payload=${device.ip}, '
+          'source=$sourceIp — using source IP',
+        );
+      }
       final updatedDevice = device.copyWith(
-        ip: device.ip.isNotEmpty ? device.ip : datagram.address.address,
+        ip: sourceIp,
         lastSeen: DateTime.now(),
       );
 

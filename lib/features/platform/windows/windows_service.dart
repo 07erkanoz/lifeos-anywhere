@@ -88,6 +88,9 @@ class WindowsService with WindowListener {
     // Ensure Windows Firewall allows our discovery & transfer ports.
     await _ensureFirewallRules();
 
+    // Fix multicast/broadcast routing on systems with Hyper-V / WSL / Docker.
+    await _fixMulticastRoutes();
+
     _isInitialized = true;
   }
 
@@ -232,6 +235,80 @@ class WindowsService with WindowListener {
       }
     } catch (e) {
       _log.error('Firewall rule setup error: $e', error: e);
+    }
+  }
+
+  /// Fixes multicast/broadcast routing on Windows when virtual adapters
+  /// (Hyper-V, WSL, Docker) steal multicast traffic from the physical adapter.
+  ///
+  /// Detects virtual adapter IPs and deletes their multicast (224.0.0.0) and
+  /// broadcast (255.255.255.255) routes so packets go through the physical
+  /// WiFi/Ethernet adapter instead. Requires admin elevation (UAC prompt).
+  /// Skipped if no virtual adapter multicast routes are detected.
+  Future<void> _fixMulticastRoutes() async {
+    try {
+      final interfaces = await NetworkInterface.list(
+        type: InternetAddressType.IPv4,
+      );
+
+      final virtualIps = <String>[];
+      for (final iface in interfaces) {
+        final name = iface.name.toLowerCase();
+        final isVirtual = name.contains('hyper-v') ||
+            name.contains('vethernet') ||
+            name.contains('vmware') ||
+            name.contains('virtualbox') ||
+            name.contains('docker') ||
+            name.contains('wsl') ||
+            name.contains('virbr') ||
+            name.contains('veth') ||
+            name.startsWith('br-') ||
+            name.startsWith('tun') ||
+            name.startsWith('tap') ||
+            name.contains('lxc') ||
+            name.contains('lxd');
+        if (!isVirtual) continue;
+        for (final addr in iface.addresses) {
+          if (!addr.isLoopback) virtualIps.add(addr.address);
+        }
+      }
+
+      if (virtualIps.isEmpty) return;
+
+      // Check routing table for virtual adapter multicast routes.
+      final routeOutput =
+          (await Process.run('route', ['print'])).stdout.toString();
+
+      final routeDeleteCmds = <String>[];
+      for (final ip in virtualIps) {
+        if (routeOutput.contains(ip)) {
+          routeDeleteCmds.add(
+              'route delete 224.0.0.0 mask 240.0.0.0 $ip >nul 2>&1');
+          routeDeleteCmds.add(
+              'route delete 255.255.255.255 mask 255.255.255.255 $ip >nul 2>&1');
+        }
+      }
+
+      if (routeDeleteCmds.isEmpty) return;
+
+      _log.info('Fixing multicast routes for virtual adapters: $virtualIps');
+
+      final tempDir = Directory.systemTemp;
+      final batFile = File('${tempDir.path}\\lifeos_route_fix.bat');
+      await batFile.writeAsString(
+        '@echo off\r\n${routeDeleteCmds.join('\r\n')}\r\n',
+      );
+
+      await Process.run('powershell', [
+        '-NoProfile', '-Command',
+        'Start-Process', '-FilePath', batFile.path,
+        '-Verb', 'RunAs', '-Wait',
+      ]);
+
+      try { await batFile.delete(); } catch (_) {}
+      _log.info('Multicast route fix applied.');
+    } catch (e) {
+      _log.warning('Multicast route fix error: $e');
     }
   }
 

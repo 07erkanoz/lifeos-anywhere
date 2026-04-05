@@ -10,7 +10,6 @@ import 'package:anyware/core/file_picker_helper.dart';
 import 'package:anyware/core/constants.dart';
 import 'package:anyware/core/logger.dart';
 
-import 'package:anyware/core/licensing/license_service.dart';
 import 'package:anyware/features/discovery/domain/device.dart';
 import 'package:anyware/features/sharing/data/sharing_service.dart';
 import 'package:anyware/features/discovery/presentation/providers.dart';
@@ -219,10 +218,6 @@ class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
               if (devices.isEmpty) {
                 return _EmptyDevicesView(locale: locale);
               }
-              final licenseInfo = ref.watch(licenseServiceProvider);
-              final localIsPro = licenseInfo.isPro;
-              final activationCode = licenseInfo.activationCode;
-
               return Column(
                 children: [
                   for (int i = 0; i < devices.length; i++)
@@ -237,12 +232,6 @@ class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
                         _dropHandledByCard = true;
                         _sendFilesToDevice(context, ref, devices[i], paths);
                       },
-                      onSharePro: (localIsPro &&
-                              activationCode.isNotEmpty &&
-                              !devices[i].isPro)
-                          ? () => _sharePro(
-                              context, ref, devices[i], activationCode, locale)
-                          : null,
                     ),
                 ],
               );
@@ -369,86 +358,6 @@ class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('${AppLocalizations.get('sendFileFailed', AppLocalizations.detectLocale())}: $e')),
-      );
-    }
-  }
-
-  /// Share Pro activation code with a discovered device over LAN.
-  Future<void> _sharePro(
-    BuildContext context,
-    WidgetRef ref,
-    Device target,
-    String activationCode,
-    String locale,
-  ) async {
-    // Confirm before sharing.
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(AppLocalizations.get('shareProLan', locale)),
-        content: Text(AppLocalizations.format(
-          'shareProLanConfirm',
-          locale,
-          {'name': target.name},
-        )),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(AppLocalizations.get('cancel', locale)),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(AppLocalizations.get('share', locale)),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true || !context.mounted) return;
-
-    try {
-      final localDevice = await ref.read(localDeviceProvider.future);
-      final client = HttpClient();
-      final uri = Uri.http(
-        '${target.ip}:${target.port}',
-        '/api/pro-activate',
-      );
-      final request = await client.postUrl(uri);
-      request.headers.contentType = ContentType.json;
-      request.write(jsonEncode({
-        'sender_name': localDevice.name,
-        'activation_code': activationCode,
-      }));
-      final response = await request.close().timeout(
-            const Duration(seconds: 10),
-          );
-
-      if (!context.mounted) return;
-
-      if (response.statusCode == 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(AppLocalizations.format(
-              'shareProLanSuccess',
-              locale,
-              {'name': target.name},
-            )),
-            backgroundColor: const Color(0xFF39FF14),
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(AppLocalizations.get('shareProLanFailed', locale)),
-          ),
-        );
-      }
-    } catch (e) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(AppLocalizations.get('shareProLanFailed', locale)),
-        ),
       );
     }
   }
@@ -823,7 +732,6 @@ class _DeviceDropTarget extends StatefulWidget {
     required this.onSendFile,
     required this.onFilesDropped,
     this.autofocus = false,
-    this.onSharePro,
   });
 
   final Device device;
@@ -832,7 +740,6 @@ class _DeviceDropTarget extends StatefulWidget {
   final VoidCallback onSendFile;
   final void Function(List<String> paths) onFilesDropped;
   final bool autofocus;
-  final VoidCallback? onSharePro;
 
   @override
   State<_DeviceDropTarget> createState() => _DeviceDropTargetState();
@@ -862,7 +769,6 @@ class _DeviceDropTargetState extends State<_DeviceDropTarget> {
           isDropHovering: _isHovering,
           isDragging: widget.isDragging,
           autofocus: widget.autofocus,
-          onSharePro: widget.onSharePro,
         ),
       );
     }
@@ -874,7 +780,6 @@ class _DeviceDropTargetState extends State<_DeviceDropTarget> {
       isDropHovering: false,
       isDragging: false,
       autofocus: widget.autofocus,
-      onSharePro: widget.onSharePro,
     );
   }
 }
@@ -1134,7 +1039,6 @@ class _DeviceCard extends StatelessWidget {
     this.isDropHovering = false,
     this.isDragging = false,
     this.autofocus = false,
-    this.onSharePro,
   });
 
   final Device device;
@@ -1143,7 +1047,6 @@ class _DeviceCard extends StatelessWidget {
   final bool isDropHovering;
   final bool isDragging;
   final bool autofocus;
-  final VoidCallback? onSharePro;
 
   @override
   Widget build(BuildContext context) {
@@ -1200,26 +1103,6 @@ class _DeviceCard extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          if (device.isPro) ...[
-                            const SizedBox(width: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 6, vertical: 1),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF39FF14)
-                                    .withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: const Text(
-                                'Pro',
-                                style: TextStyle(
-                                  color: Color(0xFF39FF14),
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ],
                         ],
                       ),
                       const SizedBox(height: 2),
@@ -1233,17 +1116,6 @@ class _DeviceCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (onSharePro != null) ...[
-                  const SizedBox(width: 4),
-                  IconButton(
-                    icon: const Icon(Icons.workspace_premium, size: 20),
-                    tooltip: AppLocalizations.get('shareProLan', locale),
-                    style: IconButton.styleFrom(
-                      foregroundColor: const Color(0xFF39FF14),
-                    ),
-                    onPressed: onSharePro,
-                  ),
-                ],
                 const SizedBox(width: 8),
                 if (isDropHovering)
                   Container(

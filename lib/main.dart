@@ -13,7 +13,6 @@ import 'package:anyware/app.dart';
 import 'package:anyware/core/android_platform_service.dart';
 import 'package:anyware/core/background_service.dart';
 import 'package:anyware/core/constants.dart';
-import 'package:anyware/core/licensing/purchase_service.dart';
 import 'package:anyware/core/tv_detector.dart';
 import 'package:anyware/features/discovery/presentation/device_list_screen.dart';
 import 'package:anyware/features/platform/tray_service.dart';
@@ -69,6 +68,32 @@ Future<void> main(List<String> args) async {
       }
     } catch (e) {
       _log.warning('Notification permission request failed: $e');
+    }
+
+    // Request location & nearby-WiFi permissions for accurate WiFi IP
+    // detection. NetworkInfo.getWifiIP() requires ACCESS_FINE_LOCATION on
+    // Android. Without it, discovery may broadcast a wrong IP, causing
+    // asymmetric device visibility (desktop sees Android but not vice-versa).
+    // TV devices typically lack location services, so skip them.
+    if (!TvDetector.isTVCached) {
+      try {
+        final locationStatus = await Permission.locationWhenInUse.status;
+        if (!locationStatus.isGranted) {
+          await Permission.locationWhenInUse.request();
+        }
+      } catch (e) {
+        _log.warning('Location permission request failed: $e');
+      }
+
+      // Android 13+ (API 33) requires NEARBY_WIFI_DEVICES for WiFi scanning.
+      try {
+        final nearbyStatus = await Permission.nearbyWifiDevices.status;
+        if (nearbyStatus.isDenied) {
+          await Permission.nearbyWifiDevices.request();
+        }
+      } catch (e) {
+        _log.warning('Nearby WiFi Devices permission request failed: $e');
+      }
     }
   }
 
@@ -192,13 +217,6 @@ Future<void> main(List<String> args) async {
   // Set pending share path if launched with --share.
   if (pendingSharePath != null) {
     _container.read(pendingShareProvider.notifier).state = [pendingSharePath];
-  }
-
-  // Initialize RevenueCat (mobile only).
-  try {
-    await _container.read(purchaseServiceProvider).init();
-  } catch (e) {
-    _log.warning('RevenueCat init failed: $e');
   }
 
   runApp(

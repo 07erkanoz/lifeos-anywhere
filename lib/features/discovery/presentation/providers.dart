@@ -3,10 +3,10 @@ import 'dart:io';
 
 import 'package:anyware/core/constants.dart';
 import 'package:anyware/core/logger.dart';
-import 'package:anyware/core/licensing/license_service.dart';
 import 'package:anyware/features/discovery/data/discovery_service.dart';
 import 'package:anyware/features/discovery/data/latency_service.dart';
 import 'package:anyware/features/discovery/domain/device.dart';
+import 'package:anyware/core/android_platform_service.dart';
 import 'package:anyware/features/platform/android/direct_share_service.dart';
 import 'package:anyware/features/settings/data/settings_repository.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -37,9 +37,6 @@ final localDeviceProvider = FutureProvider<Device>((ref) async {
   final ip = await _getBestLocalIp();
   AppLogger('LocalDevice').info('Selected IP = $ip, ID = $id');
 
-  // Check if this device has an active Pro license.
-  final isPro = ref.read(licenseServiceProvider).isPro;
-
   return Device(
     id: id,
     name: deviceName,
@@ -48,7 +45,6 @@ final localDeviceProvider = FutureProvider<Device>((ref) async {
     platform: platform,
     version: AppConstants.protocolVersion,
     lastSeen: DateTime.now(),
-    isPro: isPro,
   );
 });
 
@@ -178,19 +174,23 @@ final discoveryServiceProvider = FutureProvider<DiscoveryService>((ref) async {
           );
 
           if (hasNetwork && service.isRunning) {
-            // Network changed — restart discovery to rebind to new interface.
-            AppLogger('DiscoveryProvider').info('Network changed, restarting discovery...');
-
-            // Update local IP before restarting.
+            // Only restart if IP actually changed — connectivity_plus fires
+            // very frequently on Android and restarting clears all devices.
             final newIp = await _getBestLocalIp();
-            if (newIp.isNotEmpty && newIp != service.localDevice.ip) {
-              service.localDevice = service.localDevice.copyWith(ip: newIp);
-              AppLogger('DiscoveryProvider').info('IP changed to $newIp');
-            }
+            if (newIp.isEmpty || newIp == service.localDevice.ip) return;
 
+            AppLogger('DiscoveryProvider').info(
+                'IP changed: ${service.localDevice.ip} → $newIp, restarting...');
+            service.localDevice = service.localDevice.copyWith(ip: newIp);
             service.clearDevices();
             service.stop();
-            // Small delay to let the network settle.
+
+            // Re-acquire multicast lock — switching networks can invalidate it.
+            if (Platform.isAndroid) {
+              await AndroidPlatformService.instance.releaseMulticastLock();
+              await AndroidPlatformService.instance.acquireMulticastLock();
+            }
+
             await Future<void>.delayed(const Duration(seconds: 1));
             await service.start();
             AppLogger('DiscoveryProvider').info('Discovery restarted successfully.');
@@ -201,6 +201,12 @@ final discoveryServiceProvider = FutureProvider<DiscoveryService>((ref) async {
             final newIp = await _getBestLocalIp();
             if (newIp.isNotEmpty) {
               service.localDevice = service.localDevice.copyWith(ip: newIp);
+            }
+
+            // Re-acquire multicast lock after network restore.
+            if (Platform.isAndroid) {
+              await AndroidPlatformService.instance.releaseMulticastLock();
+              await AndroidPlatformService.instance.acquireMulticastLock();
             }
 
             await service.start();
@@ -233,6 +239,12 @@ final discoveryServiceProvider = FutureProvider<DiscoveryService>((ref) async {
         service.localDevice = service.localDevice.copyWith(ip: currentIp);
         service.clearDevices();
         service.stop();
+
+        if (Platform.isAndroid) {
+          await AndroidPlatformService.instance.releaseMulticastLock();
+          await AndroidPlatformService.instance.acquireMulticastLock();
+        }
+
         await Future<void>.delayed(const Duration(seconds: 1));
         await service.start();
         AppLogger('DiscoveryProvider').info('Discovery restarted after IP change.');

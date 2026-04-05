@@ -1,9 +1,8 @@
-// Licensing data models for the Pro/Free tier system.
-// Mirrors the Supabase `licenses` and `device_activations` tables.
+// Licensing data models — simplified: everything is always Pro.
 
 /// Available subscription plans.
 enum LicensePlan {
-  free('free', 2, 1),
+  free('free', 999, -1),
   pro3('pro_3', 3, -1),
   pro5('pro_5', 5, -1),
   pro10('pro_10', 10, -1),
@@ -11,19 +10,13 @@ enum LicensePlan {
 
   const LicensePlan(this.id, this.maxDevices, this.maxSyncJobs);
 
-  /// Identifier stored in Supabase.
   final String id;
-
-  /// Maximum number of activated devices.
   final int maxDevices;
-
-  /// Maximum sync jobs (-1 = unlimited).
   final int maxSyncJobs;
 
-  /// Whether this plan grants Pro features.
-  bool get isPro => this != free;
+  /// Always returns true — all plans are Pro now.
+  bool get isPro => true;
 
-  /// Resolve a plan from its string ID.
   static LicensePlan fromId(String id) {
     return LicensePlan.values.firstWhere(
       (p) => p.id == id,
@@ -41,12 +34,12 @@ enum LicenseStatus {
   static LicenseStatus fromString(String s) {
     return LicenseStatus.values.firstWhere(
       (v) => v.name == s,
-      orElse: () => LicenseStatus.expired,
+      orElse: () => LicenseStatus.active,
     );
   }
 }
 
-/// A user license record from Supabase.
+/// A user license record.
 class License {
   final String id;
   final String rcAppUserId;
@@ -70,11 +63,8 @@ class License {
     required this.updatedAt,
   });
 
-  /// Whether the license grants Pro access right now.
-  bool get isActivePro =>
-      plan.isPro &&
-      status == LicenseStatus.active &&
-      (expiresAt == null || expiresAt!.isAfter(DateTime.now()));
+  /// Always true — app is free.
+  bool get isActivePro => true;
 
   factory License.fromJson(Map<String, dynamic> json) {
     return License(
@@ -83,7 +73,7 @@ class License {
       activationCode: json['activation_code'] as String? ?? '',
       plan: LicensePlan.fromId(json['plan'] as String? ?? 'free'),
       status: LicenseStatus.fromString(json['status'] as String? ?? 'active'),
-      maxDevices: json['max_devices'] as int? ?? 2,
+      maxDevices: json['max_devices'] as int? ?? 999,
       expiresAt: json['expires_at'] != null
           ? DateTime.tryParse(json['expires_at'] as String)
           : null,
@@ -106,20 +96,20 @@ class License {
         'updated_at': updatedAt.toIso8601String(),
       };
 
-  /// A placeholder representing the free tier (no Supabase record).
+  /// Default state — always Pro.
   static final free = License(
     id: '',
     rcAppUserId: '',
     activationCode: '',
     plan: LicensePlan.free,
     status: LicenseStatus.active,
-    maxDevices: 2,
+    maxDevices: 999,
     createdAt: DateTime.now(),
     updatedAt: DateTime.now(),
   );
 }
 
-/// A device activation record from Supabase.
+/// A device activation record.
 class DeviceActivation {
   final String id;
   final String licenseId;
@@ -170,12 +160,15 @@ class LicenseInfo {
   });
 
   LicensePlan get plan => license.plan;
-  bool get isPro => license.isActivePro;
+
+  /// Always true — app is free.
+  bool get isPro => true;
+
   int get activeDeviceCount => devices.length;
   int get maxDevices => license.maxDevices;
-  bool get canAddDevice => activeDeviceCount < maxDevices;
+  bool get canAddDevice => true;
   String get activationCode => license.activationCode;
 
-  /// Default free-tier state.
+  /// Default state — always Pro.
   static final free = LicenseInfo(license: License.free);
 }

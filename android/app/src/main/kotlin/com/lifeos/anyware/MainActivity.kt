@@ -311,6 +311,15 @@ class MainActivity : FlutterActivity() {
                             result.error("WIFI_ERROR", "WiFi connect error: ${e.message}", null)
                         }
                     }
+                    "unbindNetwork" -> {
+                        try {
+                            val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+                            cm.bindProcessToNetwork(null)
+                            result.success(true)
+                        } catch (e: Exception) {
+                            result.error("UNBIND_ERROR", "Failed to unbind network: ${e.message}", null)
+                        }
+                    }
                     "acquireMulticastLock" -> {
                         try {
                             if (multicastLock == null || !multicastLock!!.isHeld) {

@@ -37,7 +37,6 @@ class FileServer {
     required this.downloadPath,
     this.overwriteFiles = false,
     this.syncReceiveFolder = '',
-    this.onProActivationReceived,
   });
 
   static final _log = AppLogger('FileServer');
@@ -54,11 +53,6 @@ class FileServer {
   /// Custom folder for incoming sync files. When empty, defaults to
   /// `<downloadPath>/Sync/<senderName>/`.
   String syncReceiveFolder;
-
-  /// Callback invoked when a Pro activation code is received via LAN.
-  /// The sender device name and activation code are passed.
-  final Future<bool> Function(String senderName, String activationCode)?
-      onProActivationReceived;
 
   HttpServer? _server;
 
@@ -203,7 +197,7 @@ class FileServer {
     router.get('/api/sync/pull', _handleSyncPull);
     router.post('/api/sync/remove-pairing', _handleRemovePairing);
     router.get('/api/browse', _handleBrowse);
-    router.post('/api/pro-activate', _handleProActivate);
+    // Pro activation endpoint removed — app is free.
 
     // Web Portal routes — browser-based file management.
     registerPortalRoutes(
@@ -1064,42 +1058,7 @@ class FileServer {
     );
   }
 
-  /// POST /api/pro-activate
-  ///
-  /// Receives a Pro activation code from a Pro device on the LAN.
-  /// Body: { "sender_name": "...", "activation_code": "LIFE-XXXX-XXXX" }
-  Future<shelf.Response> _handleProActivate(shelf.Request request) async {
-    if (onProActivationReceived == null) {
-      return shelf.Response(404,
-          body: jsonEncode({'error': 'Not supported'}),
-          headers: _jsonHeaders);
-    }
-
-    try {
-      final body = jsonDecode(await request.readAsString());
-      final senderName = body['sender_name'] as String? ?? '';
-      final code = body['activation_code'] as String? ?? '';
-
-      if (code.isEmpty) {
-        return shelf.Response(400,
-            body: jsonEncode({'error': 'Missing activation_code'}),
-            headers: _jsonHeaders);
-      }
-
-      final success = await onProActivationReceived!(senderName, code);
-
-      return shelf.Response.ok(
-        jsonEncode({'success': success}),
-        headers: _jsonHeaders,
-      );
-    } catch (e) {
-      _log.error('pro-activate error: $e');
-      return shelf.Response.internalServerError(
-        body: jsonEncode({'error': 'Internal error'}),
-        headers: _jsonHeaders,
-      );
-    }
-  }
+  // Pro activation endpoint removed — app is free.
 
   /// POST /api/send-request
   ///

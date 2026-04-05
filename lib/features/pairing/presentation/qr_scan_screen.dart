@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'package:anyware/core/android_platform_service.dart';
 import 'package:anyware/core/constants.dart';
 import 'package:anyware/core/logger.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -256,6 +257,11 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> {
         });
         if (connected == true) {
           _log.info('WiFi connected to $ssid');
+          // Schedule network unbind so discovery uses the default route
+          // after the hotspot data exchange completes.
+          Future<void>.delayed(const Duration(seconds: 5), () {
+            AndroidPlatformService.instance.unbindNetwork();
+          });
           return true;
         } else {
           _log.warning('WiFi connection to $ssid was rejected or failed');

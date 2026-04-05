@@ -4,8 +4,6 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 
-import 'package:anyware/core/licensing/feature_gate.dart';
-import 'package:anyware/core/licensing/license_models.dart';
 import 'package:anyware/core/logger.dart';
 import 'package:anyware/features/discovery/domain/device.dart';
 import 'package:anyware/features/transfer/domain/transfer.dart';
@@ -17,15 +15,12 @@ import 'package:uuid/uuid.dart';
 /// Includes HTTP timeouts, automatic retry with exponential backoff,
 /// and chunked streaming for large file transfer resilience.
 class FileSender {
-  FileSender({required this.localDevice, this.currentPlan = LicensePlan.free});
+  FileSender({required this.localDevice});
 
   static final _log = AppLogger('FileSender');
 
   /// The device info representing this machine (the sender).
   final Device localDevice;
-
-  /// Current license plan — used to enforce 500MB file size limit for free tier.
-  LicensePlan currentPlan;
 
   /// Maximum upload speed in KB/s. 0 = unlimited.
   int maxUploadSpeedKBps = 0;
@@ -96,11 +91,6 @@ class FileSender {
     }
     final fileName = sanitizedRelativePath ?? file.uri.pathSegments.last;
     final fileSize = await file.length();
-
-    // Check 500MB file size limit for free tier.
-    if (!FeatureGate.canTransferFile(currentPlan, fileSize)) {
-      throw FileSizeLimitException(fileSize);
-    }
 
     // Use a temporary local ID so that the UI can track this transfer
     // from the very beginning. Once the server responds with the real

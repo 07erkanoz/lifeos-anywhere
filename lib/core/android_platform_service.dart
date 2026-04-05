@@ -27,6 +27,21 @@ class AndroidPlatformService {
     }
   }
 
+  /// Unbinds the process from a specific network, restoring default routing.
+  ///
+  /// Must be called after [connectToWifi] completes so that discovery
+  /// broadcasts use the default network route instead of being pinned to
+  /// the hotspot network.
+  Future<void> unbindNetwork() async {
+    if (!Platform.isAndroid) return;
+    try {
+      await _channel.invokeMethod('unbindNetwork');
+      _log.info('Process unbound from specific network');
+    } catch (e) {
+      _log.warning('Failed to unbind network: $e');
+    }
+  }
+
   /// Releases the WiFi MulticastLock.
   Future<void> releaseMulticastLock() async {
     if (!Platform.isAndroid) return;
