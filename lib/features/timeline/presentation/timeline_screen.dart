@@ -7,6 +7,7 @@ import 'package:anyware/features/settings/presentation/providers.dart';
 import 'package:anyware/features/timeline/domain/timeline_event.dart';
 import 'package:anyware/features/timeline/presentation/providers.dart';
 import 'package:anyware/i18n/app_localizations.dart';
+import 'package:anyware/widgets/app_states.dart';
 
 class TimelineScreen extends ConsumerWidget {
   const TimelineScreen({super.key});
@@ -23,7 +24,7 @@ class TimelineScreen extends ConsumerWidget {
         title: Text(AppLocalizations.get('timeline', locale)),
       ),
       body: events.isEmpty
-          ? _EmptyTimeline(locale: locale, isDark: isDark)
+          ? _EmptyTimeline(locale: locale)
           : _TimelineList(events: events, isDark: isDark, locale: locale),
     );
   }
@@ -34,45 +35,16 @@ class TimelineScreen extends ConsumerWidget {
 // ---------------------------------------------------------------------------
 
 class _EmptyTimeline extends StatelessWidget {
-  const _EmptyTimeline({required this.locale, required this.isDark});
+  const _EmptyTimeline({required this.locale});
 
   final String locale;
-  final bool isDark;
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.timeline_rounded,
-              size: 56,
-              color: isDark ? AppColors.textTertiary : Colors.grey.shade300,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              AppLocalizations.get('timelineEmpty', locale),
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-                color: isDark ? AppColors.textSecondary : Colors.grey.shade600,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              AppLocalizations.get('timelineEmptyDesc', locale),
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13,
-                color: isDark ? AppColors.textTertiary : Colors.grey.shade400,
-              ),
-            ),
-          ],
-        ),
-      ),
+    return AppEmptyState(
+      icon: Icons.timeline_rounded,
+      title: AppLocalizations.get('timelineEmpty', locale),
+      description: AppLocalizations.get('timelineEmptyDesc', locale),
     );
   }
 }

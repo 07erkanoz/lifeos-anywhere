@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import 'package:anyware/core/responsive.dart';
 import 'package:anyware/core/theme.dart';
 
 /// Glassmorphism card widget matching the reference TV design.
@@ -71,7 +72,7 @@ class _GlassmorphismCardState extends State<GlassmorphismCard> {
     ];
 
     final card = AnimatedContainer(
-      duration: const Duration(milliseconds: 150),
+      duration: context.motionDuration(AppMotion.fast),
       curve: Curves.easeOut,
       width: widget.width,
       height: widget.height,
@@ -132,7 +133,7 @@ class NeonGlowContainer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 250),
+      duration: context.motionDuration(AppMotion.emphasized),
       curve: Curves.easeOut,
       decoration: isGlowing
           ? BoxDecoration(
@@ -243,7 +244,7 @@ class NeonProgressBar extends StatelessWidget {
           return Stack(
             children: [
               AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
+                duration: context.motionDuration(AppMotion.progress),
                 curve: Curves.easeInOut,
                 width: constraints.maxWidth * progress.clamp(0.0, 1.0),
                 height: height,

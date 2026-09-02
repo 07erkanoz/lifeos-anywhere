@@ -63,7 +63,8 @@ final fileServerProvider = FutureProvider.autoDispose<FileServer>((ref) async {
       imagePath: data['imagePath'] as String?,
       senderName: data['sender'] as String? ?? 'Unknown',
       senderDeviceId: data['senderDeviceId'] as String? ?? '',
-      timestamp: DateTime.tryParse(data['timestamp'] as String? ?? '') ??
+      timestamp:
+          DateTime.tryParse(data['timestamp'] as String? ?? '') ??
           DateTime.now(),
       type: (data['type'] as String?) == 'image'
           ? ClipboardContentType.image
@@ -73,71 +74,91 @@ final fileServerProvider = FutureProvider.autoDispose<FileServer>((ref) async {
   };
 
   // Wire sync file receive events to sync service (no per-file notification).
-  server.onSyncFileReceived = (String relativePath, String senderName,
-      String savedPath, String senderDeviceId, int fileSize,
-      String? jobId, String? jobName) {
-    _log.info('Sync file received: $relativePath from $senderName '
-        '(deviceId: $senderDeviceId, size: $fileSize, '
-        'jobId: $jobId, jobName: $jobName)');
-    try {
-      ref.read(syncServiceProvider.notifier).onFileReceived(
-            relativePath,
-            senderName,
-            savedPath,
-            senderDeviceId,
-            fileSize,
-            jobId,
-            jobName,
-          );
-    } catch (e, stack) {
-      _log.warning('Sync onFileReceived error: $e\n$stack');
-    }
-  };
+  server.onSyncFileReceived =
+      (
+        String relativePath,
+        String senderName,
+        String savedPath,
+        String senderDeviceId,
+        int fileSize,
+        String? jobId,
+        String? jobName,
+      ) {
+        _log.info(
+          'Sync file received: $relativePath from $senderName '
+          '(deviceId: $senderDeviceId, size: $fileSize, '
+          'jobId: $jobId, jobName: $jobName)',
+        );
+        try {
+          ref
+              .read(syncServiceProvider.notifier)
+              .onFileReceived(
+                relativePath,
+                senderName,
+                savedPath,
+                senderDeviceId,
+                fileSize,
+                jobId,
+                jobName,
+              );
+        } catch (e, stack) {
+          _log.warning('Sync onFileReceived error: $e\n$stack');
+        }
+      };
 
   // Wire sync setup request handler (handshake protocol).
   server.onSyncSetupRequest = (request) {
-    _log.info('Sync setup request received: '
-        'jobId=${request.jobId}, from=${request.senderDeviceName}');
-    return ref.read(syncServiceProvider.notifier)
+    _log.info(
+      'Sync setup request received: '
+      'jobId=${request.jobId}, from=${request.senderDeviceName}',
+    );
+    return ref
+        .read(syncServiceProvider.notifier)
         .handleSyncSetupRequest(request);
   };
 
   // Wire pairing folder lookup for sync handlers.
   server.getSyncReceiveFolderForJob = (jobId) {
-    return ref.read(syncServiceProvider.notifier)
-        .getPairingForJob(jobId)?.receiveFolder;
+    return ref
+        .read(syncServiceProvider.notifier)
+        .getPairingForJob(jobId)
+        ?.receiveFolder;
   };
 
   // Wire remote pairing removal handler.
   server.onRemotePairingRemoved = (jobId, remoteDeviceId) {
     _log.info('Remote pairing removal: jobId=$jobId, from=$remoteDeviceId');
-    ref.read(syncServiceProvider.notifier)
+    ref
+        .read(syncServiceProvider.notifier)
         .onRemotePairingRemoved(jobId, remoteDeviceId);
   };
 
   // Wire summary notification callback for completed sync batches.
   ref.read(syncServiceProvider.notifier).onSyncBatchCompleted =
       (String jobName, int fileCount, String deviceName) {
-    if (Platform.isWindows) {
-      final locale = ref.read(settingsProvider).locale;
-      final body = AppLocalizations.get('notifSyncComplete', locale)
-          .replaceAll('{job}', jobName)
-          .replaceAll('{count}', fileCount.toString())
-          .replaceAll('{device}', deviceName);
-      WindowsNotificationService.instance.notify(
-        title: 'LifeOS AnyWhere',
-        body: body,
-      );
-    }
-  };
+        if (Platform.isWindows) {
+          final locale = ref.read(settingsProvider).locale;
+          final body = AppLocalizations.get('notifSyncComplete', locale)
+              .replaceAll('{job}', jobName)
+              .replaceAll('{count}', fileCount.toString())
+              .replaceAll('{device}', deviceName);
+          WindowsNotificationService.instance.notify(
+            title: 'LifeOS AnyWhere',
+            body: body,
+          );
+        }
+      };
 
   // Wire callback for when a sync receiving batch starts (first file arrives).
-  ref.read(syncServiceProvider.notifier).onSyncReceivingStarted =
-      (String senderName) {
+  ref
+      .read(syncServiceProvider.notifier)
+      .onSyncReceivingStarted = (String senderName) {
     if (Platform.isWindows) {
       final locale = ref.read(settingsProvider).locale;
-      final body = AppLocalizations.get('notifSyncReceiving', locale)
-          .replaceAll('{sender}', senderName);
+      final body = AppLocalizations.get(
+        'notifSyncReceiving',
+        locale,
+      ).replaceAll('{sender}', senderName);
       WindowsNotificationService.instance.notify(
         title: 'LifeOS AnyWhere',
         body: body,
@@ -158,7 +179,10 @@ final fileServerProvider = FutureProvider.autoDispose<FileServer>((ref) async {
     await server.start(AppConstants.defaultPort);
     _log.info('Started on port ${AppConstants.defaultPort}');
   } catch (e) {
-    _log.error('Failed to start on port ${AppConstants.defaultPort}: $e', error: e);
+    _log.error(
+      'Failed to start on port ${AppConstants.defaultPort}: $e',
+      error: e,
+    );
   }
 
   ref.onDispose(() {
@@ -219,8 +243,9 @@ final fileSenderProvider = FutureProvider.autoDispose<FileSender>((ref) async {
 // ---------------------------------------------------------------------------
 
 /// Provides a [TransferQueue] that processes file sends sequentially.
-final transferQueueProvider =
-    FutureProvider.autoDispose<TransferQueue>((ref) async {
+final transferQueueProvider = FutureProvider.autoDispose<TransferQueue>((
+  ref,
+) async {
   final sender = await ref.watch(fileSenderProvider.future);
 
   final queue = TransferQueue(sender: sender);
@@ -233,6 +258,16 @@ final transferQueueProvider =
   return queue;
 });
 
+/// Live snapshot of the current outgoing queue, including the item being sent
+/// and every file waiting behind it.
+final transferQueueItemsProvider = StreamProvider.autoDispose<List<QueueItem>>((
+  ref,
+) async* {
+  final queue = await ref.watch(transferQueueProvider.future);
+  yield queue.pending;
+  yield* queue.queueUpdates;
+});
+
 // ---------------------------------------------------------------------------
 // Incoming requests
 // ---------------------------------------------------------------------------
@@ -240,7 +275,9 @@ final transferQueueProvider =
 /// A stream of incoming transfer requests received by the [FileServer].
 ///
 /// UI layers can listen to this to show accept/reject dialogs.
-final incomingRequestsProvider = StreamProvider.autoDispose<Transfer>((ref) async* {
+final incomingRequestsProvider = StreamProvider.autoDispose<Transfer>((
+  ref,
+) async* {
   final server = await ref.watch(fileServerProvider.future);
   await for (final request in server.incomingRequests) {
     yield request;
@@ -254,31 +291,31 @@ final incomingRequestsProvider = StreamProvider.autoDispose<Transfer>((ref) asyn
 /// Manages the list of all active and recent transfers (both incoming and
 /// outgoing). The UI can read this to display a transfer list with progress.
 final activeTransfersProvider =
-    StateNotifierProvider.autoDispose<ActiveTransfersNotifier, List<Transfer>>(
-  (ref) {
-    final historyNotifier = ref.read(transferHistoryProvider.notifier);
-    final notifier = ActiveTransfersNotifier(
-      historyNotifier: historyNotifier,
-      getLocale: () => ref.read(settingsProvider).locale,
-    );
+    StateNotifierProvider.autoDispose<ActiveTransfersNotifier, List<Transfer>>((
+      ref,
+    ) {
+      final historyNotifier = ref.read(transferHistoryProvider.notifier);
+      final notifier = ActiveTransfersNotifier(
+        historyNotifier: historyNotifier,
+        getLocale: () => ref.read(settingsProvider).locale,
+      );
 
-    // Listen to file server progress updates when the server is ready.
-    ref.listen<AsyncValue<FileServer>>(fileServerProvider, (_, next) {
-      next.whenData((server) {
-        notifier.listenToServer(server);
-      });
-    }, fireImmediately: true);
+      // Listen to file server progress updates when the server is ready.
+      ref.listen<AsyncValue<FileServer>>(fileServerProvider, (_, next) {
+        next.whenData((server) {
+          notifier.listenToServer(server);
+        });
+      }, fireImmediately: true);
 
-    // Listen to file sender progress updates when the sender is ready.
-    ref.listen<AsyncValue<FileSender>>(fileSenderProvider, (_, next) {
-      next.whenData((sender) {
-        notifier.listenToSender(sender);
-      });
-    }, fireImmediately: true);
+      // Listen to file sender progress updates when the sender is ready.
+      ref.listen<AsyncValue<FileSender>>(fileSenderProvider, (_, next) {
+        next.whenData((sender) {
+          notifier.listenToSender(sender);
+        });
+      }, fireImmediately: true);
 
-    return notifier;
-  },
-);
+      return notifier;
+    });
 
 // ---------------------------------------------------------------------------
 // Notification batch helper
@@ -298,10 +335,8 @@ class _PendingNotifBatch {
 /// [StateNotifier] that merges progress updates from both the [FileServer]
 /// (incoming) and [FileSender] (outgoing) into a single ordered list.
 class ActiveTransfersNotifier extends StateNotifier<List<Transfer>> {
-  ActiveTransfersNotifier({
-    this.historyNotifier,
-    required this.getLocale,
-  }) : super([]);
+  ActiveTransfersNotifier({this.historyNotifier, required this.getLocale})
+    : super([]);
 
   final TransferHistoryNotifier? historyNotifier;
 
@@ -441,15 +476,17 @@ class ActiveTransfersNotifier extends StateNotifier<List<Transfer>> {
       final bg = BackgroundTransferService.instance;
       final locale = getLocale();
       if (transfer.status == TransferStatus.transferring &&
-          prevStatus != TransferStatus.transferring) {
+          prevStatus != TransferStatus.transferring &&
+          prevStatus != TransferStatus.paused) {
         bg.onTransferStarted(
           title: AppLocalizations.get('notifTransferring', locale),
           text: transfer.fileName,
         );
       } else if (transfer.isFinished &&
           (prevStatus == TransferStatus.transferring ||
-           prevStatus == TransferStatus.accepted ||
-           prevStatus == TransferStatus.pending)) {
+              prevStatus == TransferStatus.paused ||
+              prevStatus == TransferStatus.accepted ||
+              prevStatus == TransferStatus.pending)) {
         bg.onTransferFinished();
       }
     }
@@ -461,11 +498,14 @@ class ActiveTransfersNotifier extends StateNotifier<List<Transfer>> {
       final locale = getLocale();
       final speedMBps = (transfer.speed! / (1024 * 1024)).toStringAsFixed(1);
       final pct = (transfer.progress * 100).toStringAsFixed(0);
-      final activeCount = state.where((t) =>
-          t.status == TransferStatus.transferring).length;
+      final activeCount = state
+          .where((t) => t.status == TransferStatus.transferring)
+          .length;
       final title = activeCount > 1
-          ? AppLocalizations.get('notifTransferringCount', locale)
-              .replaceAll('{count}', activeCount.toString())
+          ? AppLocalizations.get(
+              'notifTransferringCount',
+              locale,
+            ).replaceAll('{count}', activeCount.toString())
           : AppLocalizations.get('notifTransferring', locale);
       BackgroundTransferService.instance.updateProgress(
         title: title,
@@ -486,7 +526,8 @@ class ActiveTransfersNotifier extends StateNotifier<List<Transfer>> {
 
     // ── Transfer started: one notification per device ──
     if (transfer.status == TransferStatus.transferring &&
-        prevStatus != TransferStatus.transferring) {
+        prevStatus != TransferStatus.transferring &&
+        prevStatus != TransferStatus.paused) {
       final deviceId = transfer.senderDevice.id;
       if (!_notifiedStartedDevices.contains(deviceId)) {
         _notifiedStartedDevices.add(deviceId);
@@ -501,8 +542,10 @@ class ActiveTransfersNotifier extends StateNotifier<List<Transfer>> {
     // ── Transfer failed: always fire immediately ──
     if (transfer.status == TransferStatus.failed &&
         prevStatus != TransferStatus.failed) {
-      final body = AppLocalizations.get('notifTransferFailed', locale)
-          .replaceAll('{file}', transfer.fileName);
+      final body = AppLocalizations.get(
+        'notifTransferFailed',
+        locale,
+      ).replaceAll('{file}', transfer.fileName);
       notif.notify(title: title, body: body);
     }
 
@@ -530,8 +573,9 @@ class ActiveTransfersNotifier extends StateNotifier<List<Transfer>> {
     // ── Clean up started-devices tracking when no active transfers remain ──
     if (transfer.isFinished) {
       final deviceId = transfer.senderDevice.id;
-      final hasActiveForDevice = state.any((t) =>
-          t.senderDevice.id == deviceId && t.isActive);
+      final hasActiveForDevice = state.any(
+        (t) => t.senderDevice.id == deviceId && t.isActive,
+      );
       if (!hasActiveForDevice) {
         _notifiedStartedDevices.remove(deviceId);
       }
@@ -549,8 +593,10 @@ class ActiveTransfersNotifier extends StateNotifier<List<Transfer>> {
 
     if (batch.completedCount == 1) {
       // Single file — show the file name.
-      final body = AppLocalizations.get('notifTransferComplete', locale)
-          .replaceAll('{file}', batch.lastFileName);
+      final body = AppLocalizations.get(
+        'notifTransferComplete',
+        locale,
+      ).replaceAll('{file}', batch.lastFileName);
       notif.notify(title: title, body: body);
     } else {
       // Multiple files — show count + device.

@@ -9,7 +9,6 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/services.dart';
 
 import 'package:anyware/core/constants.dart';
-import 'package:anyware/core/theme.dart';
 import 'package:anyware/core/tv_detector.dart';
 import 'package:anyware/features/discovery/presentation/providers.dart';
 import 'package:anyware/features/settings/presentation/providers.dart';
@@ -145,38 +144,67 @@ class SettingsScreen extends ConsumerWidget {
             title: Text(AppLocalizations.get('appearance', locale)),
             subtitle: Padding(
               padding: const EdgeInsets.only(top: 8),
-              child: SegmentedButton<String>(
-                segments: [
-                  ButtonSegment<String>(
-                    value: 'system',
-                    label: Text(
-                      AppLocalizations.get('systemMode', locale),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    icon: const Icon(Icons.brightness_auto, size: 18),
-                  ),
-                  ButtonSegment<String>(
-                    value: 'light',
-                    label: Text(
-                      AppLocalizations.get('lightMode', locale),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    icon: const Icon(Icons.light_mode, size: 18),
-                  ),
-                  ButtonSegment<String>(
-                    value: 'dark',
-                    label: Text(
-                      AppLocalizations.get('darkMode', locale),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    icon: const Icon(Icons.dark_mode, size: 18),
-                  ),
-                ],
-                selected: {settings.theme},
-                onSelectionChanged: (selection) {
-                  notifier.updateTheme(selection.first);
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final options = [
+                    ('system', Icons.brightness_auto,
+                      AppLocalizations.get('systemMode', locale)),
+                    ('light', Icons.light_mode,
+                      AppLocalizations.get('lightMode', locale)),
+                    ('dark', Icons.dark_mode,
+                      AppLocalizations.get('darkMode', locale)),
+                  ];
+
+                  if (constraints.maxWidth < 430) {
+                    return DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: settings.theme,
+                        isExpanded: true,
+                        borderRadius: BorderRadius.circular(12),
+                        items: [
+                          for (final option in options)
+                            DropdownMenuItem(
+                              value: option.$1,
+                              child: Row(
+                                children: [
+                                  Icon(option.$2, size: 18),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      option.$3,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                        onChanged: (value) {
+                          if (value != null) notifier.updateTheme(value);
+                        },
+                      ),
+                    );
+                  }
+
+                  return SegmentedButton<String>(
+                    segments: [
+                      for (final option in options)
+                        ButtonSegment<String>(
+                          value: option.$1,
+                          label: Text(
+                            option.$3,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          icon: Icon(option.$2, size: 18),
+                        ),
+                    ],
+                    selected: {settings.theme},
+                    onSelectionChanged: (selection) {
+                      notifier.updateTheme(selection.first);
+                    },
+                    showSelectedIcon: false,
+                  );
                 },
-                showSelectedIcon: false,
               ),
             ),
           ),
@@ -603,4 +631,3 @@ class _SectionHeader extends StatelessWidget {
     );
   }
 }
-

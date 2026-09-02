@@ -12,6 +12,7 @@ import 'package:anyware/features/server_sync/presentation/server_sync_job_wizard
 import 'package:anyware/features/settings/presentation/providers.dart';
 import 'package:anyware/features/sync/domain/sync_state.dart';
 import 'package:anyware/i18n/app_localizations.dart';
+import 'package:anyware/widgets/app_states.dart';
 import 'package:anyware/widgets/desktop_content_shell.dart';
 import 'package:anyware/widgets/glassmorphism.dart';
 
@@ -46,7 +47,7 @@ class _ServerSyncScreenState extends ConsumerState<ServerSyncScreen> {
 
     final body = syncState.hasAccounts
         ? _buildContent(syncState, locale, isDark)
-        : _buildEmptyState(locale, isDark);
+        : _buildEmptyState(locale);
 
     if (DesktopShellScope.of(context)) {
       return DesktopContentShell(
@@ -67,38 +68,14 @@ class _ServerSyncScreenState extends ConsumerState<ServerSyncScreen> {
 
   // ── Empty state ──
 
-  Widget _buildEmptyState(String locale, bool isDark) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.cloud_off_rounded,
-              size: 64,
-              color: isDark ? Colors.white24 : Colors.black12),
-          const SizedBox(height: 16),
-          Text(
-            AppLocalizations.get('noServers', locale),
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: isDark ? Colors.white54 : Colors.black45,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            AppLocalizations.get('noServersDesc', locale),
-            style: TextStyle(
-                fontSize: 14,
-                color: isDark ? Colors.white30 : Colors.black26),
-          ),
-          const SizedBox(height: 24),
-          FilledButton.icon(
-            onPressed: () => _showServerDialog(context),
-            icon: const Icon(Icons.add_rounded, size: 18),
-            label: Text(AppLocalizations.get('addServer', locale)),
-          ),
-        ],
-      ),
+  Widget _buildEmptyState(String locale) {
+    return AppEmptyState(
+      icon: Icons.cloud_outlined,
+      title: AppLocalizations.get('noServers', locale),
+      description: AppLocalizations.get('noServersDesc', locale),
+      actionLabel: AppLocalizations.get('addServer', locale),
+      actionIcon: Icons.add_rounded,
+      onAction: () => _showServerDialog(context),
     );
   }
 
@@ -136,34 +113,14 @@ class _ServerSyncScreenState extends ConsumerState<ServerSyncScreen> {
           ...syncState.jobs
               .map((job) => _buildJobCard(job, syncState, locale, isDark))
         else
-          _buildEmptyJobsState(locale, isDark),
+          _buildEmptyJobsState(locale),
       ],
     );
   }
 
   Widget _buildSectionHeader(
       IconData icon, String title, String count, String locale) {
-    return Row(
-      children: [
-        Icon(icon, size: 20, color: AppColors.neonBlue),
-        const SizedBox(width: 8),
-        Text(title,
-            style: const TextStyle(
-                fontSize: 16, fontWeight: FontWeight.w600)),
-        const SizedBox(width: 8),
-        Container(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          decoration: BoxDecoration(
-            color: AppColors.neonBlue.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Text(count,
-              style: const TextStyle(
-                  fontSize: 12, color: AppColors.neonBlue)),
-        ),
-      ],
-    );
+    return AppSectionHeader(icon: icon, title: title, count: count);
   }
 
   // ── Account card ──
@@ -234,6 +191,8 @@ class _ServerSyncScreenState extends ConsumerState<ServerSyncScreen> {
                       ],
                     ),
                     Text(account.subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                             fontSize: 12,
                             color:
@@ -241,6 +200,8 @@ class _ServerSyncScreenState extends ConsumerState<ServerSyncScreen> {
                     if (account.lastConnectedAt != null)
                       Text(
                         AppLocalizations.get('serverLastConnected', locale).replaceAll('{time}', _formatTime(account.lastConnectedAt!)),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                             fontSize: 11,
                             color: isDark
@@ -262,19 +223,39 @@ class _ServerSyncScreenState extends ConsumerState<ServerSyncScreen> {
                   child: Text('$jobCount job',
                       style: const TextStyle(fontSize: 11)),
                 ),
-              // Edit
-              IconButton(
-                icon: const Icon(Icons.edit_rounded, size: 18),
-                onPressed: () =>
-                    _showAccountDialog(context, account: account),
-                tooltip: AppLocalizations.get('editServer', locale),
-              ),
-              // Delete
-              IconButton(
-                icon: Icon(Icons.delete_outline_rounded,
-                    size: 18, color: Colors.red.shade300),
-                onPressed: () => _confirmDeleteAccount(account, locale),
-                tooltip: AppLocalizations.get('deleteServer', locale),
+              const SizedBox(width: 4),
+              PopupMenuButton<String>(
+                tooltip: AppLocalizations.get('more', locale),
+                icon: const Icon(Icons.more_vert_rounded, size: 20),
+                onSelected: (value) {
+                  if (value == 'edit') {
+                    _showAccountDialog(context, account: account);
+                  } else if (value == 'delete') {
+                    _confirmDeleteAccount(account, locale);
+                  }
+                },
+                itemBuilder: (_) => [
+                  PopupMenuItem(
+                    value: 'edit',
+                    child: Row(children: [
+                      const Icon(Icons.edit_rounded, size: 18),
+                      const SizedBox(width: 10),
+                      Text(AppLocalizations.get('editServer', locale)),
+                    ]),
+                  ),
+                  PopupMenuItem(
+                    value: 'delete',
+                    child: Row(children: [
+                      Icon(Icons.delete_outline_rounded,
+                          size: 18, color: Colors.red.shade400),
+                      const SizedBox(width: 10),
+                      Text(
+                        AppLocalizations.get('deleteServer', locale),
+                        style: TextStyle(color: Colors.red.shade400),
+                      ),
+                    ]),
+                  ),
+                ],
               ),
               ],
             ),
@@ -331,39 +312,14 @@ class _ServerSyncScreenState extends ConsumerState<ServerSyncScreen> {
 
   // ── Empty jobs state ──
 
-  Widget _buildEmptyJobsState(String locale, bool isDark) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 32),
-      child: Center(
-        child: Column(
-          children: [
-            Icon(Icons.sync_disabled_rounded,
-                size: 48, color: isDark ? Colors.white24 : Colors.black12),
-            const SizedBox(height: 12),
-            Text(
-              AppLocalizations.get('syncNoJobs', locale),
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: isDark ? Colors.white54 : Colors.black45,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              AppLocalizations.get('syncNoJobsDesc', locale),
-              style: TextStyle(
-                  fontSize: 13,
-                  color: isDark ? Colors.white30 : Colors.black26),
-            ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: () => _openJobWizard(context),
-              icon: const Icon(Icons.add_rounded, size: 18),
-              label: Text(AppLocalizations.get('newServerSyncJob', locale)),
-            ),
-          ],
-        ),
-      ),
+  Widget _buildEmptyJobsState(String locale) {
+    return AppEmptyState(
+      icon: Icons.sync_rounded,
+      title: AppLocalizations.get('syncNoJobs', locale),
+      description: AppLocalizations.get('syncNoJobsDesc', locale),
+      actionLabel: AppLocalizations.get('newServerSyncJob', locale),
+      actionIcon: Icons.add_rounded,
+      onAction: () => _openJobWizard(context),
     );
   }
 

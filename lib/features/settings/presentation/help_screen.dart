@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import 'package:anyware/core/theme.dart';
+import 'package:anyware/core/responsive.dart';
 import 'package:anyware/i18n/app_localizations.dart';
 
 /// Help / How to Use screen.
@@ -293,7 +294,7 @@ class _HelpCardState extends State<_HelpCard> {
           return KeyEventResult.ignored;
         },
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
+          duration: context.motionDuration(AppMotion.standard),
           decoration: BoxDecoration(
             color: widget.isDark
                 ? (_isFocused

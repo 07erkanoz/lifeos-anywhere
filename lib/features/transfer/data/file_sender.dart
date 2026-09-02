@@ -35,6 +35,14 @@ class FileSender {
   /// Whether a cancellation has been requested for the current transfer.
   bool _cancelRequested = false;
 
+  /// Cooperative pause state for the current outgoing transfer. Uploads are
+  /// aborted at a chunk boundary and resumed from the receiver's persisted
+  /// offset, so a long pause does not keep an HTTP connection alive.
+  bool _pauseRequested = false;
+  Completer<void>? _resumeCompleter;
+  String? _activeTransferId;
+  Transfer? _activeTransfer;
+
   static const _uuid = Uuid();
 
   /// Maximum number of retry attempts for failed transfers.
@@ -67,10 +75,41 @@ class FileSender {
   /// Includes automatic retry with exponential backoff (up to 3 attempts).
   /// Large files are streamed in chunks to avoid memory issues and support
   /// connection resilience.
-  Future<Transfer> sendFile(Device target, String filePath, {String? relativePath}) async {
+  Future<Transfer> sendFile(
+    Device target,
+    String filePath, {
+    String? relativePath,
+  }) async {
+    if (_activeTransferId != null) {
+      throw StateError('Another outgoing transfer is already active');
+    }
+
+    _activeTransferId = 'preparing';
     _cancelRequested = false;
+    _pauseRequested = false;
+    _resumeCompleter = null;
     _activeRequest = null;
 
+    try {
+      return await _sendFile(target, filePath, relativePath: relativePath);
+    } finally {
+      _activeRequest = null;
+      _activeTransferId = null;
+      _activeTransfer = null;
+      _pauseRequested = false;
+      final resumeCompleter = _resumeCompleter;
+      _resumeCompleter = null;
+      if (resumeCompleter != null && !resumeCompleter.isCompleted) {
+        resumeCompleter.complete();
+      }
+    }
+  }
+
+  Future<Transfer> _sendFile(
+    Device target,
+    String filePath, {
+    String? relativePath,
+  }) async {
     final file = File(filePath);
     if (!file.existsSync()) {
       throw FileSystemException('File not found', filePath);
@@ -81,7 +120,9 @@ class FileSender {
     // Sanitize relativePath to prevent directory traversal attacks.
     String? sanitizedRelativePath = relativePath;
     if (sanitizedRelativePath != null) {
-      sanitizedRelativePath = p.normalize(sanitizedRelativePath).replaceAll(r'\', '/');
+      sanitizedRelativePath = p
+          .normalize(sanitizedRelativePath)
+          .replaceAll(r'\', '/');
       if (sanitizedRelativePath.startsWith('../') ||
           sanitizedRelativePath.startsWith('/') ||
           sanitizedRelativePath.contains('/../')) {
@@ -96,6 +137,7 @@ class FileSender {
     // from the very beginning. Once the server responds with the real
     // transferId we replace the local ID (the notifier matches by id).
     final localId = 'send_${_uuid.v4()}';
+    _activeTransferId = localId;
 
     Transfer transfer = Transfer(
       id: localId,
@@ -104,6 +146,7 @@ class FileSender {
       senderDevice: localDevice,
       receiverDevice: target,
       status: TransferStatus.pending,
+      sourceFilePath: filePath,
       createdAt: DateTime.now(),
     );
     _emitProgress(transfer);
@@ -126,7 +169,8 @@ class FileSender {
     if (!isReachable) {
       transfer = transfer.copyWith(
         status: TransferStatus.failed,
-        error: 'Device is not reachable — ensure it is online and both devices are on the same network',
+        error:
+            'Device is not reachable — ensure it is online and both devices are on the same network',
       );
       _emitProgress(transfer);
       return transfer;
@@ -173,6 +217,7 @@ class FileSender {
     // rather than creating a duplicate.
     if (transferId != localId) {
       transfer = transfer.copyWith(id: transferId);
+      _activeTransferId = transferId;
       _emitIdChange(localId, transfer);
     }
 
@@ -198,7 +243,9 @@ class FileSender {
     _emitProgress(transfer);
 
     Transfer? uploadResult;
-    for (int attempt = 1; attempt <= _maxRetries; attempt++) {
+    int attempt = 1;
+    bool resumeAfterPause = false;
+    while (attempt <= _maxRetries) {
       if (_cancelRequested) {
         transfer = transfer.copyWith(status: TransferStatus.cancelled);
         _emitProgress(transfer);
@@ -208,7 +255,13 @@ class FileSender {
       // On retry attempts, query the receiver for how many bytes it already
       // has so we can resume instead of restarting from zero.
       int resumeOffset = 0;
-      if (attempt > 1) {
+      if (attempt > 1 || resumeAfterPause) {
+        if (resumeAfterPause) {
+          // Give the receiver time to flush the aborted request into its
+          // resumable temporary file before asking for the authoritative
+          // offset.
+          await Future<void>.delayed(const Duration(milliseconds: 150));
+        }
         resumeOffset = await _queryReceivedOffset(target, transferId);
         if (resumeOffset > 0) {
           _log.info(
@@ -227,6 +280,27 @@ class FileSender {
         resumeOffset: resumeOffset,
       );
 
+      if (uploadResult.status == TransferStatus.paused) {
+        final completer = _resumeCompleter;
+        if (completer != null && !completer.isCompleted) {
+          await completer.future;
+        }
+
+        if (_cancelRequested) {
+          transfer = uploadResult.copyWith(status: TransferStatus.cancelled);
+          _emitProgress(transfer);
+          return transfer;
+        }
+
+        transfer = uploadResult.copyWith(
+          status: TransferStatus.transferring,
+          clearError: true,
+        );
+        _emitProgress(transfer);
+        resumeAfterPause = true;
+        continue;
+      }
+
       if (uploadResult.status == TransferStatus.completed ||
           uploadResult.status == TransferStatus.cancelled) {
         return uploadResult;
@@ -244,12 +318,12 @@ class FileSender {
         _log.warning(
           'Upload attempt $attempt failed, retrying in ${delay.inSeconds}s...',
         );
-        transfer = transfer.copyWith(
-          error: 'Retry $attempt/$_maxRetries...',
-        );
+        transfer = transfer.copyWith(error: 'Retry $attempt/$_maxRetries...');
         _emitProgress(transfer);
         await Future<void>.delayed(delay);
       }
+      attempt++;
+      resumeAfterPause = false;
     }
 
     _emitProgress(uploadResult!);
@@ -297,8 +371,19 @@ class FileSender {
 
       await for (final chunk in file.openRead(resumeOffset)) {
         if (_cancelRequested) {
-          uploadRequest.abort();
+          await _abortRequest(uploadRequest);
+          _activeRequest = null;
           return transfer.copyWith(status: TransferStatus.cancelled);
+        }
+
+        if (_pauseRequested) {
+          // Ending this request preserves the receiver's partial temporary
+          // file. The outer loop waits for resume and queries its byte offset.
+          await _abortRequest(uploadRequest);
+          _activeRequest = null;
+          final paused = transfer.copyWith(status: TransferStatus.paused);
+          _emitProgress(paused);
+          return paused;
         }
 
         uploadRequest.add(chunk);
@@ -308,8 +393,9 @@ class FileSender {
         // Throttle: if speed limit is set, wait to stay under the limit.
         if (maxUploadSpeedKBps > 0) {
           final maxBytesPerSec = maxUploadSpeedKBps * 1024;
-          final windowElapsed =
-              DateTime.now().difference(throttleWindowStart).inMilliseconds;
+          final windowElapsed = DateTime.now()
+              .difference(throttleWindowStart)
+              .inMilliseconds;
           if (windowElapsed > 0) {
             final currentRate = (throttleBytesSent / windowElapsed) * 1000;
             if (currentRate > maxBytesPerSec) {
@@ -329,8 +415,9 @@ class FileSender {
         }
 
         final now = DateTime.now();
-        final progress =
-            fileSize > 0 ? (bytesSent / fileSize).clamp(0.0, 1.0) : 0.0;
+        final progress = fileSize > 0
+            ? (bytesSent / fileSize).clamp(0.0, 1.0)
+            : 0.0;
 
         // Calculate speed (bytes per second).
         final elapsed = now.difference(lastProgressTime).inMilliseconds;
@@ -364,12 +451,10 @@ class FileSender {
       );
       _activeRequest = null;
 
-      final responseBody =
-          await uploadResponse.transform(utf8.decoder).join();
+      final responseBody = await uploadResponse.transform(utf8.decoder).join();
 
       if (uploadResponse.statusCode == 200) {
-        final responseJson =
-            jsonDecode(responseBody) as Map<String, dynamic>;
+        final responseJson = jsonDecode(responseBody) as Map<String, dynamic>;
         transfer = transfer.copyWith(
           status: TransferStatus.completed,
           progress: 1.0,
@@ -388,7 +473,8 @@ class FileSender {
       } else {
         transfer = transfer.copyWith(
           status: TransferStatus.failed,
-          error: 'Transfer timed out — the receiver may be busy or unreachable. $e',
+          error:
+              'Transfer timed out — the receiver may be busy or unreachable. $e',
         );
       }
     } on HttpException catch (e) {
@@ -397,7 +483,8 @@ class FileSender {
       } else {
         transfer = transfer.copyWith(
           status: TransferStatus.failed,
-          error: 'HTTP protocol error — the receiver may be running an incompatible version. $e',
+          error:
+              'HTTP protocol error — the receiver may be running an incompatible version. $e',
         );
       }
     } on SocketException catch (e) {
@@ -406,7 +493,8 @@ class FileSender {
       } else {
         transfer = transfer.copyWith(
           status: TransferStatus.failed,
-          error: 'Connection lost — check that both devices are on the same network. $e',
+          error:
+              'Connection lost — check that both devices are on the same network. $e',
         );
       }
     } catch (e) {
@@ -436,10 +524,7 @@ class FileSender {
       throw FileSystemException('Folder not found', folderPath);
     }
 
-    final files = dir
-        .listSync(recursive: true)
-        .whereType<File>()
-        .toList();
+    final files = dir.listSync(recursive: true).whereType<File>().toList();
 
     if (files.isEmpty) {
       throw FileSystemException('Folder is empty', folderPath);
@@ -455,35 +540,124 @@ class FileSender {
       try {
         // Compute relative path preserving directory structure.
         // Normalize to forward slashes for cross-platform compatibility.
-        final relPath = p.relative(file.path, from: parentDir)
+        final relPath = p
+            .relative(file.path, from: parentDir)
             .replaceAll(r'\', '/');
 
-        final transfer = await sendFile(target, file.path, relativePath: relPath);
+        final transfer = await sendFile(
+          target,
+          file.path,
+          relativePath: relPath,
+        );
         results.add(transfer);
       } catch (e) {
-        final relPath = p.relative(file.path, from: parentDir)
+        final relPath = p
+            .relative(file.path, from: parentDir)
             .replaceAll(r'\', '/');
-        results.add(Transfer(
-          id: '',
-          fileName: relPath,
-          fileSize: 0,
-          senderDevice: localDevice,
-          receiverDevice: target,
-          status: TransferStatus.failed,
-          error: e.toString(),
-          createdAt: DateTime.now(),
-        ));
+        results.add(
+          Transfer(
+            id: '',
+            fileName: relPath,
+            fileSize: 0,
+            senderDevice: localDevice,
+            receiverDevice: target,
+            status: TransferStatus.failed,
+            error: e.toString(),
+            createdAt: DateTime.now(),
+          ),
+        );
       }
     }
 
     return results;
   }
 
+  /// Pauses the active outgoing transfer identified by [transferId].
+  ///
+  /// The upload loop stops at the next chunk boundary and the receiver keeps
+  /// the partial temporary file. [resumeTransfer] starts a fresh HTTP request
+  /// from that persisted byte offset.
+  Future<bool> pauseTransfer(String transferId) async {
+    final active = _activeTransfer;
+    if (!_matchesActiveTransfer(transferId) ||
+        active == null ||
+        active.status != TransferStatus.transferring ||
+        _pauseRequested) {
+      return false;
+    }
+
+    final target = active.receiverDevice;
+    if (target == null) return false;
+
+    try {
+      final pauseUri = Uri.http(
+        '${target.ip}:${target.port}',
+        '/api/pause/$transferId',
+      );
+      final request = await _httpClient.postUrl(pauseUri);
+      final response = await request.close().timeout(
+        const Duration(seconds: 5),
+      );
+      await response.drain<void>();
+      if (response.statusCode != 200) return false;
+    } catch (error) {
+      _log.warning('Could not pause transfer $transferId: $error');
+      return false;
+    }
+
+    if (!_matchesActiveTransfer(transferId) ||
+        _activeTransfer?.status != TransferStatus.transferring) {
+      return false;
+    }
+
+    _pauseRequested = true;
+    _resumeCompleter ??= Completer<void>();
+    return true;
+  }
+
+  /// Resumes a transfer previously paused with [pauseTransfer].
+  bool resumeTransfer(String transferId) {
+    if (!_matchesActiveTransfer(transferId) || !_pauseRequested) return false;
+
+    _pauseRequested = false;
+    final completer = _resumeCompleter;
+    _resumeCompleter = null;
+    if (completer != null && !completer.isCompleted) {
+      completer.complete();
+    }
+    return true;
+  }
+
+  /// Cancels only when [transferId] matches the active outgoing transfer.
+  bool cancelTransfer(String transferId) {
+    if (!_matchesActiveTransfer(transferId)) return false;
+    cancel();
+    return true;
+  }
+
+  bool _matchesActiveTransfer(String transferId) {
+    return _activeTransferId == transferId || _activeTransfer?.id == transferId;
+  }
+
   /// Requests cancellation of the current send operation.
   void cancel() {
     _cancelRequested = true;
+    _pauseRequested = false;
+    final completer = _resumeCompleter;
+    _resumeCompleter = null;
+    if (completer != null && !completer.isCompleted) {
+      completer.complete();
+    }
     try {
-      _activeRequest?.abort();
+      final request = _activeRequest;
+      if (request != null) {
+        final done = request.done.then<void>(
+          (_) {},
+          onError: (Object _, StackTrace _) {},
+        );
+        request.abort();
+        unawaited(done);
+      }
     } catch (_) {}
     _activeRequest = null;
   }
@@ -500,10 +674,7 @@ class FileSender {
   /// Returns `true` if the device responds within 5 seconds.
   Future<bool> pingDevice(Device target) async {
     try {
-      final pingUri = Uri.http(
-        '${target.ip}:${target.port}',
-        '/api/ping',
-      );
+      final pingUri = Uri.http('${target.ip}:${target.port}', '/api/ping');
       final request = await _httpClient.getUrl(pingUri);
       final response = await request.close().timeout(
         const Duration(seconds: 5),
@@ -516,6 +687,19 @@ class FileSender {
   }
 
   // Helpers -------------------------------------------------------------
+
+  /// Aborts a partial HTTP request while consuming the asynchronous
+  /// content-length/socket error emitted by [HttpClientRequest.done].
+  Future<void> _abortRequest(HttpClientRequest request) async {
+    final done = request.done.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
+    try {
+      request.abort();
+    } catch (_) {}
+    await done;
+  }
 
   /// Queries the receiver for how many bytes it has already received for
   /// [transferId]. Returns 0 if the status cannot be determined (e.g. network
@@ -560,9 +744,7 @@ class FileSender {
   Future<String> _postWithRetry(Uri uri, String body) async {
     for (int attempt = 1; attempt <= _maxRetries; attempt++) {
       try {
-        return await _post(uri, body).timeout(
-          const Duration(seconds: 30),
-        );
+        return await _post(uri, body).timeout(const Duration(seconds: 30));
       } catch (e) {
         if (attempt == _maxRetries) rethrow;
         final delay = _baseRetryDelay * (1 << (attempt - 1));
@@ -586,6 +768,9 @@ class FileSender {
 
   /// Pushes a [Transfer] snapshot to the progress stream.
   void _emitProgress(Transfer transfer) {
+    if (_matchesActiveTransfer(transfer.id)) {
+      _activeTransfer = transfer;
+    }
     if (!_progressController.isClosed) {
       _progressController.add(transfer);
     }

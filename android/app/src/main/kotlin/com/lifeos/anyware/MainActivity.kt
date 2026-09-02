@@ -28,6 +28,11 @@ class MainActivity : FlutterActivity() {
     private var hotspotReservation: WifiManager.LocalOnlyHotspotReservation? = null
     private var multicastLock: WifiManager.MulticastLock? = null
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
@@ -85,37 +90,38 @@ class MainActivity : FlutterActivity() {
                                     }
                                 }
 
-                                // Try FileProvider URI first, fall back to direct file URI
-                                // if the file is outside FileProvider paths.
-                                val uri: Uri = try {
-                                    FileProvider.getUriForFile(
-                                        this@MainActivity,
-                                        "${packageName}.fileprovider",
-                                        file
-                                    )
-                                } catch (_: IllegalArgumentException) {
-                                    Uri.fromFile(file)
-                                }
+                                val uri = FileProvider.getUriForFile(
+                                    this@MainActivity,
+                                    "${packageName}.fileprovider",
+                                    file
+                                )
+                                val mimeCandidates = linkedSetOf(
+                                    resolvedMimeType,
+                                    if (resolvedMimeType.contains('/')) {
+                                        "${resolvedMimeType.substringBefore('/')}/*"
+                                    } else {
+                                        "*/*"
+                                    },
+                                    "*/*"
+                                )
 
-                                val intent = Intent(Intent.ACTION_VIEW).apply {
-                                    setDataAndType(uri, resolvedMimeType)
-                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                }
-
-                                try {
-                                    startActivity(intent)
-                                    result.success(true)
-                                } catch (e: ActivityNotFoundException) {
-                                    val chooser = Intent.createChooser(intent, file.name)
-                                    chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                var opened = false
+                                for (candidate in mimeCandidates) {
+                                    val viewIntent = Intent(Intent.ACTION_VIEW).apply {
+                                        setDataAndType(uri, candidate)
+                                        clipData = android.content.ClipData.newRawUri(file.name, uri)
+                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    }
+                                    if (viewIntent.resolveActivity(packageManager) == null) continue
                                     try {
-                                        startActivity(chooser)
-                                        result.success(true)
-                                    } catch (e2: Exception) {
-                                        result.error("NO_APP", "No app to open: $resolvedMimeType", null)
+                                        startActivity(viewIntent)
+                                        opened = true
+                                        break
+                                    } catch (_: ActivityNotFoundException) {
+                                    } catch (_: SecurityException) {
                                     }
                                 }
+                                result.success(opened)
                             } catch (e: Exception) {
                                 result.error("OPEN_ERROR", "Failed to open file: ${e.message}", null)
                             }
@@ -218,6 +224,22 @@ class MainActivity : FlutterActivity() {
                     "clearDirectShareTargets" -> {
                         DirectShareService.clearShortcuts(applicationContext)
                         result.success(true)
+                    }
+                    "consumeDirectShareTarget" -> {
+                        val currentIntent = intent
+                        val deviceId = currentIntent?.getStringExtra("directShareDeviceId")
+                        if (deviceId == null) {
+                            result.success(null)
+                        } else {
+                            result.success(mapOf(
+                                "id" to deviceId,
+                                "name" to (currentIntent.getStringExtra("directShareDeviceName") ?: ""),
+                                "ip" to (currentIntent.getStringExtra("directShareDeviceIp") ?: "")
+                            ))
+                            currentIntent.removeExtra("directShareDeviceId")
+                            currentIntent.removeExtra("directShareDeviceName")
+                            currentIntent.removeExtra("directShareDeviceIp")
+                        }
                     }
                     "startHotspot" -> {
                         try {

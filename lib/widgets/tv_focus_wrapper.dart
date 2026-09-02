@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'package:anyware/core/responsive.dart';
 import 'package:anyware/core/theme.dart';
 
 /// Focus indicator widget for TV D-pad navigation.
@@ -76,10 +77,10 @@ class _TvFocusWrapperState extends State<TvFocusWrapper>
       onKeyEvent: _handleKeyEvent,
       child: AnimatedScale(
         scale: _isFocused ? 1.02 : 1.0,
-        duration: const Duration(milliseconds: 200),
+        duration: context.motionDuration(AppMotion.standard),
         curve: Curves.easeOut,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 250),
+          duration: context.motionDuration(AppMotion.emphasized),
           curve: Curves.easeOut,
           padding: widget.padding,
           decoration: BoxDecoration(

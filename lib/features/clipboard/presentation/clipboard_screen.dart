@@ -9,6 +9,7 @@ import 'package:anyware/features/clipboard/data/clipboard_service.dart';
 import 'package:anyware/features/discovery/presentation/providers.dart';
 import 'package:anyware/features/settings/presentation/providers.dart';
 import 'package:anyware/i18n/app_localizations.dart';
+import 'package:anyware/widgets/app_states.dart';
 import 'package:anyware/widgets/desktop_content_shell.dart';
 
 /// Dedicated Pano (Clipboard) screen showing clipboard sharing history
@@ -44,7 +45,6 @@ class ClipboardScreen extends ConsumerWidget {
     final body = entries.isEmpty
         ? _EmptyClipboardView(
             locale: locale,
-            isDark: isDark,
             onSend: () => _pasteAndSend(context, ref, locale),
           )
         : ListView.builder(
@@ -246,90 +246,26 @@ class ClipboardScreen extends ConsumerWidget {
 class _EmptyClipboardView extends StatelessWidget {
   const _EmptyClipboardView({
     required this.locale,
-    required this.isDark,
     required this.onSend,
   });
 
   final String locale;
-  final bool isDark;
   final VoidCallback onSend;
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                color: AppColors.neonBlue.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.content_paste_rounded,
-                size: 40,
-                color: AppColors.neonBlue.withValues(alpha: 0.6),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              AppLocalizations.get('clipboardNoEntries', locale),
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: isDark ? AppColors.textPrimary : Colors.black87,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              AppLocalizations.get('clipboardNoEntriesDesc', locale),
-              style: TextStyle(
-                fontSize: 14,
-                color: isDark ? AppColors.textSecondary : Colors.grey.shade600,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 28),
-            // ── Prominent send CTA button ──
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton.icon(
-                onPressed: onSend,
-                icon: const Icon(Icons.content_paste_go_rounded, size: 22),
-                label: Text(
-                  AppLocalizations.get('clipboardPasteAndSend', locale),
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.neonGreen,
-                  foregroundColor: Colors.black,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  elevation: isDark ? 0 : 2,
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              AppLocalizations.get('clipboardSendHint', locale),
-              style: TextStyle(
-                fontSize: 12,
-                color: isDark
-                    ? AppColors.textSecondary.withValues(alpha: 0.7)
-                    : Colors.grey.shade500,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
+    return AppEmptyState(
+      icon: Icons.content_paste_rounded,
+      title: AppLocalizations.get('clipboardNoEntries', locale),
+      description: AppLocalizations.get('clipboardNoEntriesDesc', locale),
+      actionLabel: AppLocalizations.get('clipboardPasteAndSend', locale),
+      actionIcon: Icons.content_paste_go_rounded,
+      onAction: onSend,
+      details: Text(
+        AppLocalizations.get('clipboardSendHint', locale),
+        textAlign: TextAlign.center,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
         ),
       ),
     );

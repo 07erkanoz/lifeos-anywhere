@@ -47,6 +47,8 @@ dependencies:
   # File Opening & URLs
   open_file: ^3.5.7
   url_launcher: ^6.3.1
+  pdfrx: ^2.4.7
+  video_player: ^2.11.1
 
   # Drag & Drop (Desktop)
   desktop_drop: ^0.5.0
@@ -66,7 +68,7 @@ dependencies:
   mime: ^2.0.0
   web_socket_channel: ^3.0.1
   flutter_webrtc: ^0.12.4
-  dartssh2: ^2.9.3
+  dartssh2: ^2.16.0
 
   # Cloud Sync (OAuth + Google Drive + OneDrive)
   flutter_appauth: ^7.0.1

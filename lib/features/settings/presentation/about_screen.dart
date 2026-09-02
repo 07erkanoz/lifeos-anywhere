@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'package:anyware/core/constants.dart';
 import 'package:anyware/core/theme.dart';
+import 'package:anyware/core/responsive.dart';
 import 'package:anyware/i18n/app_localizations.dart';
 
 /// About screen showing app info, version, supported platforms, etc.
@@ -195,7 +196,7 @@ class _InfoTileState extends State<_InfoTile> {
         child: GestureDetector(
           onTap: widget.onTap,
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
+            duration: context.motionDuration(AppMotion.standard),
             decoration: BoxDecoration(
               color: widget.isDark
                   ? (_isFocused

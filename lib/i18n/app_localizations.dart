@@ -1,10 +1,18 @@
 import 'dart:io';
 import 'dart:ui';
-import 'package:flutter/foundation.dart';
 
 class AppLocalizations {
   static const List<String> supportedLocales = [
-    'en', 'tr', 'de', 'fr', 'es', 'it', 'ru', 'zh', 'ja', 'ar'
+    'en',
+    'tr',
+    'de',
+    'fr',
+    'es',
+    'it',
+    'ru',
+    'zh',
+    'ja',
+    'ar',
   ];
 
   /// Human-readable names for each locale (in their own language).
@@ -21,6 +29,10 @@ class AppLocalizations {
     'ar': 'العربية',
   };
 
+  static TextDirection textDirectionFor(String locale) {
+    return locale == 'ar' ? TextDirection.rtl : TextDirection.ltr;
+  }
+
   static const Map<String, Map<String, String>> _translations = {
     // =========================================================================
     // ENGLISH
@@ -31,16 +43,21 @@ class AppLocalizations {
       'devices': 'Devices',
       'transfers': 'Transfers',
       'settings': 'Settings',
+      'more': 'More',
       'collapse': 'Collapse',
+      'expand': 'Expand',
       'sync': 'Sync',
       // Devices screen
       'noDevices': 'No devices found',
       'scanning': 'Scanning for devices…',
       'networkTroubleshooting': 'Troubleshooting',
-      'diagNoNetwork': 'No network connection detected. Connect to Wi-Fi or Ethernet.',
-      'diagSameNetwork': 'Make sure all devices are on the same Wi-Fi or LAN network.',
+      'diagNoNetwork':
+          'No network connection detected. Connect to Wi-Fi or Ethernet.',
+      'diagSameNetwork':
+          'Make sure all devices are on the same Wi-Fi or LAN network.',
       'diagFirewall': 'Check that your firewall allows UDP port {port}.',
-      'diagVirtualAdapter': 'Virtual network adapters detected ({names}). These can interfere with device discovery.',
+      'diagVirtualAdapter':
+          'Virtual network adapters detected ({names}). These can interfere with device discovery.',
       'diagTryRefresh': 'Tap the refresh button or try restarting the app.',
       'diagTryManualIp': 'Try connecting manually using the IP address.',
       'connected': 'Connected',
@@ -55,6 +72,17 @@ class AppLocalizations {
       'noTransfers': 'No transfers yet',
       'noTransfersDesc': 'Sent and received files will appear here',
       'clearCompleted': 'Clear',
+      'activeTransfers': 'Active transfers',
+      'attentionRequired': 'Needs attention',
+      'retryFailed': 'Could not retry transfer',
+      'transferQueue': 'Transfer queue',
+      'cancelQueue': 'Cancel queue',
+      'cancelQueueConfirm':
+          'Cancel the current transfer and remove all waiting files?',
+      'moveUp': 'Move up',
+      'moveDown': 'Move down',
+      'removeFromQueue': 'Remove from queue',
+      'transferControlUnavailable': 'Transfer control is no longer available',
       'sending': 'Sending…',
       'receiving': 'Receiving…',
       'waiting': 'Waiting…',
@@ -62,6 +90,7 @@ class AppLocalizations {
       'accepted': 'Accepted',
       'rejected': 'Rejected',
       'transferring': 'Transferring',
+      'paused': 'Paused',
       'completed': 'Completed',
       'failed': 'Failed',
       'cancelled': 'Cancelled',
@@ -106,7 +135,8 @@ class AppLocalizations {
       'retry': 'Retry',
       // Permissions
       'storagePermission': 'Storage Permission Required',
-      'storagePermissionDesc': 'LifeOS AnyWhere needs storage access to send and receive files.',
+      'storagePermissionDesc':
+          'LifeOS AnyWhere needs storage access to send and receive files.',
       'grant': 'Grant',
       'openSettings': 'Open Settings',
       'permissionDenied': 'Permission denied',
@@ -140,6 +170,7 @@ class AppLocalizations {
       'selectFolder': 'Select Folder',
       'sendFileOrFolder': 'Send File or Folder',
       'sendFiles': 'Send Files',
+      'recentTargets': 'Recent targets',
       'folderSending': 'Sending folder…',
       // Notifications
       'fileReceived': 'File received',
@@ -158,7 +189,8 @@ class AppLocalizations {
       'clipboardImage': 'Image',
       'clipboardPasteAndSend': 'Paste & Send',
       'clipboardSend': 'Send Clipboard',
-      'clipboardSendHint': 'Copies text from your clipboard and sends it to a nearby device',
+      'clipboardSendHint':
+          'Copies text from your clipboard and sends it to a nearby device',
       'clipboardSentTo': 'Clipboard sent to',
       'delete': 'Delete',
       'copy': 'Copy',
@@ -166,6 +198,9 @@ class AppLocalizations {
       'pairDevice': 'Pair Device',
       'scanQr': 'Scan this code to pair',
       'close': 'Close',
+      'play': 'Play',
+      'openExternally': 'Open with another app',
+      'previewUnavailable': 'This file cannot be previewed on this device.',
       'pairedWith': 'Paired with {name}',
       'invalidCode': 'Invalid QR Code',
       'scanQrTitle': 'Scan QR Code',
@@ -201,38 +236,54 @@ class AppLocalizations {
       'help': 'Help',
       'helpUsage': 'How to Use',
       'helpDiscovery': 'Device Discovery',
-      'helpDiscoveryDesc': 'All your devices on the same Wi-Fi or wired LAN are discovered automatically — no setup needed. The app broadcasts a signal every few seconds to find nearby devices. If a device does not appear, make sure both devices are on the same network, check that no VPN is blocking local traffic, and verify your router allows device-to-device communication (some guest networks block this). You can also tap "Add Manually" and enter the IP address directly.',
+      'helpDiscoveryDesc':
+          'All your devices on the same Wi-Fi or wired LAN are discovered automatically — no setup needed. The app broadcasts a signal every few seconds to find nearby devices. If a device does not appear, make sure both devices are on the same network, check that no VPN is blocking local traffic, and verify your router allows device-to-device communication (some guest networks block this). You can also tap "Add Manually" and enter the IP address directly.',
       'helpSendFiles': 'Sending Files',
-      'helpSendFilesDesc': 'Tap any discovered device to pick files or folders to send. On desktop (Windows, macOS, Linux), you can drag and drop files directly onto a device card. You can send multiple files at once — they are queued and transferred one after another. During transfer, you can see real-time speed and progress. If a file already exists on the receiver, the behavior depends on the "Overwrite existing files" setting.',
+      'helpSendFilesDesc':
+          'Tap any discovered device to pick files or folders to send. On desktop (Windows, macOS, Linux), you can drag and drop files directly onto a device card. You can send multiple files at once — they are queued and transferred one after another. During transfer, you can see real-time speed and progress. If a file already exists on the receiver, the behavior depends on the "Overwrite existing files" setting.',
       'helpReceiveFiles': 'Receiving Files',
-      'helpReceiveFilesDesc': 'When someone sends you a file, a notification appears asking to accept or reject. Accepted files are saved to the download folder configured in Settings. You can change this folder at any time. Enable "Auto-accept transfers" in Settings to skip the confirmation dialog and receive all incoming files automatically. Received files appear in the Transfers tab with options to open the file or show it in the file manager.',
+      'helpReceiveFilesDesc':
+          'When someone sends you a file, a notification appears asking to accept or reject. Accepted files are saved to the download folder configured in Settings. You can change this folder at any time. Enable "Auto-accept transfers" in Settings to skip the confirmation dialog and receive all incoming files automatically. Received files appear in the Transfers tab with options to open the file or show it in the file manager.',
       'helpQrPairing': 'QR Pairing',
-      'helpQrPairingDesc': 'If devices are not discovered automatically (different subnets, complex networks), use QR code pairing for a one-tap connection. On one device, go to the Devices tab and tap the QR icon to display a pairing code. On the other device, tap "Scan QR" and point the camera at the code. Once scanned, the devices connect directly using the IP address embedded in the QR code. This pairing persists until the app is restarted.',
+      'helpQrPairingDesc':
+          'If devices are not discovered automatically (different subnets, complex networks), use QR code pairing for a one-tap connection. On one device, go to the Devices tab and tap the QR icon to display a pairing code. On the other device, tap "Scan QR" and point the camera at the code. Once scanned, the devices connect directly using the IP address embedded in the QR code. This pairing persists until the app is restarted.',
       'helpManualIp': 'Manual IP Connection',
-      'helpManualIpDesc': 'If QR scanning is not available (e.g., desktop without camera), you can connect by entering the IP address manually. Go to the Devices tab, tap "Add Manually", and type the other device\'s IP address (e.g. 192.168.1.100). The app will attempt to connect on the default port. You can find your device\'s IP address in the Settings screen or in your system\'s network settings.',
+      'helpManualIpDesc':
+          'If QR scanning is not available (e.g., desktop without camera), you can connect by entering the IP address manually. Go to the Devices tab, tap "Add Manually", and type the other device\'s IP address (e.g. 192.168.1.100). The app will attempt to connect on the default port. You can find your device\'s IP address in the Settings screen or in your system\'s network settings.',
       'helpDragDrop': 'Drag & Drop',
-      'helpDragDropDesc': 'On desktop platforms (Windows, macOS, Linux), you can drag files or folders from your file manager and drop them directly onto a device card in the app. A drop zone indicator appears when you hover over a device. Multiple files can be dropped at once. This is the fastest way to send files from desktop — no file picker dialog needed.',
+      'helpDragDropDesc':
+          'On desktop platforms (Windows, macOS, Linux), you can drag files or folders from your file manager and drop them directly onto a device card in the app. A drop zone indicator appears when you hover over a device. Multiple files can be dropped at once. This is the fastest way to send files from desktop — no file picker dialog needed.',
       'helpClipboard': 'Clipboard Sharing',
-      'helpClipboardDesc': 'Share your clipboard content (text or images) instantly across devices. Tap the clipboard icon on a device card or use the "Paste & Send" button in the Clipboard tab. Received clipboard entries appear in the Clipboard tab with full history. You can tap any entry to copy it back to your clipboard. Text and images are both supported. This is perfect for quickly sharing links, passwords, code snippets, or screenshots between your phone and computer.',
+      'helpClipboardDesc':
+          'Share your clipboard content (text or images) instantly across devices. Tap the clipboard icon on a device card or use the "Paste & Send" button in the Clipboard tab. Received clipboard entries appear in the Clipboard tab with full history. You can tap any entry to copy it back to your clipboard. Text and images are both supported. This is perfect for quickly sharing links, passwords, code snippets, or screenshots between your phone and computer.',
       'helpSync': 'Folder Sync',
-      'helpSyncDesc': 'Create sync jobs to keep folders in sync across your devices. Each job watches a source folder and mirrors changes to a target device. You can create multiple independent sync jobs — for example, one for Documents, one for Photos, and one for Projects. Changes are detected automatically: new files, modifications, and deletions are all synced. Each sync job on the receiver is stored in its own subfolder (Sync/<DeviceName>/<JobName>/), so files from different jobs never mix together.',
+      'helpSyncDesc':
+          'Create sync jobs to keep folders in sync across your devices. Each job watches a source folder and mirrors changes to a target device. You can create multiple independent sync jobs — for example, one for Documents, one for Photos, and one for Projects. Changes are detected automatically: new files, modifications, and deletions are all synced. Each sync job on the receiver is stored in its own subfolder (Sync/<DeviceName>/<JobName>/), so files from different jobs never mix together.',
       'helpSyncJobs': 'Sync Jobs',
-      'helpSyncJobsDesc': 'Each sync job has its own name, source folder, target device, and settings. To create a job, tap "New Sync" and follow the 3-step wizard: (1) Basics — set a name, pick a source folder, and choose a target device; (2) Options — choose sync direction, conflict resolution, and sync mode; (3) Filters — include or exclude files using glob patterns (e.g. *.jpg, *.pdf). Once created, jobs appear as cards on the Sync tab. You can start/stop, pause/resume, or delete each job independently.',
+      'helpSyncJobsDesc':
+          'Each sync job has its own name, source folder, target device, and settings. To create a job, tap "New Sync" and follow the 3-step wizard: (1) Basics — set a name, pick a source folder, and choose a target device; (2) Options — choose sync direction, conflict resolution, and sync mode; (3) Filters — include or exclude files using glob patterns (e.g. *.jpg, *.pdf). Once created, jobs appear as cards on the Sync tab. You can start/stop, pause/resume, or delete each job independently.',
       'helpTvMode': 'TV Mode',
-      'helpTvModeDesc': 'On Android TV, the app automatically switches to a sidebar layout optimized for remote control navigation. All buttons and cards are enlarged for visibility from a distance. Use the arrow keys on your remote to move between items, and press Enter/Select to activate. The D-pad focus highlight clearly shows which item is selected. All features work on TV — you can receive files, browse transfers, and manage sync jobs using just your remote.',
+      'helpTvModeDesc':
+          'On Android TV, the app automatically switches to a sidebar layout optimized for remote control navigation. All buttons and cards are enlarged for visibility from a distance. Use the arrow keys on your remote to move between items, and press Enter/Select to activate. The D-pad focus highlight clearly shows which item is selected. All features work on TV — you can receive files, browse transfers, and manage sync jobs using just your remote.',
       'helpResume': 'Resume Transfer',
-      'helpResumeDesc': 'If a file transfer is interrupted — whether by a network drop, app closing, or device going to sleep — it automatically resumes from where it left off when the connection is restored. There is no need to resend the entire file. This is especially useful for large files: a 10 GB video that was 80% complete will continue from 80%, not restart. Resume works for both sending and receiving.',
+      'helpResumeDesc':
+          'If a file transfer is interrupted — whether by a network drop, app closing, or device going to sleep — it automatically resumes from where it left off when the connection is restored. There is no need to resend the entire file. This is especially useful for large files: a 10 GB video that was 80% complete will continue from 80%, not restart. Resume works for both sending and receiving.',
       'helpBackground': 'Background Transfer',
-      'helpBackgroundDesc': 'On Android, file transfers continue even when you switch to another app or turn off the screen. A persistent notification shows the current file name, progress percentage, and transfer speed. The app uses a foreground service and wakelock to prevent Android from killing the transfer. When the transfer completes, you get a completion notification. No special setup needed — it works automatically.',
+      'helpBackgroundDesc':
+          'On Android, file transfers continue even when you switch to another app or turn off the screen. A persistent notification shows the current file name, progress percentage, and transfer speed. The app uses a foreground service and wakelock to prevent Android from killing the transfer. When the transfer completes, you get a completion notification. No special setup needed — it works automatically.',
       'helpMagicLink': 'Magic Link',
-      'helpMagicLinkDesc': 'Transfer files between devices on completely different networks — for example, from your home to your office, or to a friend\'s device in another city. One device taps "Create Room" and receives a 6-digit PIN code. The other device taps "Join Room" and enters the PIN. A direct peer-to-peer connection is established through a WebRTC signaling server for the initial handshake, then data flows directly between devices when possible. All standard features work: file sending, clipboard sharing, and progress tracking.',
+      'helpMagicLinkDesc':
+          'Transfer files between devices on completely different networks — for example, from your home to your office, or to a friend\'s device in another city. One device taps "Create Room" and receives a 6-digit PIN code. The other device taps "Join Room" and enters the PIN. A direct peer-to-peer connection is established through a WebRTC signaling server for the initial handshake, then data flows directly between devices when possible. All standard features work: file sending, clipboard sharing, and progress tracking.',
       'webPortal': 'Web Portal',
       'helpWebPortal': 'Web Portal',
-      'helpWebPortalDesc': 'Access your device from any web browser on the same network — no app installation needed on the other side. Go to Settings and enable the Web Portal to see the access URL (e.g. http://192.168.1.50:8080). Open this URL on any device with a browser: laptop, tablet, or even a smart TV. You can upload files to your device and download files from it through the web interface. Perfect for quick transfers from a computer where you don\'t want to install the app.',
+      'helpWebPortalDesc':
+          'Access your device from any web browser on the same network — no app installation needed on the other side. Go to Settings and enable the Web Portal to see the access URL (e.g. http://192.168.1.50:8080). Open this URL on any device with a browser: laptop, tablet, or even a smart TV. You can upload files to your device and download files from it through the web interface. Perfect for quick transfers from a computer where you don\'t want to install the app.',
       'helpAutoSync': 'Auto-Sync on LAN',
-      'helpAutoSyncDesc': 'When enabled, sync jobs start automatically as soon as the target device is discovered on the network. You don\'t need to open the app or tap anything — just connect to the same Wi-Fi and syncing begins. This is ideal for scenarios like: automatically backing up your phone photos to your PC every time you come home, or keeping your work documents in sync whenever you connect to the office network.',
+      'helpAutoSyncDesc':
+          'When enabled, sync jobs start automatically as soon as the target device is discovered on the network. You don\'t need to open the app or tap anything — just connect to the same Wi-Fi and syncing begins. This is ideal for scenarios like: automatically backing up your phone photos to your PC every time you come home, or keeping your work documents in sync whenever you connect to the office network.',
       'helpSyncReceiveFolder': 'Sync Receive Folder',
-      'helpSyncReceiveFolderDesc': 'By default, files received through sync are saved under your download folder in a "Sync" subfolder, organized by sender name and job name (e.g. Downloads/Sync/Phone/Documents/). You can change this base folder in Settings → Sync Receive Folder. Each sync job from each device gets its own subfolder, so files never overlap between different sync sources.',
+      'helpSyncReceiveFolderDesc':
+          'By default, files received through sync are saved under your download folder in a "Sync" subfolder, organized by sender name and job name (e.g. Downloads/Sync/Phone/Documents/). You can change this base folder in Settings → Sync Receive Folder. Each sync job from each device gets its own subfolder, so files never overlap between different sync sources.',
       'syncSetupRequest': 'Sync Request',
       'syncSetupAccept': 'Accept',
       'syncSetupReject': 'Reject',
@@ -244,7 +295,8 @@ class AppLocalizations {
       'syncPairings': 'Paired Devices',
       'syncRemovePairing': 'Remove Pairing',
       'syncPairingRemoved': 'Pairing removed',
-      'syncPairingRemoveConfirm': 'Remove pairing "{name}" with {device}? Future syncs will require re-acceptance.',
+      'syncPairingRemoveConfirm':
+          'Remove pairing "{name}" with {device}? Future syncs will require re-acceptance.',
       'syncReceivedFiles': 'files received',
       'syncRetryFailed': 'Retry Failed',
       'syncCopyErrorReport': 'Copy Error Report',
@@ -252,25 +304,35 @@ class AppLocalizations {
       'syncDirectionOneWay': 'One-way',
       'syncDirectionBidirectional': 'Bidirectional',
       'helpSyncPairing': 'Sync Pairing',
-      'helpSyncPairingDesc': 'When you start a sync for the first time, the receiver device shows an acceptance dialog where the user can choose a target folder. Once accepted, a pairing is created — future syncs to the same device are automatically accepted without any dialog. You can manage pairings from the Sync screen. Both devices share the same job ID, enabling smart bidirectional sync with file change detection.',
+      'helpSyncPairingDesc':
+          'When you start a sync for the first time, the receiver device shows an acceptance dialog where the user can choose a target folder. Once accepted, a pairing is created — future syncs to the same device are automatically accepted without any dialog. You can manage pairings from the Sync screen. Both devices share the same job ID, enabling smart bidirectional sync with file change detection.',
       'helpTips': 'Tips',
-      'helpTip1': 'Both devices must be on the same network for auto-discovery. Use Magic Link or Hotspot for different networks.',
-      'helpTip2': 'If devices are not detected, check your firewall settings and make sure UDP broadcast is allowed on port 42224.',
-      'helpTip3': 'Wired Ethernet connections are faster and more stable than Wi-Fi for large file transfers.',
-      'helpTip4': 'Use the bandwidth throttle in Settings to limit upload speed and avoid saturating a slow network.',
-      'helpTip5': 'Enable auto-sync so your folders stay up to date without manual intervention.',
-      'helpTip6': 'You can send entire folders — the directory structure is preserved on the receiving device.',
-      'helpTip7': 'Clipboard sync works with both text and images — great for sharing links or screenshots.',
+      'helpTip1':
+          'Both devices must be on the same network for auto-discovery. Use Magic Link or Hotspot for different networks.',
+      'helpTip2':
+          'If devices are not detected, check your firewall settings and make sure UDP broadcast is allowed on port 42224.',
+      'helpTip3':
+          'Wired Ethernet connections are faster and more stable than Wi-Fi for large file transfers.',
+      'helpTip4':
+          'Use the bandwidth throttle in Settings to limit upload speed and avoid saturating a slow network.',
+      'helpTip5':
+          'Enable auto-sync so your folders stay up to date without manual intervention.',
+      'helpTip6':
+          'You can send entire folders — the directory structure is preserved on the receiving device.',
+      'helpTip7':
+          'Clipboard sync works with both text and images — great for sharing links or screenshots.',
       // About screen
       'aboutApp': 'About LifeOS AnyWhere',
-      'aboutDesc': 'Cross-platform local network file sharing. Send files, folders, and clipboard content between all your devices — instantly.',
+      'aboutDesc':
+          'Cross-platform local network file sharing. Send files, folders, and clipboard content between all your devices — instantly.',
       'developer': 'Developer',
       'license': 'License',
       'sourceCode': 'Source Code',
       'allRightsReserved': 'All rights reserved.',
       'website': 'Website',
       'installOnOtherDevices': 'Install on Other Devices',
-      'installOnOtherDevicesDesc': 'Download LifeOS AnyWhere on your other devices',
+      'installOnOtherDevicesDesc':
+          'Download LifeOS AnyWhere on your other devices',
       'platformSupport': 'Supported Platforms',
       'platformSupportDesc': 'Android, Android TV, iOS, Windows, Linux, macOS',
       // Sync progress & status
@@ -340,12 +402,14 @@ class AppLocalizations {
       // Timeline
       'timeline': 'Timeline',
       'timelineEmpty': 'No activity yet',
-      'timelineEmptyDesc': 'Your file transfers and clipboard syncs will appear here',
+      'timelineEmptyDesc':
+          'Your file transfers and clipboard syncs will appear here',
       'today': 'Today',
       'yesterday': 'Yesterday',
       // Magic Link (Relay)
       'magicLink': 'Magic Link',
-      'magicLinkDesc': 'Transfer files between devices on different networks using a peer-to-peer connection',
+      'magicLinkDesc':
+          'Transfer files between devices on different networks using a peer-to-peer connection',
       'createRoom': 'Create Room',
       'joinRoom': 'Join Room',
       'roomId': 'Room ID',
@@ -363,7 +427,8 @@ class AppLocalizations {
       'syncTargetDevice': 'Target Device',
       'syncTargetFolder': 'Target Folder (Optional)',
       'syncDefaultFolder': 'Default (auto)',
-      'syncTargetFolderHint': 'Leave empty to use the default sync folder on the target device.',
+      'syncTargetFolderHint':
+          'Leave empty to use the default sync folder on the target device.',
       'syncSelectDevice': 'Select a device',
       'noDevicesFound': 'No devices found on the network',
       'createSyncJob': 'Create Job',
@@ -374,7 +439,8 @@ class AppLocalizations {
       'syncOneWay': 'One-way',
       'syncBidirectional': 'Two-way',
       'syncOneWayDesc': 'Files are pushed from source to target only.',
-      'syncBidirectionalDesc': 'Changes on either side are synced to the other.',
+      'syncBidirectionalDesc':
+          'Changes on either side are synced to the other.',
       // Conflict Strategy
       'conflictStrategy': 'Conflict Resolution',
       'conflictNewerWins': 'Newer wins',
@@ -398,13 +464,17 @@ class AppLocalizations {
       'excludePatterns': 'Exclude',
       // Help - Sync sections
       'helpSyncDirection': 'Sync Direction & Conflicts',
-      'helpSyncDirectionDesc': 'Each sync job can be one-way or two-way. One-way (backup style) pushes files from source to target only — perfect for backing up your phone to your PC. Two-way sync mirrors changes in both directions: if you edit a file on either device, the change is synced to the other. When the same file is modified on both devices, a conflict occurs. You can choose how to resolve conflicts: "Newer wins" picks the most recently modified version automatically, "Ask me" shows a dialog for each conflict, and "Keep both" saves both versions with a suffix.',
+      'helpSyncDirectionDesc':
+          'Each sync job can be one-way or two-way. One-way (backup style) pushes files from source to target only — perfect for backing up your phone to your PC. Two-way sync mirrors changes in both directions: if you edit a file on either device, the change is synced to the other. When the same file is modified on both devices, a conflict occurs. You can choose how to resolve conflicts: "Newer wins" picks the most recently modified version automatically, "Ask me" shows a dialog for each conflict, and "Keep both" saves both versions with a suffix.',
       'helpSyncPhotoMode': 'Photo/Video Mode',
-      'helpSyncPhotoModeDesc': 'Designed specifically for syncing photos and videos from your phone. When enabled, the app auto-detects the camera folder (DCIM). Photos are organized into date-based subfolders on the target (e.g. 2026/01, 2026/02) so thousands of photos stay neatly organized. Apple HEIC photos can be automatically converted to JPG for compatibility with Windows and other platforms. This mode is perfect for freeing up phone storage: sync your photos to your PC, then delete them from your phone.',
+      'helpSyncPhotoModeDesc':
+          'Designed specifically for syncing photos and videos from your phone. When enabled, the app auto-detects the camera folder (DCIM). Photos are organized into date-based subfolders on the target (e.g. 2026/01, 2026/02) so thousands of photos stay neatly organized. Apple HEIC photos can be automatically converted to JPG for compatibility with Windows and other platforms. This mode is perfect for freeing up phone storage: sync your photos to your PC, then delete them from your phone.',
       'helpMirrorDeletions': 'Mirror Deletions',
-      'helpMirrorDeletionsDesc': 'When "Mirror Deletions" is enabled on a sync job, deleting a file on the source device will also delete it on the target. This keeps both sides truly in sync — if you clean up old files on one device, they are cleaned up everywhere. Be careful with this option: if you accidentally delete a file, it will be deleted on the target too. If disabled, deletions are not propagated and files remain on the target even after being deleted from the source.',
+      'helpMirrorDeletionsDesc':
+          'When "Mirror Deletions" is enabled on a sync job, deleting a file on the source device will also delete it on the target. This keeps both sides truly in sync — if you clean up old files on one device, they are cleaned up everywhere. Be careful with this option: if you accidentally delete a file, it will be deleted on the target too. If disabled, deletions are not propagated and files remain on the target even after being deleted from the source.',
       'helpSyncFilters': 'Sync Filters',
-      'helpSyncFiltersDesc': 'Control exactly which files are synced using include and exclude patterns (glob syntax). For example: add "*.jpg, *.png" to Include to only sync images, or add "*.tmp, Thumbs.db, .DS_Store" to Exclude to skip temporary files. Patterns apply to file names, not full paths. If Include is empty, all files are included by default. If a file matches both Include and Exclude, Exclude wins. This is useful for syncing only specific file types or skipping large files you don\'t need.',
+      'helpSyncFiltersDesc':
+          'Control exactly which files are synced using include and exclude patterns (glob syntax). For example: add "*.jpg, *.png" to Include to only sync images, or add "*.tmp, Thumbs.db, .DS_Store" to Exclude to skip temporary files. Patterns apply to file names, not full paths. If Include is empty, all files are included by default. If a file matches both Include and Exclude, Exclude wins. This is useful for syncing only specific file types or skipping large files you don\'t need.',
       // Misc
       'justNow': 'Just now',
       // Faz 2: Bidirectional sync
@@ -421,9 +491,11 @@ class AppLocalizations {
       'syncWaitingConflicts': 'Waiting for conflict resolution…',
       // Faz 3+4 keys
       'autoSyncOnLan': 'Auto-sync on LAN',
-      'autoSyncOnLanDesc': 'Automatically start sync when a matching device is found on the network',
+      'autoSyncOnLanDesc':
+          'Automatically start sync when a matching device is found on the network',
       'backgroundSync': 'Background Sync',
-      'backgroundSyncDesc': 'Sync files in the background when the app is closed',
+      'backgroundSyncDesc':
+          'Sync files in the background when the app is closed',
       'syncCameraHint': 'Typical camera folder',
       'syncAutoTriggered': 'Auto-sync triggered',
       'syncIncoming': 'Incoming Sync',
@@ -460,12 +532,14 @@ class AppLocalizations {
       'hotspotConnected': 'Connected!',
       'hotspotNotSupported': 'This device cannot create a hotspot',
       'hotspotUseOtherDevice': 'Start from the other device instead',
-      'webPortalScanInfo': 'Scan this QR with any device\'s camera to open the portal',
+      'webPortalScanInfo':
+          'Scan this QR with any device\'s camera to open the portal',
       'hotspotCreate': 'Create Hotspot',
       'hotspotCreateDesc': 'Start a WiFi hotspot for others to join',
       'hotspotJoin': 'Join Hotspot',
       'hotspotJoinDesc': 'Scan QR to connect to another device\'s hotspot',
-      'hotspotJoinDesktopHint': 'Use a mobile device to scan the hotspot QR code',
+      'hotspotJoinDesktopHint':
+          'Use a mobile device to scan the hotspot QR code',
       // Server Sync (SFTP)
       'serverSync': 'Server Sync',
       'addServer': 'Add Server',
@@ -504,9 +578,11 @@ class AppLocalizations {
       'serverSyncScanning': 'Scanning remote files…',
       'serverSyncDisconnected': 'Disconnected',
       'serverSyncLiveWatch': 'Live Watch',
-      'serverSyncLiveWatchDesc': 'Auto-push changes to server when files are modified',
+      'serverSyncLiveWatchDesc':
+          'Auto-push changes to server when files are modified',
       'gdrivePathHint': 'MyDocuments/Backup',
-      'gdrivePathInfo': 'You cannot browse existing Google Drive folders. Enter a folder name (e.g. "MyDocuments/Backup") and the app will create it automatically.',
+      'gdrivePathInfo':
+          'You cannot browse existing Google Drive folders. Enter a folder name (e.g. "MyDocuments/Backup") and the app will create it automatically.',
       'syncNoJobs': 'No sync jobs yet',
       'syncNoJobsDesc': 'Create a new sync job to get started',
       'syncSuccessful': 'Successful',
@@ -545,10 +621,12 @@ class AppLocalizations {
       'ok': 'OK',
       // Help: Hotspot
       'helpHotspot': 'Hotspot Connection',
-      'helpHotspotDesc': 'If both devices cannot be on the same Wi-Fi network, one device can create a Wi-Fi hotspot and the other can connect to it. This creates a direct local network between the two devices without needing a router or internet. Once connected to the hotspot, the app auto-discovers the other device. All features work normally: file transfer, clipboard sharing, and folder sync.',
+      'helpHotspotDesc':
+          'If both devices cannot be on the same Wi-Fi network, one device can create a Wi-Fi hotspot and the other can connect to it. This creates a direct local network between the two devices without needing a router or internet. Once connected to the hotspot, the app auto-discovers the other device. All features work normally: file transfer, clipboard sharing, and folder sync.',
       // Help: Server Sync
       'helpServerSync': 'Server Sync (SFTP)',
-      'helpServerSyncDesc': 'Sync your files to a remote SFTP server such as a NAS, VPS, or any SSH-enabled machine. Configure your server connection (host, port, username, password or private key) in Settings. Then create a sync job by choosing a local folder and remote path. The app compares both sides and transfers only the changes. Supports live watch mode to automatically sync when files change locally.',
+      'helpServerSyncDesc':
+          'Sync your files to a remote SFTP server such as a NAS, VPS, or any SSH-enabled machine. Configure your server connection (host, port, username, password or private key) in Settings. Then create a sync job by choosing a local folder and remote path. The app compares both sides and transfers only the changes. Supports live watch mode to automatically sync when files change locally.',
       // Notification keys
       'notifTransferStarted': '{sender} \u2192 {file}',
       'notifTransferComplete': '\u2705 {file}',
@@ -569,7 +647,8 @@ class AppLocalizations {
       'upgradeToPro': 'Upgrade to Pro',
       'iHaveACode': 'I Have a Code',
       'activateCode': 'Activate Code',
-      'activateCodeDesc': 'Enter the activation code from your Pro purchase to unlock Pro on this device.',
+      'activateCodeDesc':
+          'Enter the activation code from your Pro purchase to unlock Pro on this device.',
       'activating': 'Activating…',
       'activate': 'Activate',
       'proActivated': 'Pro activated successfully!',
@@ -577,7 +656,8 @@ class AppLocalizations {
       'invalidActivationCode': 'Invalid activation code format.',
       'deviceLimitReached': 'Device limit reached. Remove a device first.',
       'activationCode': 'Activation Code',
-      'activationCodeHint': 'Share this code with your other devices to activate Pro.',
+      'activationCodeHint':
+          'Share this code with your other devices to activate Pro.',
       'activeDevices': 'Active Devices: {current}/{max}',
       'planDeviceCount': '{current}/{max} devices',
       'removeDevice': 'Remove Device',
@@ -597,7 +677,8 @@ class AppLocalizations {
       'proFeature': 'Pro Feature',
       'proFeature_unlimitedSync': 'Unlimited sync jobs require Pro.',
       'proFeature_serverSync': 'Server sync (SFTP/FTP/WebDAV) requires Pro.',
-      'proFeature_cloudSync': 'Cloud sync (Google Drive/OneDrive) requires Pro.',
+      'proFeature_cloudSync':
+          'Cloud sync (Google Drive/OneDrive) requires Pro.',
       'proFeature_relayTransfer': 'Internet transfer via relay requires Pro.',
       'proFeature_quickSendToServer': 'Quick send to server requires Pro.',
       'proFeature_liveWatch': 'Live file watching requires Pro.',
@@ -605,9 +686,11 @@ class AppLocalizations {
       'proFeature_scheduledSync': 'Scheduled sync requires Pro.',
       'proFeature_unlimitedFileSize': 'Files over 500 MB require Pro.',
       'shareProLan': 'Share Pro via LAN',
-      'shareProLanConfirm': 'Share your Pro activation code with {name}? This will activate Pro on their device.',
+      'shareProLanConfirm':
+          'Share your Pro activation code with {name}? This will activate Pro on their device.',
       'shareProLanSuccess': 'Pro shared with {name} successfully!',
-      'shareProLanFailed': 'Failed to share Pro. Make sure the device is online.',
+      'shareProLanFailed':
+          'Failed to share Pro. Make sure the device is online.',
       'share': 'Share',
     },
 
@@ -619,16 +702,23 @@ class AppLocalizations {
       'devices': 'Cihazlar',
       'transfers': 'Transferler',
       'settings': 'Ayarlar',
+      'more': 'Daha Fazla',
       'collapse': 'Daralt',
+      'expand': 'Genişlet',
       'sync': 'Senkron',
       'noDevices': 'Cihaz bulunamadı',
       'scanning': 'Cihazlar aranıyor…',
       'networkTroubleshooting': 'Sorun Giderme',
-      'diagNoNetwork': 'Ağ bağlantısı bulunamadı. Wi-Fi veya Ethernet bağlantınızı kontrol edin.',
-      'diagSameNetwork': 'Tüm cihazların aynı Wi-Fi veya LAN ağında olduğundan emin olun.',
-      'diagFirewall': 'Güvenlik duvarınızın UDP port {port} bağlantısına izin verdiğinden emin olun.',
-      'diagVirtualAdapter': 'Sanal ağ bağdaştırıcıları algılandı ({names}). Bunlar cihaz keşfini engelleyebilir.',
-      'diagTryRefresh': 'Yenile butonuna basın veya uygulamayı yeniden başlatın.',
+      'diagNoNetwork':
+          'Ağ bağlantısı bulunamadı. Wi-Fi veya Ethernet bağlantınızı kontrol edin.',
+      'diagSameNetwork':
+          'Tüm cihazların aynı Wi-Fi veya LAN ağında olduğundan emin olun.',
+      'diagFirewall':
+          'Güvenlik duvarınızın UDP port {port} bağlantısına izin verdiğinden emin olun.',
+      'diagVirtualAdapter':
+          'Sanal ağ bağdaştırıcıları algılandı ({names}). Bunlar cihaz keşfini engelleyebilir.',
+      'diagTryRefresh':
+          'Yenile butonuna basın veya uygulamayı yeniden başlatın.',
       'diagTryManualIp': 'IP adresi ile manuel bağlantı deneyin.',
       'connected': 'Bağlı',
       'disconnected': 'Bağlantı kesildi',
@@ -641,6 +731,17 @@ class AppLocalizations {
       'noTransfers': 'Henüz transfer yok',
       'noTransfersDesc': 'Gönderilen ve alınan dosyalar burada görünecek',
       'clearCompleted': 'Temizle',
+      'activeTransfers': 'Aktif transferler',
+      'attentionRequired': 'İşlem gerekenler',
+      'retryFailed': 'Transfer yeniden başlatılamadı',
+      'transferQueue': 'Transfer kuyruğu',
+      'cancelQueue': 'Kuyruğu iptal et',
+      'cancelQueueConfirm':
+          'Geçerli transfer iptal edilsin ve bekleyen tüm dosyalar kaldırılsın mı?',
+      'moveUp': 'Yukarı taşı',
+      'moveDown': 'Aşağı taşı',
+      'removeFromQueue': 'Kuyruktan çıkar',
+      'transferControlUnavailable': 'Transfer kontrolü artık kullanılamıyor',
       'sending': 'Gönderiliyor…',
       'receiving': 'Alınıyor…',
       'waiting': 'Bekleniyor…',
@@ -648,6 +749,7 @@ class AppLocalizations {
       'accepted': 'Kabul edildi',
       'rejected': 'Reddedildi',
       'transferring': 'Aktarılıyor',
+      'paused': 'Duraklatıldı',
       'completed': 'Tamamlandı',
       'failed': 'Başarısız',
       'cancelled': 'İptal edildi',
@@ -690,7 +792,8 @@ class AppLocalizations {
       'save': 'Kaydet',
       'retry': 'Tekrar Dene',
       'storagePermission': 'Depolama İzni Gerekli',
-      'storagePermissionDesc': 'Dosya göndermek ve almak için depolama erişimi gereklidir.',
+      'storagePermissionDesc':
+          'Dosya göndermek ve almak için depolama erişimi gereklidir.',
       'grant': 'İzin Ver',
       'openSettings': 'Ayarları Aç',
       'permissionDenied': 'İzin reddedildi',
@@ -720,6 +823,7 @@ class AppLocalizations {
       'selectFolder': 'Klasör Seç',
       'sendFileOrFolder': 'Dosya veya Klasör Gönder',
       'sendFiles': 'Dosyaları Gönder',
+      'recentTargets': 'Son kullanılan hedefler',
       'folderSending': 'Klasör gönderiliyor…',
       'fileReceived': 'Dosya alındı',
       'fileReceiving': 'Dosya alınıyor…',
@@ -736,13 +840,17 @@ class AppLocalizations {
       'clipboardImage': 'Görsel',
       'clipboardPasteAndSend': 'Yapıştır ve Gönder',
       'clipboardSend': 'Pano Gönder',
-      'clipboardSendHint': 'Panonuzdaki metni kopyalar ve yakındaki bir cihaza gönderir',
+      'clipboardSendHint':
+          'Panonuzdaki metni kopyalar ve yakındaki bir cihaza gönderir',
       'clipboardSentTo': 'Pano gönderildi:',
       'delete': 'Sil',
       'copy': 'Kopyala',
       'pairDevice': 'Cihaz Eşleştir',
       'scanQr': 'Eşleşmek için kodu taratın',
       'close': 'Kapat',
+      'play': 'Oynat',
+      'openExternally': 'Başka uygulamayla aç',
+      'previewUnavailable': 'Bu dosya bu cihazda önizlenemiyor.',
       'pairedWith': '{name} ile eşleşti',
       'invalidCode': 'Geçersiz QR Kodu',
       'scanQrTitle': 'QR Kod Tara',
@@ -759,7 +867,8 @@ class AppLocalizations {
       'noTargetDevice': 'Hedef cihaz yok',
       'folderSync': 'Klasör Senk.',
       'folderSyncBeta': 'Klasör Senkronizasyonu (Beta)',
-      'folderSyncDesc': 'Yerel klasör değişikliklerini başka bir cihaza yansıtın.',
+      'folderSyncDesc':
+          'Yerel klasör değişikliklerini başka bir cihaza yansıtın.',
       'sourceFolder': 'Kaynak Klasör',
       'targetDevice': 'Hedef Cihaz',
       'selectFolderToSync': 'Senkronize edilecek klasör seçin',
@@ -773,38 +882,54 @@ class AppLocalizations {
       'help': 'Yardım',
       'helpUsage': 'Nasıl Kullanılır',
       'helpDiscovery': 'Cihaz Keşfi',
-      'helpDiscoveryDesc': 'Aynı Wi-Fi veya kablolu LAN üzerindeki tüm cihazlarınız otomatik olarak keşfedilir — herhangi bir ayar gerekmez. Uygulama birkaç saniyede bir sinyal yayınlayarak yakındaki cihazları bulur. Cihaz görünmüyorsa her iki cihazın da aynı ağda olduğundan emin olun, VPN\'in yerel trafiği engellemediğini kontrol edin ve yönlendiricinizin cihazlar arası iletişime izin verdiğini doğrulayın (bazı misafir ağları bunu engeller). Ayrıca "Manuel Ekle" seçeneğine dokunup IP adresini doğrudan girebilirsiniz.',
+      'helpDiscoveryDesc':
+          'Aynı Wi-Fi veya kablolu LAN üzerindeki tüm cihazlarınız otomatik olarak keşfedilir — herhangi bir ayar gerekmez. Uygulama birkaç saniyede bir sinyal yayınlayarak yakındaki cihazları bulur. Cihaz görünmüyorsa her iki cihazın da aynı ağda olduğundan emin olun, VPN\'in yerel trafiği engellemediğini kontrol edin ve yönlendiricinizin cihazlar arası iletişime izin verdiğini doğrulayın (bazı misafir ağları bunu engeller). Ayrıca "Manuel Ekle" seçeneğine dokunup IP adresini doğrudan girebilirsiniz.',
       'helpSendFiles': 'Dosya Gönderme',
-      'helpSendFilesDesc': 'Keşfedilen herhangi bir cihaza dokunarak dosya veya klasör gönderin. Masaüstünde (Windows, macOS, Linux) dosyaları doğrudan cihaz kartının üzerine sürükleyip bırakabilirsiniz. Birden fazla dosyayı aynı anda gönderebilirsiniz — sıraya alınır ve birer birer aktarılır. Transfer sırasında anlık hız ve ilerleme gösterilir. Alıcıda aynı isimde dosya varsa davranış "Mevcut dosyaların üzerine yaz" ayarına bağlıdır.',
+      'helpSendFilesDesc':
+          'Keşfedilen herhangi bir cihaza dokunarak dosya veya klasör gönderin. Masaüstünde (Windows, macOS, Linux) dosyaları doğrudan cihaz kartının üzerine sürükleyip bırakabilirsiniz. Birden fazla dosyayı aynı anda gönderebilirsiniz — sıraya alınır ve birer birer aktarılır. Transfer sırasında anlık hız ve ilerleme gösterilir. Alıcıda aynı isimde dosya varsa davranış "Mevcut dosyaların üzerine yaz" ayarına bağlıdır.',
       'helpReceiveFiles': 'Dosya Alma',
-      'helpReceiveFilesDesc': 'Birisi size dosya gönderdiğinde kabul veya reddetme bildirimi gelir. Kabul edilen dosyalar Ayarlar\'da yapılandırılan indirme klasörüne kaydedilir. Bu klasörü istediğiniz zaman değiştirebilirsiniz. Onay iletişim kutusunu atlamak ve tüm gelen dosyaları otomatik almak için Ayarlar\'da "Otomatik kabul"ü etkinleştirin. Alınan dosyalar Transferler sekmesinde görünür; dosyayı açma veya dosya yöneticisinde gösterme seçenekleri sunar.',
+      'helpReceiveFilesDesc':
+          'Birisi size dosya gönderdiğinde kabul veya reddetme bildirimi gelir. Kabul edilen dosyalar Ayarlar\'da yapılandırılan indirme klasörüne kaydedilir. Bu klasörü istediğiniz zaman değiştirebilirsiniz. Onay iletişim kutusunu atlamak ve tüm gelen dosyaları otomatik almak için Ayarlar\'da "Otomatik kabul"ü etkinleştirin. Alınan dosyalar Transferler sekmesinde görünür; dosyayı açma veya dosya yöneticisinde gösterme seçenekleri sunar.',
       'helpQrPairing': 'QR Eşleştirme',
-      'helpQrPairingDesc': 'Cihazlar otomatik keşfedilmiyorsa (farklı alt ağlar, karmaşık ağlar), tek dokunuşla bağlantı için QR kod eşleştirmesini kullanın. Bir cihazda Cihazlar sekmesine gidin ve eşleştirme kodu göstermek için QR simgesine dokunun. Diğer cihazda "QR Tara"ya dokunup kamerayı koda yöneltin. Tarandığında cihazlar QR kodundaki IP adresi üzerinden doğrudan bağlanır. Bu eşleştirme uygulama yeniden başlatılana kadar sürer.',
+      'helpQrPairingDesc':
+          'Cihazlar otomatik keşfedilmiyorsa (farklı alt ağlar, karmaşık ağlar), tek dokunuşla bağlantı için QR kod eşleştirmesini kullanın. Bir cihazda Cihazlar sekmesine gidin ve eşleştirme kodu göstermek için QR simgesine dokunun. Diğer cihazda "QR Tara"ya dokunup kamerayı koda yöneltin. Tarandığında cihazlar QR kodundaki IP adresi üzerinden doğrudan bağlanır. Bu eşleştirme uygulama yeniden başlatılana kadar sürer.',
       'helpManualIp': 'Manuel IP Bağlantısı',
-      'helpManualIpDesc': 'QR tarama mümkün değilse (ör. kamerasız masaüstü), IP adresini elle girerek bağlanabilirsiniz. Cihazlar sekmesine gidin, "Manuel Ekle"ye dokunun ve diğer cihazın IP adresini yazın (ör. 192.168.1.100). Uygulama varsayılan port üzerinden bağlanmaya çalışır. Cihazınızın IP adresini Ayarlar ekranında veya sisteminizin ağ ayarlarında bulabilirsiniz.',
+      'helpManualIpDesc':
+          'QR tarama mümkün değilse (ör. kamerasız masaüstü), IP adresini elle girerek bağlanabilirsiniz. Cihazlar sekmesine gidin, "Manuel Ekle"ye dokunun ve diğer cihazın IP adresini yazın (ör. 192.168.1.100). Uygulama varsayılan port üzerinden bağlanmaya çalışır. Cihazınızın IP adresini Ayarlar ekranında veya sisteminizin ağ ayarlarında bulabilirsiniz.',
       'helpDragDrop': 'Sürükle ve Bırak',
-      'helpDragDropDesc': 'Masaüstü platformlarda (Windows, macOS, Linux) dosya yöneticinizden dosya veya klasörleri sürükleyip doğrudan uygulamadaki cihaz kartının üzerine bırakabilirsiniz. Bir cihazın üzerine geldiğinizde bırakma bölgesi göstergesi belirir. Birden fazla dosya aynı anda bırakılabilir. Bu, masaüstünden dosya göndermenin en hızlı yoludur — dosya seçici iletişim kutusu gerekmez.',
+      'helpDragDropDesc':
+          'Masaüstü platformlarda (Windows, macOS, Linux) dosya yöneticinizden dosya veya klasörleri sürükleyip doğrudan uygulamadaki cihaz kartının üzerine bırakabilirsiniz. Bir cihazın üzerine geldiğinizde bırakma bölgesi göstergesi belirir. Birden fazla dosya aynı anda bırakılabilir. Bu, masaüstünden dosya göndermenin en hızlı yoludur — dosya seçici iletişim kutusu gerekmez.',
       'helpClipboard': 'Pano Paylaşımı',
-      'helpClipboardDesc': 'Pano içeriğinizi (metin veya resim) cihazlar arasında anında paylaşın. Cihaz kartındaki pano simgesine dokunun veya Pano sekmesindeki "Yapıştır ve Gönder" düğmesini kullanın. Alınan pano girdileri tam geçmişle Pano sekmesinde görünür. Herhangi bir girdiye dokunarak panonuza geri kopyalayabilirsiniz. Metin ve resimler desteklenir. Telefon ile bilgisayar arasında bağlantıları, şifreleri, kod parçacıklarını veya ekran görüntülerini hızlıca paylaşmak için idealdir.',
+      'helpClipboardDesc':
+          'Pano içeriğinizi (metin veya resim) cihazlar arasında anında paylaşın. Cihaz kartındaki pano simgesine dokunun veya Pano sekmesindeki "Yapıştır ve Gönder" düğmesini kullanın. Alınan pano girdileri tam geçmişle Pano sekmesinde görünür. Herhangi bir girdiye dokunarak panonuza geri kopyalayabilirsiniz. Metin ve resimler desteklenir. Telefon ile bilgisayar arasında bağlantıları, şifreleri, kod parçacıklarını veya ekran görüntülerini hızlıca paylaşmak için idealdir.',
       'helpSync': 'Klasör Senkronizasyonu',
-      'helpSyncDesc': 'Klasörleri cihazlarınız arasında senkronize tutmak için sync işleri oluşturun. Her iş bir kaynak klasörü izler ve değişiklikleri hedef cihaza yansıtır. Birden fazla bağımsız sync işi oluşturabilirsiniz — örneğin biri Belgeler, biri Fotoğraflar, biri Projeler için. Değişiklikler otomatik algılanır: yeni dosyalar, düzenlemeler ve silmeler senkronize edilir. Alıcıdaki her sync işi kendi alt klasöründe saklanır (Sync/<CihazAdı>/<İşAdı>/), böylece farklı işlerin dosyaları asla birbirine karışmaz.',
+      'helpSyncDesc':
+          'Klasörleri cihazlarınız arasında senkronize tutmak için sync işleri oluşturun. Her iş bir kaynak klasörü izler ve değişiklikleri hedef cihaza yansıtır. Birden fazla bağımsız sync işi oluşturabilirsiniz — örneğin biri Belgeler, biri Fotoğraflar, biri Projeler için. Değişiklikler otomatik algılanır: yeni dosyalar, düzenlemeler ve silmeler senkronize edilir. Alıcıdaki her sync işi kendi alt klasöründe saklanır (Sync/<CihazAdı>/<İşAdı>/), böylece farklı işlerin dosyaları asla birbirine karışmaz.',
       'helpSyncJobs': 'Sync İşleri',
-      'helpSyncJobsDesc': 'Her sync işinin kendi adı, kaynak klasörü, hedef cihazı ve ayarları vardır. İş oluşturmak için "Yeni Sync"e dokunun ve 3 adımlı sihirbazı takip edin: (1) Temel — ad belirleyin, kaynak klasör seçin, hedef cihaz seçin; (2) Seçenekler — sync yönü, çakışma çözümü ve sync modu seçin; (3) Filtreler — glob desenleri kullanarak dosyaları dahil edin veya hariç tutun (ör. *.jpg, *.pdf). Oluşturulan işler Sync sekmesinde kart olarak görünür. Her işi bağımsız olarak başlatabilir/durdurabilir, duraklatabilir/devam ettirebilir veya silebilirsiniz.',
+      'helpSyncJobsDesc':
+          'Her sync işinin kendi adı, kaynak klasörü, hedef cihazı ve ayarları vardır. İş oluşturmak için "Yeni Sync"e dokunun ve 3 adımlı sihirbazı takip edin: (1) Temel — ad belirleyin, kaynak klasör seçin, hedef cihaz seçin; (2) Seçenekler — sync yönü, çakışma çözümü ve sync modu seçin; (3) Filtreler — glob desenleri kullanarak dosyaları dahil edin veya hariç tutun (ör. *.jpg, *.pdf). Oluşturulan işler Sync sekmesinde kart olarak görünür. Her işi bağımsız olarak başlatabilir/durdurabilir, duraklatabilir/devam ettirebilir veya silebilirsiniz.',
       'helpTvMode': 'TV Modu',
-      'helpTvModeDesc': 'Android TV\'de uygulama, uzaktan kumanda navigasyonu için optimize edilmiş kenar çubuğu düzenine otomatik geçer. Tüm düğmeler ve kartlar uzaktan görülebilirlik için büyütülmüştür. Öğeler arasında geçiş yapmak için kumandanızdaki ok tuşlarını, etkinleştirmek için Enter/Select\'i kullanın. D-pad odak vurgusu seçili öğeyi net gösterir. TV\'de tüm özellikler çalışır — sadece kumandanızla dosya alabilir, transferleri gözden geçirebilir ve sync işlerini yönetebilirsiniz.',
+      'helpTvModeDesc':
+          'Android TV\'de uygulama, uzaktan kumanda navigasyonu için optimize edilmiş kenar çubuğu düzenine otomatik geçer. Tüm düğmeler ve kartlar uzaktan görülebilirlik için büyütülmüştür. Öğeler arasında geçiş yapmak için kumandanızdaki ok tuşlarını, etkinleştirmek için Enter/Select\'i kullanın. D-pad odak vurgusu seçili öğeyi net gösterir. TV\'de tüm özellikler çalışır — sadece kumandanızla dosya alabilir, transferleri gözden geçirebilir ve sync işlerini yönetebilirsiniz.',
       'helpResume': 'Transfer Devam Ettirme',
-      'helpResumeDesc': 'Dosya transferi kesilirse — ağ kopması, uygulama kapanması veya cihazın uykuya geçmesi — bağlantı yeniden kurulduğunda kaldığı yerden otomatik devam eder. Tüm dosyayı yeniden göndermeye gerek yoktur. Bu özellikle büyük dosyalar için kullanışlıdır: %80 tamamlanan 10 GB\'lık bir video baştan başlamak yerine %80\'den devam eder. Devam ettirme hem gönderme hem alma için çalışır.',
+      'helpResumeDesc':
+          'Dosya transferi kesilirse — ağ kopması, uygulama kapanması veya cihazın uykuya geçmesi — bağlantı yeniden kurulduğunda kaldığı yerden otomatik devam eder. Tüm dosyayı yeniden göndermeye gerek yoktur. Bu özellikle büyük dosyalar için kullanışlıdır: %80 tamamlanan 10 GB\'lık bir video baştan başlamak yerine %80\'den devam eder. Devam ettirme hem gönderme hem alma için çalışır.',
       'helpBackground': 'Arka Plan Transferi',
-      'helpBackgroundDesc': 'Android\'de başka bir uygulamaya geçseniz veya ekranı kapatsanız bile dosya transferleri devam eder. Kalıcı bildirim mevcut dosya adını, ilerleme yüzdesini ve transfer hızını gösterir. Uygulama, Android\'in transferi sonlandırmasını engellemek için ön plan hizmeti ve wakelock kullanır. Transfer tamamlandığında tamamlanma bildirimi alırsınız. Özel bir ayar gerekmez — otomatik çalışır.',
+      'helpBackgroundDesc':
+          'Android\'de başka bir uygulamaya geçseniz veya ekranı kapatsanız bile dosya transferleri devam eder. Kalıcı bildirim mevcut dosya adını, ilerleme yüzdesini ve transfer hızını gösterir. Uygulama, Android\'in transferi sonlandırmasını engellemek için ön plan hizmeti ve wakelock kullanır. Transfer tamamlandığında tamamlanma bildirimi alırsınız. Özel bir ayar gerekmez — otomatik çalışır.',
       'helpMagicLink': 'Sihirli Bağlantı',
-      'helpMagicLinkDesc': 'Tamamen farklı ağlardaki cihazlar arasında dosya aktarın — örneğin evinizden ofisinize veya başka bir şehirdeki arkadaşınızın cihazına. Bir cihaz "Oda Oluştur"a dokunur ve 6 haneli PIN kodu alır. Diğer cihaz "Odaya Katıl"a dokunup PIN\'i girer. İlk el sıkışma için bir WebRTC sinyal sunucusu üzerinden doğrudan eşler arası bağlantı kurulur, ardından veriler mümkün olduğunda doğrudan cihazlar arasında akar. Tüm standart özellikler çalışır: dosya gönderme, pano paylaşımı ve ilerleme takibi.',
+      'helpMagicLinkDesc':
+          'Tamamen farklı ağlardaki cihazlar arasında dosya aktarın — örneğin evinizden ofisinize veya başka bir şehirdeki arkadaşınızın cihazına. Bir cihaz "Oda Oluştur"a dokunur ve 6 haneli PIN kodu alır. Diğer cihaz "Odaya Katıl"a dokunup PIN\'i girer. İlk el sıkışma için bir WebRTC sinyal sunucusu üzerinden doğrudan eşler arası bağlantı kurulur, ardından veriler mümkün olduğunda doğrudan cihazlar arasında akar. Tüm standart özellikler çalışır: dosya gönderme, pano paylaşımı ve ilerleme takibi.',
       'webPortal': 'Web Portalı',
       'helpWebPortal': 'Web Portalı',
-      'helpWebPortalDesc': 'Aynı ağdaki herhangi bir web tarayıcısından cihazınıza erişin — karşı tarafta uygulama kurulumu gerekmez. Ayarlar\'a gidin ve erişim URL\'sini görmek için Web Portalını etkinleştirin (ör. http://192.168.1.50:8080). Bu URL\'yi tarayıcısı olan herhangi bir cihazda açın: dizüstü, tablet veya akıllı TV. Web arayüzü üzerinden cihazınıza dosya yükleyebilir ve cihazınızdan dosya indirebilirsiniz. Uygulamayı yüklemek istemediğiniz bir bilgisayardan hızlı transferler için idealdir.',
+      'helpWebPortalDesc':
+          'Aynı ağdaki herhangi bir web tarayıcısından cihazınıza erişin — karşı tarafta uygulama kurulumu gerekmez. Ayarlar\'a gidin ve erişim URL\'sini görmek için Web Portalını etkinleştirin (ör. http://192.168.1.50:8080). Bu URL\'yi tarayıcısı olan herhangi bir cihazda açın: dizüstü, tablet veya akıllı TV. Web arayüzü üzerinden cihazınıza dosya yükleyebilir ve cihazınızdan dosya indirebilirsiniz. Uygulamayı yüklemek istemediğiniz bir bilgisayardan hızlı transferler için idealdir.',
       'helpAutoSync': 'LAN\'da Otomatik Sync',
-      'helpAutoSyncDesc': 'Etkinleştirildiğinde, hedef cihaz ağda keşfedilir keşfedilmez sync işleri otomatik başlar. Uygulamayı açmanıza veya bir şeye dokunmanıza gerek yok — aynı Wi-Fi\'a bağlanın ve senkronizasyon başlasın. Bu şu senaryolar için idealdir: eve her geldiğinizde telefon fotoğraflarınızı otomatik olarak PC\'nize yedeklemek veya ofis ağına her bağlandığınızda iş belgelerinizi senkronize tutmak.',
+      'helpAutoSyncDesc':
+          'Etkinleştirildiğinde, hedef cihaz ağda keşfedilir keşfedilmez sync işleri otomatik başlar. Uygulamayı açmanıza veya bir şeye dokunmanıza gerek yok — aynı Wi-Fi\'a bağlanın ve senkronizasyon başlasın. Bu şu senaryolar için idealdir: eve her geldiğinizde telefon fotoğraflarınızı otomatik olarak PC\'nize yedeklemek veya ofis ağına her bağlandığınızda iş belgelerinizi senkronize tutmak.',
       'helpSyncReceiveFolder': 'Sync Alma Klasörü',
-      'helpSyncReceiveFolderDesc': 'Varsayılan olarak, sync ile alınan dosyalar indirme klasörünüzün altında "Sync" alt klasöründe, gönderici adı ve iş adına göre düzenlenerek kaydedilir (ör. Downloads/Sync/Telefon/Belgeler/). Bu temel klasörü Ayarlar → Sync Alma Klasörü\'nden değiştirebilirsiniz. Her cihazdan gelen her sync işi kendi alt klasörünü alır, böylece dosyalar farklı sync kaynakları arasında asla örtüşmez.',
+      'helpSyncReceiveFolderDesc':
+          'Varsayılan olarak, sync ile alınan dosyalar indirme klasörünüzün altında "Sync" alt klasöründe, gönderici adı ve iş adına göre düzenlenerek kaydedilir (ör. Downloads/Sync/Telefon/Belgeler/). Bu temel klasörü Ayarlar → Sync Alma Klasörü\'nden değiştirebilirsiniz. Her cihazdan gelen her sync işi kendi alt klasörünü alır, böylece dosyalar farklı sync kaynakları arasında asla örtüşmez.',
       'syncSetupRequest': 'Sync İsteği',
       'syncSetupAccept': 'Kabul Et',
       'syncSetupReject': 'Reddet',
@@ -816,7 +941,8 @@ class AppLocalizations {
       'syncPairings': 'Eşlenmiş Cihazlar',
       'syncRemovePairing': 'Eşlenmeyi Kaldır',
       'syncPairingRemoved': 'Eşlenme kaldırıldı',
-      'syncPairingRemoveConfirm': '"{name}" eşlenmesini {device} ile kaldır? Gelecek sync işlemleri tekrar kabul gerektirecek.',
+      'syncPairingRemoveConfirm':
+          '"{name}" eşlenmesini {device} ile kaldır? Gelecek sync işlemleri tekrar kabul gerektirecek.',
       'syncReceivedFiles': 'dosya alındı',
       'syncRetryFailed': 'Başarısızları Tekrarla',
       'syncCopyErrorReport': 'Hata Raporunu Kopyala',
@@ -824,24 +950,34 @@ class AppLocalizations {
       'syncDirectionOneWay': 'Tek yönlü',
       'syncDirectionBidirectional': 'İki yönlü',
       'helpSyncPairing': 'Sync Eşlenmesi',
-      'helpSyncPairingDesc': 'İlk kez sync başlattığınızda, alıcı cihazda hedef klasör seçilebilen bir kabul ekranı görünür. Kabul edildikten sonra bir eşlenme oluşturulur — aynı cihaza yapılan sonraki sync işlemleri otomatik kabul edilir. Eşlenmeleri Sync ekranından yönetebilirsiniz. Her iki cihaz da aynı iş kimliğini paylaşır, bu da dosya değişiklik algılamalı akıllı iki yönlü sync sağlar.',
+      'helpSyncPairingDesc':
+          'İlk kez sync başlattığınızda, alıcı cihazda hedef klasör seçilebilen bir kabul ekranı görünür. Kabul edildikten sonra bir eşlenme oluşturulur — aynı cihaza yapılan sonraki sync işlemleri otomatik kabul edilir. Eşlenmeleri Sync ekranından yönetebilirsiniz. Her iki cihaz da aynı iş kimliğini paylaşır, bu da dosya değişiklik algılamalı akıllı iki yönlü sync sağlar.',
       'helpTips': 'İpuçları',
-      'helpTip1': 'Otomatik keşif için her iki cihaz da aynı ağda olmalıdır. Farklı ağlar için Sihirli Bağlantı veya Hotspot kullanın.',
-      'helpTip2': 'Cihazlar algılanmıyorsa güvenlik duvarı ayarlarınızı kontrol edin ve 42224 portunda UDP yayınına izin verildiğinden emin olun.',
-      'helpTip3': 'Kablolu Ethernet bağlantıları, büyük dosya transferleri için Wi-Fi\'dan daha hızlı ve kararlıdır.',
-      'helpTip4': 'Yükleme hızını sınırlamak ve yavaş bir ağı doyurmamak için Ayarlar\'daki bant genişliği kısıtlamasını kullanın.',
-      'helpTip5': 'Klasörlerinizin manuel müdahale olmadan güncel kalması için otomatik sync\'i etkinleştirin.',
-      'helpTip6': 'Tüm klasörleri gönderebilirsiniz — klasör yapısı alıcı cihazda korunur.',
-      'helpTip7': 'Pano senkronizasyonu hem metin hem resimlerle çalışır — bağlantı veya ekran görüntüsü paylaşmak için harikadır.',
+      'helpTip1':
+          'Otomatik keşif için her iki cihaz da aynı ağda olmalıdır. Farklı ağlar için Sihirli Bağlantı veya Hotspot kullanın.',
+      'helpTip2':
+          'Cihazlar algılanmıyorsa güvenlik duvarı ayarlarınızı kontrol edin ve 42224 portunda UDP yayınına izin verildiğinden emin olun.',
+      'helpTip3':
+          'Kablolu Ethernet bağlantıları, büyük dosya transferleri için Wi-Fi\'dan daha hızlı ve kararlıdır.',
+      'helpTip4':
+          'Yükleme hızını sınırlamak ve yavaş bir ağı doyurmamak için Ayarlar\'daki bant genişliği kısıtlamasını kullanın.',
+      'helpTip5':
+          'Klasörlerinizin manuel müdahale olmadan güncel kalması için otomatik sync\'i etkinleştirin.',
+      'helpTip6':
+          'Tüm klasörleri gönderebilirsiniz — klasör yapısı alıcı cihazda korunur.',
+      'helpTip7':
+          'Pano senkronizasyonu hem metin hem resimlerle çalışır — bağlantı veya ekran görüntüsü paylaşmak için harikadır.',
       'aboutApp': 'LifeOS AnyWhere Hakkında',
-      'aboutDesc': 'Platformlar arası yerel ağ dosya paylaşımı. Tüm cihazlarınız arasında dosya, klasör ve pano içeriği anında gönderin.',
+      'aboutDesc':
+          'Platformlar arası yerel ağ dosya paylaşımı. Tüm cihazlarınız arasında dosya, klasör ve pano içeriği anında gönderin.',
       'developer': 'Geliştirici',
       'license': 'Lisans',
       'sourceCode': 'Kaynak Kodu',
       'allRightsReserved': 'Tüm hakları saklıdır.',
       'website': 'Web Sitesi',
       'installOnOtherDevices': 'Diğer Cihazlara Yükleyin',
-      'installOnOtherDevicesDesc': 'LifeOS AnyWhere\'i diğer cihazlarınıza indirin',
+      'installOnOtherDevicesDesc':
+          'LifeOS AnyWhere\'i diğer cihazlarınıza indirin',
       'platformSupport': 'Desteklenen Platformlar',
       'platformSupportDesc': 'Android, Android TV, iOS, Windows, Linux, macOS',
       // Sync progress & status
@@ -875,7 +1011,8 @@ class AppLocalizations {
       'newSync': 'Yeni Senkronizasyon',
       'syncName': 'Senkronizasyon Adı',
       'syncJobs': 'Senkronizasyon İşleri',
-      'noSyncJobs': 'Henüz senkronizasyon yok.\nBaşlamak için aşağıdaki butona dokunun.',
+      'noSyncJobs':
+          'Henüz senkronizasyon yok.\nBaşlamak için aşağıdaki butona dokunun.',
       'createSync': 'Oluştur',
       'deleteSync': 'Sil',
       'deleteConfirm': 'Bu senkronizasyon silinsin mi?',
@@ -904,12 +1041,14 @@ class AppLocalizations {
       // Timeline
       'timeline': 'Zaman Çizelgesi',
       'timelineEmpty': 'Henüz aktivite yok',
-      'timelineEmptyDesc': 'Dosya transferleri ve pano senkronizasyonları burada görünecek',
+      'timelineEmptyDesc':
+          'Dosya transferleri ve pano senkronizasyonları burada görünecek',
       'today': 'Bugün',
       'yesterday': 'Dün',
       // Magic Link (Relay)
       'magicLink': 'Sihirli Bağlantı',
-      'magicLinkDesc': 'Farklı ağlardaki cihazlar arasında eşler arası bağlantı ile dosya transferi yapın',
+      'magicLinkDesc':
+          'Farklı ağlardaki cihazlar arasında eşler arası bağlantı ile dosya transferi yapın',
       'createRoom': 'Oda Oluştur',
       'joinRoom': 'Odaya Katıl',
       'roomId': 'Oda Kimliği',
@@ -927,7 +1066,8 @@ class AppLocalizations {
       'syncTargetDevice': 'Hedef Cihaz',
       'syncTargetFolder': 'Hedef Klasör (Opsiyonel)',
       'syncDefaultFolder': 'Varsayılan (otomatik)',
-      'syncTargetFolderHint': 'Hedef cihazda varsayılan sync klasörünü kullanmak için boş bırakın.',
+      'syncTargetFolderHint':
+          'Hedef cihazda varsayılan sync klasörünü kullanmak için boş bırakın.',
       'syncSelectDevice': 'Bir cihaz seçin',
       'noDevicesFound': 'Ağda cihaz bulunamadı',
       'createSyncJob': 'Oluştur',
@@ -938,7 +1078,8 @@ class AppLocalizations {
       'syncOneWay': 'Tek yön',
       'syncBidirectional': 'Çift yön',
       'syncOneWayDesc': 'Dosyalar yalnızca kaynaktan hedefe gönderilir.',
-      'syncBidirectionalDesc': 'Her iki taraftaki değişiklikler karşılıklı senkronize edilir.',
+      'syncBidirectionalDesc':
+          'Her iki taraftaki değişiklikler karşılıklı senkronize edilir.',
       // Conflict Strategy
       'conflictStrategy': 'Çakışma Çözümü',
       'conflictNewerWins': 'Yeni kazanır',
@@ -950,25 +1091,31 @@ class AppLocalizations {
       'syncModePhotoVideo': 'Fotoğraf/Video',
       // Photo/Video options
       'convertHeicToJpg': 'HEIC → JPG Dönüştür',
-      'convertHeicToJpgDesc': 'Apple HEIC fotoğraflarını otomatik JPG\'ye dönüştür',
+      'convertHeicToJpgDesc':
+          'Apple HEIC fotoğraflarını otomatik JPG\'ye dönüştür',
       'dateSubfolders': 'Tarih Alt Klasörleri',
       // Mirror deletions
       'mirrorDeletions': 'Silmeleri Yansıt',
       'mirrorDeletionsDesc': 'Kaynakta silinen dosya hedefte de silinsin',
       // Filters
       'syncFilters': 'Filtreler',
-      'syncFiltersDesc': 'Glob desenleri ile hangi dosyaların senkronize edileceğini belirleyin.',
+      'syncFiltersDesc':
+          'Glob desenleri ile hangi dosyaların senkronize edileceğini belirleyin.',
       'includePatterns': 'Dahil Et',
       'excludePatterns': 'Hariç Tut',
       // Help - Sync sections
       'helpSyncDirection': 'Sync Yönü ve Çakışmalar',
-      'helpSyncDirectionDesc': 'Her sync işi tek yönlü veya çift yönlü olabilir. Tek yön (yedekleme tarzı) dosyaları yalnızca kaynaktan hedefe gönderir — telefonunuzu PC\'nize yedeklemek için ideal. Çift yön sync her iki yönde de değişiklikleri yansıtır: herhangi bir cihazda dosya düzenlerseniz değişiklik diğerine senkronize edilir. Aynı dosya her iki cihazda da değiştirildiğinde çakışma oluşur. Çakışmaları nasıl çözeceğinizi seçebilirsiniz: "Yeni kazanır" en son değiştirilen sürümü otomatik seçer, "Bana sor" her çakışma için iletişim kutusu gösterir, "İkisini tut" her iki sürümü de sonek ile kaydeder.',
+      'helpSyncDirectionDesc':
+          'Her sync işi tek yönlü veya çift yönlü olabilir. Tek yön (yedekleme tarzı) dosyaları yalnızca kaynaktan hedefe gönderir — telefonunuzu PC\'nize yedeklemek için ideal. Çift yön sync her iki yönde de değişiklikleri yansıtır: herhangi bir cihazda dosya düzenlerseniz değişiklik diğerine senkronize edilir. Aynı dosya her iki cihazda da değiştirildiğinde çakışma oluşur. Çakışmaları nasıl çözeceğinizi seçebilirsiniz: "Yeni kazanır" en son değiştirilen sürümü otomatik seçer, "Bana sor" her çakışma için iletişim kutusu gösterir, "İkisini tut" her iki sürümü de sonek ile kaydeder.',
       'helpSyncPhotoMode': 'Fotoğraf/Video Modu',
-      'helpSyncPhotoModeDesc': 'Telefonunuzdaki fotoğraf ve videoları senkronize etmek için özel olarak tasarlandı. Etkinleştirildiğinde uygulama kamera klasörünü (DCIM) otomatik algılar. Fotoğraflar hedefte tarih bazlı alt klasörlere düzenlenir (ör. 2026/01, 2026/02), böylece binlerce fotoğraf düzenli kalır. Apple HEIC fotoğrafları, Windows ve diğer platformlarla uyumluluk için otomatik olarak JPG\'ye dönüştürülebilir. Bu mod telefon depolamasını boşaltmak için mükemmeldir: fotoğraflarınızı PC\'nize senkronize edin, ardından telefonunuzdan silin.',
+      'helpSyncPhotoModeDesc':
+          'Telefonunuzdaki fotoğraf ve videoları senkronize etmek için özel olarak tasarlandı. Etkinleştirildiğinde uygulama kamera klasörünü (DCIM) otomatik algılar. Fotoğraflar hedefte tarih bazlı alt klasörlere düzenlenir (ör. 2026/01, 2026/02), böylece binlerce fotoğraf düzenli kalır. Apple HEIC fotoğrafları, Windows ve diğer platformlarla uyumluluk için otomatik olarak JPG\'ye dönüştürülebilir. Bu mod telefon depolamasını boşaltmak için mükemmeldir: fotoğraflarınızı PC\'nize senkronize edin, ardından telefonunuzdan silin.',
       'helpMirrorDeletions': 'Silmeleri Yansıtma',
-      'helpMirrorDeletionsDesc': 'Bir sync işinde "Silmeleri Yansıt" etkinleştirildiğinde, kaynak cihazda bir dosyanın silinmesi hedefte de silinmesine neden olur. Bu her iki tarafı gerçekten senkronize tutar — bir cihazda eski dosyaları temizlerseniz her yerde temizlenir. Bu seçenekle dikkatli olun: yanlışlıkla bir dosya silerseniz hedefte de silinecektir. Devre dışı bırakılırsa silmeler yayılmaz ve dosyalar kaynaktan silindikten sonra bile hedefte kalır.',
+      'helpMirrorDeletionsDesc':
+          'Bir sync işinde "Silmeleri Yansıt" etkinleştirildiğinde, kaynak cihazda bir dosyanın silinmesi hedefte de silinmesine neden olur. Bu her iki tarafı gerçekten senkronize tutar — bir cihazda eski dosyaları temizlerseniz her yerde temizlenir. Bu seçenekle dikkatli olun: yanlışlıkla bir dosya silerseniz hedefte de silinecektir. Devre dışı bırakılırsa silmeler yayılmaz ve dosyalar kaynaktan silindikten sonra bile hedefte kalır.',
       'helpSyncFilters': 'Sync Filtreleri',
-      'helpSyncFiltersDesc': 'Dahil etme ve hariç tutma desenleri (glob sözdizimi) kullanarak hangi dosyaların senkronize edileceğini tam olarak kontrol edin. Örneğin: yalnızca resimleri senkronize etmek için Dahil\'e "*.jpg, *.png" ekleyin veya geçici dosyaları atlamak için Hariç\'e "*.tmp, Thumbs.db, .DS_Store" ekleyin. Desenler tam yollara değil dosya adlarına uygulanır. Dahil boşsa varsayılan olarak tüm dosyalar dahil edilir. Bir dosya hem Dahil hem Hariç\'e uyarsa Hariç kazanır.',
+      'helpSyncFiltersDesc':
+          'Dahil etme ve hariç tutma desenleri (glob sözdizimi) kullanarak hangi dosyaların senkronize edileceğini tam olarak kontrol edin. Örneğin: yalnızca resimleri senkronize etmek için Dahil\'e "*.jpg, *.png" ekleyin veya geçici dosyaları atlamak için Hariç\'e "*.tmp, Thumbs.db, .DS_Store" ekleyin. Desenler tam yollara değil dosya adlarına uygulanır. Dahil boşsa varsayılan olarak tüm dosyalar dahil edilir. Bir dosya hem Dahil hem Hariç\'e uyarsa Hariç kazanır.',
       // Misc
       'justNow': 'Az önce',
       'syncConflicts': 'Sync Çakışmaları',
@@ -984,9 +1131,11 @@ class AppLocalizations {
       'syncWaitingConflicts': 'Çakışma çözümü bekleniyor…',
       // Faz 3+4 keys
       'autoSyncOnLan': 'LAN\'da Otomatik Sync',
-      'autoSyncOnLanDesc': 'Ağda eşleşen cihaz bulunduğunda otomatik sync başlat',
+      'autoSyncOnLanDesc':
+          'Ağda eşleşen cihaz bulunduğunda otomatik sync başlat',
       'backgroundSync': 'Arka Plan Sync',
-      'backgroundSyncDesc': 'Uygulama kapalıyken arka planda dosya senkronizasyonu yap',
+      'backgroundSyncDesc':
+          'Uygulama kapalıyken arka planda dosya senkronizasyonu yap',
       'syncCameraHint': 'Tipik kamera klasörü',
       'syncAutoTriggered': 'Otomatik sync tetiklendi',
       'syncIncoming': 'Gelen Sync',
@@ -1023,12 +1172,14 @@ class AppLocalizations {
       'hotspotConnected': 'Bağlandı!',
       'hotspotNotSupported': 'Bu cihaz hotspot oluşturamaz',
       'hotspotUseOtherDevice': 'Bunun yerine diğer cihazda başlatın',
-      'webPortalScanInfo': 'Herhangi bir cihazın kamerasıyla QR\'ı taratarak portala ulaşın',
+      'webPortalScanInfo':
+          'Herhangi bir cihazın kamerasıyla QR\'ı taratarak portala ulaşın',
       'hotspotCreate': 'Hotspot Oluştur',
       'hotspotCreateDesc': 'Diğer cihazların bağlanacağı WiFi hotspot başlat',
       'hotspotJoin': 'Hotspot\'a Bağlan',
       'hotspotJoinDesc': 'QR taratarak başka cihazın hotspot\'una bağlan',
-      'hotspotJoinDesktopHint': 'Hotspot QR kodunu taratmak için mobil cihaz kullanın',
+      'hotspotJoinDesktopHint':
+          'Hotspot QR kodunu taratmak için mobil cihaz kullanın',
       // Server Sync (SFTP)
       'serverSync': 'Senkronizasyon',
       'addServer': 'Sunucu Ekle',
@@ -1050,7 +1201,8 @@ class AppLocalizations {
       'serverConnectionFailed': 'Bağlantı başarısız: {error}',
       'noServers': 'Sunucu yok',
       'noServersDesc': 'Senkronizasyon için bir SFTP sunucusu ekleyin',
-      'deleteServerConfirm': '"{name}" sunucusu ve tüm sync işleri silinsin mi?',
+      'deleteServerConfirm':
+          '"{name}" sunucusu ve tüm sync işleri silinsin mi?',
       'serverLastConnected': 'Bağlandı: {time}',
       'newServerSyncJob': 'Yeni Sunucu Senk.',
       'serverSyncStep1': 'Temel',
@@ -1067,9 +1219,11 @@ class AppLocalizations {
       'serverSyncScanning': 'Uzak dosyalar taranıyor…',
       'serverSyncDisconnected': 'Bağlantı kesildi',
       'serverSyncLiveWatch': 'Canlı Takip',
-      'serverSyncLiveWatchDesc': 'Dosya değişikliklerini otomatik olarak sunucuya gönder',
+      'serverSyncLiveWatchDesc':
+          'Dosya değişikliklerini otomatik olarak sunucuya gönder',
       'gdrivePathHint': 'Belgelerim/Yedek',
-      'gdrivePathInfo': 'Google Drive\'daki mevcut klasörlere göz atamazsınız. Bir klasör adı girin (ör. "Belgelerim/Yedek"), uygulama otomatik oluşturacaktır.',
+      'gdrivePathInfo':
+          'Google Drive\'daki mevcut klasörlere göz atamazsınız. Bir klasör adı girin (ör. "Belgelerim/Yedek"), uygulama otomatik oluşturacaktır.',
       'syncNoJobs': 'Henüz sync işi yok',
       'syncNoJobsDesc': 'Yeni bir sync işi oluşturun',
       'syncSuccessful': 'Başarılı',
@@ -1105,13 +1259,16 @@ class AppLocalizations {
       'uploadFailed': 'Yükleme başarısız',
       'ok': 'Tamam',
       'helpHotspot': 'Hotspot Bağlantısı',
-      'helpHotspotDesc': 'Her iki cihaz aynı Wi-Fi ağında bulunamıyorsa, bir cihaz Wi-Fi hotspot oluşturup diğeri buna bağlanabilir. Bu, bir yönlendirici veya internete ihtiyaç duymadan iki cihaz arasında doğrudan yerel ağ oluşturur. Hotspot\'a bağlandıktan sonra uygulama diğer cihazı otomatik keşfeder. Tüm özellikler normal çalışır: dosya aktarımı, pano paylaşımı ve klasör senkronizasyonu.',
+      'helpHotspotDesc':
+          'Her iki cihaz aynı Wi-Fi ağında bulunamıyorsa, bir cihaz Wi-Fi hotspot oluşturup diğeri buna bağlanabilir. Bu, bir yönlendirici veya internete ihtiyaç duymadan iki cihaz arasında doğrudan yerel ağ oluşturur. Hotspot\'a bağlandıktan sonra uygulama diğer cihazı otomatik keşfeder. Tüm özellikler normal çalışır: dosya aktarımı, pano paylaşımı ve klasör senkronizasyonu.',
       'helpServerSync': 'Sunucu Senk. (SFTP)',
-      'helpServerSyncDesc': 'Dosyalarınızı NAS, VPS veya SSH destekli herhangi bir uzak SFTP sunucusuna senkronize edin. Ayarlar\'dan sunucu bağlantınızı yapılandırın (sunucu, port, kullanıcı adı, şifre veya özel anahtar). Ardından yerel klasör ve uzak yol seçerek bir senkronizasyon işi oluşturun. Uygulama her iki tarafı karşılaştırır ve yalnızca değişiklikleri aktarır. Dosyalar yerel olarak değiştiğinde otomatik senkronizasyon için canlı izleme modunu destekler.',
+      'helpServerSyncDesc':
+          'Dosyalarınızı NAS, VPS veya SSH destekli herhangi bir uzak SFTP sunucusuna senkronize edin. Ayarlar\'dan sunucu bağlantınızı yapılandırın (sunucu, port, kullanıcı adı, şifre veya özel anahtar). Ardından yerel klasör ve uzak yol seçerek bir senkronizasyon işi oluşturun. Uygulama her iki tarafı karşılaştırır ve yalnızca değişiklikleri aktarır. Dosyalar yerel olarak değiştiğinde otomatik senkronizasyon için canlı izleme modunu destekler.',
       'notifTransferStarted': '{sender} \u2192 {file}',
       'notifTransferComplete': '\u2705 {file}',
       'notifTransferFailed': '\u274c {file}',
-      'notifSyncReceiving': '\uD83D\uDD04 {sender} cihazından sync alınıyor\u2026',
+      'notifSyncReceiving':
+          '\uD83D\uDD04 {sender} cihazından sync alınıyor\u2026',
       'notifSyncComplete': '\u2705 {job}: {count} dosya \u2192 {device}',
       'notifTransferring': 'Dosya aktarılıyor\u2026',
       'notifTransferringCount': '{count} dosya aktarılıyor\u2026',
@@ -1127,7 +1284,8 @@ class AppLocalizations {
       'upgradeToPro': 'Pro\'ya Yükselt',
       'iHaveACode': 'Kodum Var',
       'activateCode': 'Kod Etkinleştir',
-      'activateCodeDesc': 'Pro satın alımınızdan aldığınız aktivasyon kodunu girerek bu cihazda Pro\'yu etkinleştirin.',
+      'activateCodeDesc':
+          'Pro satın alımınızdan aldığınız aktivasyon kodunu girerek bu cihazda Pro\'yu etkinleştirin.',
       'activating': 'Etkinleştiriliyor…',
       'activate': 'Etkinleştir',
       'proActivated': 'Pro başarıyla etkinleştirildi!',
@@ -1135,11 +1293,13 @@ class AppLocalizations {
       'invalidActivationCode': 'Geçersiz aktivasyon kodu formatı.',
       'deviceLimitReached': 'Cihaz limitine ulaşıldı. Önce bir cihaz kaldırın.',
       'activationCode': 'Aktivasyon Kodu',
-      'activationCodeHint': 'Bu kodu diğer cihazlarınızda Pro\'yu etkinleştirmek için paylaşın.',
+      'activationCodeHint':
+          'Bu kodu diğer cihazlarınızda Pro\'yu etkinleştirmek için paylaşın.',
       'activeDevices': 'Aktif Cihazlar: {current}/{max}',
       'planDeviceCount': '{current}/{max} cihaz',
       'removeDevice': 'Cihaz Kaldır',
-      'removeDeviceConfirm': '{name} cihazını Pro cihazlarınızdan kaldırmak istiyor musunuz?',
+      'removeDeviceConfirm':
+          '{name} cihazını Pro cihazlarınızdan kaldırmak istiyor musunuz?',
       'remove': 'Kaldır',
       'refreshLicense': 'Lisansı Yenile',
       'licenseRefreshed': 'Lisans yenilendi',
@@ -1149,23 +1309,31 @@ class AppLocalizations {
       'storeNotReady': 'Mağaza henüz hazır değil.',
       'upgradeSuccess': 'Pro sürüme başarıyla yükseltildi!',
       'cancelTransfer': 'Transferi İptal Et',
-      'cancelTransferConfirm': 'Bu transferi iptal etmek istediğinize emin misiniz?',
+      'cancelTransferConfirm':
+          'Bu transferi iptal etmek istediğinize emin misiniz?',
       'yes': 'Evet',
       'no': 'Hayır',
       'proFeature': 'Pro Özellik',
       'proFeature_unlimitedSync': 'Sınırsız senk işi için Pro gereklidir.',
-      'proFeature_serverSync': 'Sunucu senk (SFTP/FTP/WebDAV) için Pro gereklidir.',
-      'proFeature_cloudSync': 'Bulut senk (Google Drive/OneDrive) için Pro gereklidir.',
-      'proFeature_relayTransfer': 'İnternet aktarımı (relay) için Pro gereklidir.',
-      'proFeature_quickSendToServer': 'Sunucuya hızlı gönderim için Pro gereklidir.',
+      'proFeature_serverSync':
+          'Sunucu senk (SFTP/FTP/WebDAV) için Pro gereklidir.',
+      'proFeature_cloudSync':
+          'Bulut senk (Google Drive/OneDrive) için Pro gereklidir.',
+      'proFeature_relayTransfer':
+          'İnternet aktarımı (relay) için Pro gereklidir.',
+      'proFeature_quickSendToServer':
+          'Sunucuya hızlı gönderim için Pro gereklidir.',
       'proFeature_liveWatch': 'Canlı dosya izleme için Pro gereklidir.',
       'proFeature_bidirectionalSync': 'Çift yönlü senk için Pro gereklidir.',
       'proFeature_scheduledSync': 'Zamanlı senk için Pro gereklidir.',
-      'proFeature_unlimitedFileSize': '500 MB üzeri dosyalar için Pro gereklidir.',
+      'proFeature_unlimitedFileSize':
+          '500 MB üzeri dosyalar için Pro gereklidir.',
       'shareProLan': 'LAN ile Pro Paylas',
-      'shareProLanConfirm': 'Pro aktivasyon kodunuzu {name} ile paylasılsın mı? Bu, cihazında Pro\'yu etkinlestirecek.',
+      'shareProLanConfirm':
+          'Pro aktivasyon kodunuzu {name} ile paylasılsın mı? Bu, cihazında Pro\'yu etkinlestirecek.',
       'shareProLanSuccess': '{name} ile Pro basarıyla paylasıldı!',
-      'shareProLanFailed': 'Pro paylasılamadı. Cihazın cevrimici oldugundan emin olun.',
+      'shareProLanFailed':
+          'Pro paylasılamadı. Cihazın cevrimici oldugundan emin olun.',
       'share': 'Paylas',
     },
 
@@ -1177,7 +1345,9 @@ class AppLocalizations {
       'devices': 'Geräte',
       'transfers': 'Übertragungen',
       'settings': 'Einstellungen',
+      'more': 'Mehr',
       'collapse': 'Einklappen',
+      'expand': 'Ausklappen',
       'sync': 'Synchron.',
       'noDevices': 'Keine Geräte gefunden',
       'scanning': 'Suche nach Geräten…',
@@ -1192,6 +1362,18 @@ class AppLocalizations {
       'noTransfers': 'Noch keine Übertragungen',
       'noTransfersDesc': 'Gesendete und empfangene Dateien erscheinen hier',
       'clearCompleted': 'Löschen',
+      'activeTransfers': 'Aktive Übertragungen',
+      'attentionRequired': 'Eingreifen erforderlich',
+      'retryFailed': 'Übertragung konnte nicht erneut gestartet werden',
+      'transferQueue': 'Übertragungswarteschlange',
+      'cancelQueue': 'Warteschlange abbrechen',
+      'cancelQueueConfirm':
+          'Aktuelle Übertragung abbrechen und alle wartenden Dateien entfernen?',
+      'moveUp': 'Nach oben',
+      'moveDown': 'Nach unten',
+      'removeFromQueue': 'Aus Warteschlange entfernen',
+      'transferControlUnavailable':
+          'Die Übertragung kann nicht mehr gesteuert werden',
       'sending': 'Wird gesendet…',
       'receiving': 'Wird empfangen…',
       'waiting': 'Warten…',
@@ -1199,6 +1381,7 @@ class AppLocalizations {
       'accepted': 'Akzeptiert',
       'rejected': 'Abgelehnt',
       'transferring': 'Übertragung',
+      'paused': 'Pausiert',
       'completed': 'Abgeschlossen',
       'failed': 'Fehlgeschlagen',
       'cancelled': 'Abgebrochen',
@@ -1241,7 +1424,8 @@ class AppLocalizations {
       'save': 'Speichern',
       'retry': 'Erneut versuchen',
       'storagePermission': 'Speicherberechtigung erforderlich',
-      'storagePermissionDesc': 'LifeOS AnyWhere benötigt Speicherzugriff zum Senden und Empfangen von Dateien.',
+      'storagePermissionDesc':
+          'LifeOS AnyWhere benötigt Speicherzugriff zum Senden und Empfangen von Dateien.',
       'grant': 'Erlauben',
       'openSettings': 'Einstellungen öffnen',
       'permissionDenied': 'Berechtigung verweigert',
@@ -1271,6 +1455,7 @@ class AppLocalizations {
       'selectFolder': 'Ordner auswählen',
       'sendFileOrFolder': 'Datei oder Ordner senden',
       'sendFiles': 'Dateien senden',
+      'recentTargets': 'Zuletzt verwendete Ziele',
       'folderSending': 'Ordner wird gesendet…',
       'fileReceived': 'Datei empfangen',
       'fileReceiving': 'Datei wird empfangen…',
@@ -1280,20 +1465,25 @@ class AppLocalizations {
       'clipboardSent': 'Zwischenablage gesendet',
       'clipboard': 'Zwischenablage',
       'clipboardNoEntries': 'Keine Einträge',
-      'clipboardNoEntriesDesc': 'Geteilte Zwischenablageinhalte erscheinen hier',
+      'clipboardNoEntriesDesc':
+          'Geteilte Zwischenablageinhalte erscheinen hier',
       'clearAll': 'Alle löschen',
       'copied': 'In Zwischenablage kopiert',
       'clipboardText': 'Text',
       'clipboardImage': 'Bild',
       'clipboardPasteAndSend': 'Einfügen & Senden',
       'clipboardSend': 'Zwischenablage senden',
-      'clipboardSendHint': 'Kopiert Text aus Ihrer Zwischenablage und sendet ihn an ein Gerät in der Nähe',
+      'clipboardSendHint':
+          'Kopiert Text aus Ihrer Zwischenablage und sendet ihn an ein Gerät in der Nähe',
       'clipboardSentTo': 'Zwischenablage gesendet an',
       'delete': 'Löschen',
       'copy': 'Kopieren',
       'pairDevice': 'Gerät koppeln',
       'scanQr': 'Code zum Koppeln scannen',
       'close': 'Schließen',
+      'play': 'Abspielen',
+      'openExternally': 'Mit anderer App öffnen',
+      'previewUnavailable': 'Diese Datei kann nicht angezeigt werden.',
       'pairedWith': 'Gekoppelt mit {name}',
       'invalidCode': 'Ungültiger QR-Code',
       'scanQrTitle': 'QR-Code scannen',
@@ -1310,7 +1500,8 @@ class AppLocalizations {
       'noTargetDevice': 'Kein Zielgerät',
       'folderSync': 'Ordner-Sync',
       'folderSyncBeta': 'Ordner-Synchronisation (Beta)',
-      'folderSyncDesc': 'Lokale Ordneränderungen auf ein anderes Gerät spiegeln.',
+      'folderSyncDesc':
+          'Lokale Ordneränderungen auf ein anderes Gerät spiegeln.',
       'sourceFolder': 'Quellordner',
       'targetDevice': 'Zielgerät',
       'selectFolderToSync': 'Ordner zum Synchronisieren auswählen',
@@ -1324,38 +1515,54 @@ class AppLocalizations {
       'help': 'Hilfe',
       'helpUsage': 'Bedienung',
       'helpDiscovery': 'Geräteerkennung',
-      'helpDiscoveryDesc': 'Alle Geräte im selben WLAN oder kabelgebundenen LAN werden automatisch erkannt – keine Einrichtung erforderlich. Die App sendet alle paar Sekunden ein Signal, um Geräte in der Nähe zu finden. Falls ein Gerät nicht angezeigt wird, stellen Sie sicher, dass beide Geräte im selben Netzwerk sind, prüfen Sie, ob kein VPN den lokalen Datenverkehr blockiert, und vergewissern Sie sich, dass Ihr Router die Kommunikation zwischen Geräten erlaubt (manche Gastnetzwerke blockieren dies). Sie können auch auf „Manuell hinzufügen" tippen und die IP-Adresse direkt eingeben.',
+      'helpDiscoveryDesc':
+          'Alle Geräte im selben WLAN oder kabelgebundenen LAN werden automatisch erkannt – keine Einrichtung erforderlich. Die App sendet alle paar Sekunden ein Signal, um Geräte in der Nähe zu finden. Falls ein Gerät nicht angezeigt wird, stellen Sie sicher, dass beide Geräte im selben Netzwerk sind, prüfen Sie, ob kein VPN den lokalen Datenverkehr blockiert, und vergewissern Sie sich, dass Ihr Router die Kommunikation zwischen Geräten erlaubt (manche Gastnetzwerke blockieren dies). Sie können auch auf „Manuell hinzufügen" tippen und die IP-Adresse direkt eingeben.',
       'helpSendFiles': 'Dateien senden',
-      'helpSendFilesDesc': 'Tippen Sie auf ein erkanntes Gerät, um Dateien oder Ordner zum Senden auszuwählen. Auf dem Desktop (Windows, macOS, Linux) können Sie Dateien direkt per Drag & Drop auf eine Gerätekarte ziehen. Sie können mehrere Dateien gleichzeitig senden – sie werden in eine Warteschlange eingereiht und nacheinander übertragen. Während der Übertragung sehen Sie Geschwindigkeit und Fortschritt in Echtzeit. Wenn eine Datei auf dem Empfänger bereits existiert, hängt das Verhalten von der Einstellung „Vorhandene Dateien überschreiben" ab.',
+      'helpSendFilesDesc':
+          'Tippen Sie auf ein erkanntes Gerät, um Dateien oder Ordner zum Senden auszuwählen. Auf dem Desktop (Windows, macOS, Linux) können Sie Dateien direkt per Drag & Drop auf eine Gerätekarte ziehen. Sie können mehrere Dateien gleichzeitig senden – sie werden in eine Warteschlange eingereiht und nacheinander übertragen. Während der Übertragung sehen Sie Geschwindigkeit und Fortschritt in Echtzeit. Wenn eine Datei auf dem Empfänger bereits existiert, hängt das Verhalten von der Einstellung „Vorhandene Dateien überschreiben" ab.',
       'helpReceiveFiles': 'Dateien empfangen',
-      'helpReceiveFilesDesc': 'Wenn Ihnen jemand eine Datei sendet, erscheint eine Benachrichtigung zum Annehmen oder Ablehnen. Angenommene Dateien werden im Download-Ordner gespeichert, der in den Einstellungen festgelegt ist. Diesen Ordner können Sie jederzeit ändern. Aktivieren Sie „Transfers automatisch akzeptieren" in den Einstellungen, um den Bestätigungsdialog zu überspringen und alle eingehenden Dateien automatisch zu empfangen. Empfangene Dateien erscheinen im Tab „Transfers" mit Optionen zum Öffnen oder Anzeigen im Dateimanager.',
+      'helpReceiveFilesDesc':
+          'Wenn Ihnen jemand eine Datei sendet, erscheint eine Benachrichtigung zum Annehmen oder Ablehnen. Angenommene Dateien werden im Download-Ordner gespeichert, der in den Einstellungen festgelegt ist. Diesen Ordner können Sie jederzeit ändern. Aktivieren Sie „Transfers automatisch akzeptieren" in den Einstellungen, um den Bestätigungsdialog zu überspringen und alle eingehenden Dateien automatisch zu empfangen. Empfangene Dateien erscheinen im Tab „Transfers" mit Optionen zum Öffnen oder Anzeigen im Dateimanager.',
       'helpQrPairing': 'QR-Kopplung',
-      'helpQrPairingDesc': 'Wenn Geräte nicht automatisch erkannt werden (unterschiedliche Subnetze, komplexe Netzwerke), verwenden Sie die QR-Code-Kopplung für eine Verbindung mit einem Fingertipp. Gehen Sie auf einem Gerät zum Tab „Geräte" und tippen Sie auf das QR-Symbol, um einen Kopplungscode anzuzeigen. Tippen Sie auf dem anderen Gerät auf „QR scannen" und richten Sie die Kamera auf den Code. Nach dem Scannen verbinden sich die Geräte direkt über die im QR-Code eingebettete IP-Adresse. Diese Kopplung bleibt bestehen, bis die App neu gestartet wird.',
+      'helpQrPairingDesc':
+          'Wenn Geräte nicht automatisch erkannt werden (unterschiedliche Subnetze, komplexe Netzwerke), verwenden Sie die QR-Code-Kopplung für eine Verbindung mit einem Fingertipp. Gehen Sie auf einem Gerät zum Tab „Geräte" und tippen Sie auf das QR-Symbol, um einen Kopplungscode anzuzeigen. Tippen Sie auf dem anderen Gerät auf „QR scannen" und richten Sie die Kamera auf den Code. Nach dem Scannen verbinden sich die Geräte direkt über die im QR-Code eingebettete IP-Adresse. Diese Kopplung bleibt bestehen, bis die App neu gestartet wird.',
       'helpManualIp': 'Manuelle IP-Verbindung',
-      'helpManualIpDesc': 'Wenn QR-Scannen nicht verfügbar ist (z. B. Desktop ohne Kamera), können Sie sich durch manuelle Eingabe der IP-Adresse verbinden. Gehen Sie zum Tab „Geräte", tippen Sie auf „Manuell hinzufügen" und geben Sie die IP-Adresse des anderen Geräts ein (z. B. 192.168.1.100). Die App versucht dann, sich über den Standardport zu verbinden. Die IP-Adresse Ihres Geräts finden Sie im Einstellungsbildschirm oder in den Netzwerkeinstellungen Ihres Systems.',
+      'helpManualIpDesc':
+          'Wenn QR-Scannen nicht verfügbar ist (z. B. Desktop ohne Kamera), können Sie sich durch manuelle Eingabe der IP-Adresse verbinden. Gehen Sie zum Tab „Geräte", tippen Sie auf „Manuell hinzufügen" und geben Sie die IP-Adresse des anderen Geräts ein (z. B. 192.168.1.100). Die App versucht dann, sich über den Standardport zu verbinden. Die IP-Adresse Ihres Geräts finden Sie im Einstellungsbildschirm oder in den Netzwerkeinstellungen Ihres Systems.',
       'helpDragDrop': 'Drag & Drop',
-      'helpDragDropDesc': 'Auf Desktop-Plattformen (Windows, macOS, Linux) können Sie Dateien oder Ordner aus Ihrem Dateimanager direkt auf eine Gerätekarte in der App ziehen und ablegen. Wenn Sie mit der Maus über ein Gerät fahren, erscheint ein Ablagebereich-Indikator. Mehrere Dateien können gleichzeitig abgelegt werden. Dies ist der schnellste Weg, Dateien vom Desktop zu senden – kein Dateiauswahl-Dialog erforderlich.',
+      'helpDragDropDesc':
+          'Auf Desktop-Plattformen (Windows, macOS, Linux) können Sie Dateien oder Ordner aus Ihrem Dateimanager direkt auf eine Gerätekarte in der App ziehen und ablegen. Wenn Sie mit der Maus über ein Gerät fahren, erscheint ein Ablagebereich-Indikator. Mehrere Dateien können gleichzeitig abgelegt werden. Dies ist der schnellste Weg, Dateien vom Desktop zu senden – kein Dateiauswahl-Dialog erforderlich.',
       'helpClipboard': 'Zwischenablage-Freigabe',
-      'helpClipboardDesc': 'Teilen Sie den Inhalt Ihrer Zwischenablage (Text oder Bilder) sofort zwischen Geräten. Tippen Sie auf das Zwischenablage-Symbol auf einer Gerätekarte oder verwenden Sie die Schaltfläche „Einfügen & Senden" im Tab „Zwischenablage". Empfangene Einträge erscheinen im Tab „Zwischenablage" mit vollständigem Verlauf. Sie können auf einen beliebigen Eintrag tippen, um ihn wieder in Ihre Zwischenablage zu kopieren. Text und Bilder werden gleichermaßen unterstützt. Ideal zum schnellen Austausch von Links, Passwörtern, Code-Schnipseln oder Screenshots zwischen Handy und Computer.',
+      'helpClipboardDesc':
+          'Teilen Sie den Inhalt Ihrer Zwischenablage (Text oder Bilder) sofort zwischen Geräten. Tippen Sie auf das Zwischenablage-Symbol auf einer Gerätekarte oder verwenden Sie die Schaltfläche „Einfügen & Senden" im Tab „Zwischenablage". Empfangene Einträge erscheinen im Tab „Zwischenablage" mit vollständigem Verlauf. Sie können auf einen beliebigen Eintrag tippen, um ihn wieder in Ihre Zwischenablage zu kopieren. Text und Bilder werden gleichermaßen unterstützt. Ideal zum schnellen Austausch von Links, Passwörtern, Code-Schnipseln oder Screenshots zwischen Handy und Computer.',
       'helpSync': 'Ordner-Synchronisierung',
-      'helpSyncDesc': 'Erstellen Sie Sync-Aufträge, um Ordner zwischen Ihren Geräten synchron zu halten. Jeder Auftrag überwacht einen Quellordner und spiegelt Änderungen auf ein Zielgerät. Sie können mehrere unabhängige Sync-Aufträge erstellen – zum Beispiel einen für Dokumente, einen für Fotos und einen für Projekte. Änderungen werden automatisch erkannt: neue Dateien, Änderungen und Löschungen werden alle synchronisiert. Jeder Sync-Auftrag wird beim Empfänger in einem eigenen Unterordner gespeichert (Sync/<Gerätename>/<Auftragsname>/), sodass Dateien verschiedener Aufträge niemals durcheinander geraten.',
+      'helpSyncDesc':
+          'Erstellen Sie Sync-Aufträge, um Ordner zwischen Ihren Geräten synchron zu halten. Jeder Auftrag überwacht einen Quellordner und spiegelt Änderungen auf ein Zielgerät. Sie können mehrere unabhängige Sync-Aufträge erstellen – zum Beispiel einen für Dokumente, einen für Fotos und einen für Projekte. Änderungen werden automatisch erkannt: neue Dateien, Änderungen und Löschungen werden alle synchronisiert. Jeder Sync-Auftrag wird beim Empfänger in einem eigenen Unterordner gespeichert (Sync/<Gerätename>/<Auftragsname>/), sodass Dateien verschiedener Aufträge niemals durcheinander geraten.',
       'helpSyncJobs': 'Sync-Aufträge',
-      'helpSyncJobsDesc': 'Jeder Sync-Auftrag hat einen eigenen Namen, Quellordner, Zielgerät und eigene Einstellungen. Um einen Auftrag zu erstellen, tippen Sie auf „Neue Synchronisation" und folgen dem 3-Schritte-Assistenten: (1) Grundlagen – Name festlegen, Quellordner wählen und Zielgerät auswählen; (2) Optionen – Sync-Richtung, Konfliktlösung und Sync-Modus wählen; (3) Filter – Dateien mit Glob-Mustern ein- oder ausschließen (z. B. *.jpg, *.pdf). Erstellte Aufträge erscheinen als Karten im Tab „Sync". Sie können jeden Auftrag einzeln starten/stoppen, pausieren/fortsetzen oder löschen.',
+      'helpSyncJobsDesc':
+          'Jeder Sync-Auftrag hat einen eigenen Namen, Quellordner, Zielgerät und eigene Einstellungen. Um einen Auftrag zu erstellen, tippen Sie auf „Neue Synchronisation" und folgen dem 3-Schritte-Assistenten: (1) Grundlagen – Name festlegen, Quellordner wählen und Zielgerät auswählen; (2) Optionen – Sync-Richtung, Konfliktlösung und Sync-Modus wählen; (3) Filter – Dateien mit Glob-Mustern ein- oder ausschließen (z. B. *.jpg, *.pdf). Erstellte Aufträge erscheinen als Karten im Tab „Sync". Sie können jeden Auftrag einzeln starten/stoppen, pausieren/fortsetzen oder löschen.',
       'helpTvMode': 'TV-Modus',
-      'helpTvModeDesc': 'Auf Android TV wechselt die App automatisch zu einem Seitenleisten-Layout, das für die Fernbedienungsnavigation optimiert ist. Alle Schaltflächen und Karten sind für die Sichtbarkeit aus der Entfernung vergrößert. Verwenden Sie die Pfeiltasten auf Ihrer Fernbedienung, um zwischen Elementen zu wechseln, und drücken Sie Enter/Select zum Aktivieren. Die D-Pad-Fokushervorhebung zeigt deutlich an, welches Element ausgewählt ist. Alle Funktionen funktionieren auf dem TV – Sie können Dateien empfangen, Transfers durchsuchen und Sync-Aufträge verwalten, alles nur mit Ihrer Fernbedienung.',
+      'helpTvModeDesc':
+          'Auf Android TV wechselt die App automatisch zu einem Seitenleisten-Layout, das für die Fernbedienungsnavigation optimiert ist. Alle Schaltflächen und Karten sind für die Sichtbarkeit aus der Entfernung vergrößert. Verwenden Sie die Pfeiltasten auf Ihrer Fernbedienung, um zwischen Elementen zu wechseln, und drücken Sie Enter/Select zum Aktivieren. Die D-Pad-Fokushervorhebung zeigt deutlich an, welches Element ausgewählt ist. Alle Funktionen funktionieren auf dem TV – Sie können Dateien empfangen, Transfers durchsuchen und Sync-Aufträge verwalten, alles nur mit Ihrer Fernbedienung.',
       'helpResume': 'Transfer fortsetzen',
-      'helpResumeDesc': 'Wenn eine Dateiübertragung unterbrochen wird – sei es durch einen Netzwerkausfall, das Schließen der App oder den Ruhemodus des Geräts – wird sie automatisch an der Stelle fortgesetzt, an der sie aufgehört hat, sobald die Verbindung wiederhergestellt ist. Die gesamte Datei muss nicht erneut gesendet werden. Dies ist besonders nützlich bei großen Dateien: Ein 10-GB-Video, das zu 80 % übertragen war, wird ab 80 % fortgesetzt und nicht neu gestartet. Die Fortsetzung funktioniert sowohl beim Senden als auch beim Empfangen.',
+      'helpResumeDesc':
+          'Wenn eine Dateiübertragung unterbrochen wird – sei es durch einen Netzwerkausfall, das Schließen der App oder den Ruhemodus des Geräts – wird sie automatisch an der Stelle fortgesetzt, an der sie aufgehört hat, sobald die Verbindung wiederhergestellt ist. Die gesamte Datei muss nicht erneut gesendet werden. Dies ist besonders nützlich bei großen Dateien: Ein 10-GB-Video, das zu 80 % übertragen war, wird ab 80 % fortgesetzt und nicht neu gestartet. Die Fortsetzung funktioniert sowohl beim Senden als auch beim Empfangen.',
       'helpBackground': 'Hintergrund-Transfer',
-      'helpBackgroundDesc': 'Auf Android laufen Dateiübertragungen weiter, auch wenn Sie zu einer anderen App wechseln oder den Bildschirm ausschalten. Eine permanente Benachrichtigung zeigt den aktuellen Dateinamen, den Fortschritt in Prozent und die Übertragungsgeschwindigkeit. Die App verwendet einen Vordergrund-Dienst und einen Wakelock, um zu verhindern, dass Android die Übertragung beendet. Nach Abschluss erhalten Sie eine Fertigstellungsbenachrichtigung. Keine besondere Einrichtung nötig – es funktioniert automatisch.',
+      'helpBackgroundDesc':
+          'Auf Android laufen Dateiübertragungen weiter, auch wenn Sie zu einer anderen App wechseln oder den Bildschirm ausschalten. Eine permanente Benachrichtigung zeigt den aktuellen Dateinamen, den Fortschritt in Prozent und die Übertragungsgeschwindigkeit. Die App verwendet einen Vordergrund-Dienst und einen Wakelock, um zu verhindern, dass Android die Übertragung beendet. Nach Abschluss erhalten Sie eine Fertigstellungsbenachrichtigung. Keine besondere Einrichtung nötig – es funktioniert automatisch.',
       'helpMagicLink': 'Magic Link',
-      'helpMagicLinkDesc': 'Übertragen Sie Dateien zwischen Geräten in völlig unterschiedlichen Netzwerken – zum Beispiel von zu Hause ins Büro oder an das Gerät eines Freundes in einer anderen Stadt. Ein Gerät tippt auf „Raum erstellen" und erhält einen 6-stelligen PIN-Code. Das andere Gerät tippt auf „Raum beitreten" und gibt die PIN ein. Eine direkte Peer-to-Peer-Verbindung wird über einen WebRTC-Signalisierungsserver für den ersten Handshake hergestellt, danach fließen die Daten nach Möglichkeit direkt zwischen den Geräten. Alle Standardfunktionen sind verfügbar: Dateiversand, Zwischenablage-Freigabe und Fortschrittsanzeige.',
+      'helpMagicLinkDesc':
+          'Übertragen Sie Dateien zwischen Geräten in völlig unterschiedlichen Netzwerken – zum Beispiel von zu Hause ins Büro oder an das Gerät eines Freundes in einer anderen Stadt. Ein Gerät tippt auf „Raum erstellen" und erhält einen 6-stelligen PIN-Code. Das andere Gerät tippt auf „Raum beitreten" und gibt die PIN ein. Eine direkte Peer-to-Peer-Verbindung wird über einen WebRTC-Signalisierungsserver für den ersten Handshake hergestellt, danach fließen die Daten nach Möglichkeit direkt zwischen den Geräten. Alle Standardfunktionen sind verfügbar: Dateiversand, Zwischenablage-Freigabe und Fortschrittsanzeige.',
       'webPortal': 'Web-Portal',
       'helpWebPortal': 'Web-Portal',
-      'helpWebPortalDesc': 'Greifen Sie von jedem Webbrowser im selben Netzwerk auf Ihr Gerät zu – keine App-Installation auf der anderen Seite erforderlich. Gehen Sie zu den Einstellungen und aktivieren Sie das Web-Portal, um die Zugangs-URL zu sehen (z. B. http://192.168.1.50:8080). Öffnen Sie diese URL auf einem beliebigen Gerät mit Browser: Laptop, Tablet oder sogar Smart-TV. Sie können über die Web-Oberfläche Dateien auf Ihr Gerät hochladen und von ihm herunterladen. Ideal für schnelle Übertragungen von einem Computer, auf dem Sie die App nicht installieren möchten.',
+      'helpWebPortalDesc':
+          'Greifen Sie von jedem Webbrowser im selben Netzwerk auf Ihr Gerät zu – keine App-Installation auf der anderen Seite erforderlich. Gehen Sie zu den Einstellungen und aktivieren Sie das Web-Portal, um die Zugangs-URL zu sehen (z. B. http://192.168.1.50:8080). Öffnen Sie diese URL auf einem beliebigen Gerät mit Browser: Laptop, Tablet oder sogar Smart-TV. Sie können über die Web-Oberfläche Dateien auf Ihr Gerät hochladen und von ihm herunterladen. Ideal für schnelle Übertragungen von einem Computer, auf dem Sie die App nicht installieren möchten.',
       'helpAutoSync': 'Auto-Sync im LAN',
-      'helpAutoSyncDesc': 'Wenn aktiviert, starten Sync-Aufträge automatisch, sobald das Zielgerät im Netzwerk erkannt wird. Sie müssen die App nicht öffnen oder etwas antippen – verbinden Sie sich einfach mit demselben WLAN und die Synchronisierung beginnt. Dies ist ideal für Szenarien wie: automatisches Sichern Ihrer Handyfotos auf Ihren PC jedes Mal, wenn Sie nach Hause kommen, oder Ihre Arbeitsdokumente synchron halten, wann immer Sie sich mit dem Büronetzwerk verbinden.',
+      'helpAutoSyncDesc':
+          'Wenn aktiviert, starten Sync-Aufträge automatisch, sobald das Zielgerät im Netzwerk erkannt wird. Sie müssen die App nicht öffnen oder etwas antippen – verbinden Sie sich einfach mit demselben WLAN und die Synchronisierung beginnt. Dies ist ideal für Szenarien wie: automatisches Sichern Ihrer Handyfotos auf Ihren PC jedes Mal, wenn Sie nach Hause kommen, oder Ihre Arbeitsdokumente synchron halten, wann immer Sie sich mit dem Büronetzwerk verbinden.',
       'helpSyncReceiveFolder': 'Sync-Empfangsordner',
-      'helpSyncReceiveFolderDesc': 'Standardmäßig werden über Sync empfangene Dateien in Ihrem Download-Ordner im Unterordner „Sync" gespeichert, organisiert nach Absendername und Auftragsname (z. B. Downloads/Sync/Handy/Dokumente/). Sie können diesen Basisordner in den Einstellungen unter „Sync-Empfangsordner" ändern. Jeder Sync-Auftrag von jedem Gerät erhält einen eigenen Unterordner, sodass sich Dateien verschiedener Sync-Quellen niemals überschneiden.',
+      'helpSyncReceiveFolderDesc':
+          'Standardmäßig werden über Sync empfangene Dateien in Ihrem Download-Ordner im Unterordner „Sync" gespeichert, organisiert nach Absendername und Auftragsname (z. B. Downloads/Sync/Handy/Dokumente/). Sie können diesen Basisordner in den Einstellungen unter „Sync-Empfangsordner" ändern. Jeder Sync-Auftrag von jedem Gerät erhält einen eigenen Unterordner, sodass sich Dateien verschiedener Sync-Quellen niemals überschneiden.',
       'syncSetupRequest': 'Sync-Anfrage',
       'syncSetupAccept': 'Akzeptieren',
       'syncSetupReject': 'Ablehnen',
@@ -1367,7 +1574,8 @@ class AppLocalizations {
       'syncPairings': 'Gekoppelte Geräte',
       'syncRemovePairing': 'Kopplung entfernen',
       'syncPairingRemoved': 'Kopplung entfernt',
-      'syncPairingRemoveConfirm': 'Kopplung "{name}" mit {device} entfernen? Zukünftige Syncs erfordern erneute Bestätigung.',
+      'syncPairingRemoveConfirm':
+          'Kopplung "{name}" mit {device} entfernen? Zukünftige Syncs erfordern erneute Bestätigung.',
       'syncReceivedFiles': 'Dateien empfangen',
       'syncRetryFailed': 'Fehlgeschlagene wiederholen',
       'syncCopyErrorReport': 'Fehlerbericht kopieren',
@@ -1375,24 +1583,34 @@ class AppLocalizations {
       'syncDirectionOneWay': 'Einweg',
       'syncDirectionBidirectional': 'Bidirektional',
       'helpSyncPairing': 'Sync-Kopplung',
-      'helpSyncPairingDesc': 'Beim ersten Start eines Syncs zeigt das Empfängergerät einen Bestätigungsdialog, in dem der Zielordner gewählt werden kann. Nach Akzeptierung wird eine Kopplung erstellt — zukünftige Syncs zum selben Gerät werden automatisch akzeptiert. Kopplungen können über den Sync-Bildschirm verwaltet werden. Beide Geräte teilen dieselbe Job-ID, was intelligente bidirektionale Synchronisation mit Dateiänderungserkennung ermöglicht.',
+      'helpSyncPairingDesc':
+          'Beim ersten Start eines Syncs zeigt das Empfängergerät einen Bestätigungsdialog, in dem der Zielordner gewählt werden kann. Nach Akzeptierung wird eine Kopplung erstellt — zukünftige Syncs zum selben Gerät werden automatisch akzeptiert. Kopplungen können über den Sync-Bildschirm verwaltet werden. Beide Geräte teilen dieselbe Job-ID, was intelligente bidirektionale Synchronisation mit Dateiänderungserkennung ermöglicht.',
       'helpTips': 'Tipps',
-      'helpTip1': 'Beide Geräte müssen im selben Netzwerk sein, damit die automatische Erkennung funktioniert. Verwenden Sie Magic Link oder Hotspot für verschiedene Netzwerke.',
-      'helpTip2': 'Wenn Geräte nicht erkannt werden, überprüfen Sie Ihre Firewall-Einstellungen und stellen Sie sicher, dass UDP-Broadcast auf Port 42224 erlaubt ist.',
-      'helpTip3': 'Kabelgebundene Ethernet-Verbindungen sind schneller und stabiler als WLAN bei der Übertragung großer Dateien.',
-      'helpTip4': 'Nutzen Sie die Bandbreitendrosselung in den Einstellungen, um die Upload-Geschwindigkeit zu begrenzen und ein langsames Netzwerk nicht zu überlasten.',
-      'helpTip5': 'Aktivieren Sie Auto-Sync, damit Ihre Ordner ohne manuelles Eingreifen aktuell bleiben.',
-      'helpTip6': 'Sie können ganze Ordner senden – die Verzeichnisstruktur bleibt auf dem Empfangsgerät erhalten.',
-      'helpTip7': 'Die Zwischenablage-Synchronisierung funktioniert sowohl mit Text als auch mit Bildern – ideal zum Teilen von Links oder Screenshots.',
+      'helpTip1':
+          'Beide Geräte müssen im selben Netzwerk sein, damit die automatische Erkennung funktioniert. Verwenden Sie Magic Link oder Hotspot für verschiedene Netzwerke.',
+      'helpTip2':
+          'Wenn Geräte nicht erkannt werden, überprüfen Sie Ihre Firewall-Einstellungen und stellen Sie sicher, dass UDP-Broadcast auf Port 42224 erlaubt ist.',
+      'helpTip3':
+          'Kabelgebundene Ethernet-Verbindungen sind schneller und stabiler als WLAN bei der Übertragung großer Dateien.',
+      'helpTip4':
+          'Nutzen Sie die Bandbreitendrosselung in den Einstellungen, um die Upload-Geschwindigkeit zu begrenzen und ein langsames Netzwerk nicht zu überlasten.',
+      'helpTip5':
+          'Aktivieren Sie Auto-Sync, damit Ihre Ordner ohne manuelles Eingreifen aktuell bleiben.',
+      'helpTip6':
+          'Sie können ganze Ordner senden – die Verzeichnisstruktur bleibt auf dem Empfangsgerät erhalten.',
+      'helpTip7':
+          'Die Zwischenablage-Synchronisierung funktioniert sowohl mit Text als auch mit Bildern – ideal zum Teilen von Links oder Screenshots.',
       'aboutApp': 'Über LifeOS AnyWhere',
-      'aboutDesc': 'Plattformübergreifende Dateifreigabe im lokalen Netzwerk. Senden Sie Dateien, Ordner und Zwischenablage-Inhalte sofort zwischen all Ihren Geräten.',
+      'aboutDesc':
+          'Plattformübergreifende Dateifreigabe im lokalen Netzwerk. Senden Sie Dateien, Ordner und Zwischenablage-Inhalte sofort zwischen all Ihren Geräten.',
       'developer': 'Entwickler',
       'license': 'Lizenz',
       'sourceCode': 'Quellcode',
       'allRightsReserved': 'Alle Rechte vorbehalten.',
       'website': 'Webseite',
       'installOnOtherDevices': 'Auf anderen Geräten installieren',
-      'installOnOtherDevicesDesc': 'Laden Sie LifeOS AnyWhere auf Ihre anderen Geräte herunter',
+      'installOnOtherDevicesDesc':
+          'Laden Sie LifeOS AnyWhere auf Ihre anderen Geräte herunter',
       'platformSupport': 'Unterstützte Plattformen',
       'platformSupportDesc': 'Android, Android TV, iOS, Windows, Linux, macOS',
       'syncProgress': '{synced} / {total} Dateien',
@@ -1425,7 +1643,8 @@ class AppLocalizations {
       'newSync': 'Neue Synchronisation',
       'syncName': 'Sync-Name',
       'syncJobs': 'Sync-Aufträge',
-      'noSyncJobs': 'Noch keine Sync-Aufträge.\nTippen Sie auf die Schaltfläche unten.',
+      'noSyncJobs':
+          'Noch keine Sync-Aufträge.\nTippen Sie auf die Schaltfläche unten.',
       'createSync': 'Erstellen',
       'deleteSync': 'Löschen',
       'deleteConfirm': 'Diesen Sync-Auftrag löschen?',
@@ -1454,12 +1673,14 @@ class AppLocalizations {
       // Timeline
       'timeline': 'Zeitleiste',
       'timelineEmpty': 'Noch keine Aktivität',
-      'timelineEmptyDesc': 'Dateiübertragungen und Zwischenablage-Syncs erscheinen hier',
+      'timelineEmptyDesc':
+          'Dateiübertragungen und Zwischenablage-Syncs erscheinen hier',
       'today': 'Heute',
       'yesterday': 'Gestern',
       // Magic Link (Relay)
       'magicLink': 'Magic Link',
-      'magicLinkDesc': 'Dateien zwischen Geräten in verschiedenen Netzwerken über eine Peer-to-Peer-Verbindung übertragen',
+      'magicLinkDesc':
+          'Dateien zwischen Geräten in verschiedenen Netzwerken über eine Peer-to-Peer-Verbindung übertragen',
       'createRoom': 'Raum erstellen',
       'joinRoom': 'Raum beitreten',
       'roomId': 'Raum-ID',
@@ -1476,7 +1697,8 @@ class AppLocalizations {
       'syncTargetDevice': 'Zielgerät',
       'syncTargetFolder': 'Zielordner (Optional)',
       'syncDefaultFolder': 'Standard (automatisch)',
-      'syncTargetFolderHint': 'Leer lassen, um den Standard-Sync-Ordner auf dem Zielgerät zu verwenden.',
+      'syncTargetFolderHint':
+          'Leer lassen, um den Standard-Sync-Ordner auf dem Zielgerät zu verwenden.',
       'syncSelectDevice': 'Gerät auswählen',
       'noDevicesFound': 'Keine Geräte im Netzwerk gefunden',
       'createSyncJob': 'Erstellen',
@@ -1485,8 +1707,10 @@ class AppLocalizations {
       'syncDirection': 'Sync-Richtung',
       'syncOneWay': 'Einseitig',
       'syncBidirectional': 'Beidseitig',
-      'syncOneWayDesc': 'Dateien werden nur von der Quelle zum Ziel übertragen.',
-      'syncBidirectionalDesc': 'Änderungen auf beiden Seiten werden synchronisiert.',
+      'syncOneWayDesc':
+          'Dateien werden nur von der Quelle zum Ziel übertragen.',
+      'syncBidirectionalDesc':
+          'Änderungen auf beiden Seiten werden synchronisiert.',
       'conflictStrategy': 'Konfliktlösung',
       'conflictNewerWins': 'Neuere gewinnt',
       'conflictAskUser': 'Frag mich',
@@ -1495,22 +1719,28 @@ class AppLocalizations {
       'syncModeGeneral': 'Allgemein',
       'syncModePhotoVideo': 'Foto/Video',
       'convertHeicToJpg': 'HEIC → JPG',
-      'convertHeicToJpgDesc': 'Apple HEIC-Fotos automatisch in JPG konvertieren',
+      'convertHeicToJpgDesc':
+          'Apple HEIC-Fotos automatisch in JPG konvertieren',
       'dateSubfolders': 'Datum-Unterordner',
       'mirrorDeletions': 'Löschungen spiegeln',
       'mirrorDeletionsDesc': 'Am Ziel löschen, wenn von der Quelle gelöscht',
       'syncFilters': 'Filter',
-      'syncFiltersDesc': 'Bestimmen Sie mit Glob-Mustern, welche Dateien synchronisiert werden.',
+      'syncFiltersDesc':
+          'Bestimmen Sie mit Glob-Mustern, welche Dateien synchronisiert werden.',
       'includePatterns': 'Einschließen',
       'excludePatterns': 'Ausschließen',
       'helpSyncDirection': 'Sync-Richtung & Konflikte',
-      'helpSyncDirectionDesc': 'Jeder Sync-Auftrag kann einseitig oder beidseitig sein. Einseitig (Backup-Stil) überträgt Dateien nur von der Quelle zum Ziel – ideal zum Sichern Ihres Handys auf Ihren PC. Beidseitige Synchronisierung spiegelt Änderungen in beide Richtungen: Wenn Sie eine Datei auf einem der Geräte bearbeiten, wird die Änderung auf das andere übertragen. Wenn dieselbe Datei auf beiden Geräten geändert wird, entsteht ein Konflikt. Sie können wählen, wie Konflikte gelöst werden: „Neuere gewinnt" wählt automatisch die zuletzt geänderte Version, „Mich fragen" zeigt für jeden Konflikt einen Dialog, und „Beide behalten" speichert beide Versionen mit einem Suffix.',
+      'helpSyncDirectionDesc':
+          'Jeder Sync-Auftrag kann einseitig oder beidseitig sein. Einseitig (Backup-Stil) überträgt Dateien nur von der Quelle zum Ziel – ideal zum Sichern Ihres Handys auf Ihren PC. Beidseitige Synchronisierung spiegelt Änderungen in beide Richtungen: Wenn Sie eine Datei auf einem der Geräte bearbeiten, wird die Änderung auf das andere übertragen. Wenn dieselbe Datei auf beiden Geräten geändert wird, entsteht ein Konflikt. Sie können wählen, wie Konflikte gelöst werden: „Neuere gewinnt" wählt automatisch die zuletzt geänderte Version, „Mich fragen" zeigt für jeden Konflikt einen Dialog, und „Beide behalten" speichert beide Versionen mit einem Suffix.',
       'helpSyncPhotoMode': 'Foto/Video-Modus',
-      'helpSyncPhotoModeDesc': 'Speziell für die Synchronisierung von Fotos und Videos von Ihrem Handy entwickelt. Wenn aktiviert, erkennt die App automatisch den Kameraordner (DCIM). Fotos werden auf dem Zielgerät in datumsbasierte Unterordner sortiert (z. B. 2026/01, 2026/02), damit Tausende von Fotos übersichtlich organisiert bleiben. Apple HEIC-Fotos können automatisch in JPG konvertiert werden, um die Kompatibilität mit Windows und anderen Plattformen sicherzustellen. Dieser Modus eignet sich perfekt zum Freigeben von Handyspeicher: Synchronisieren Sie Ihre Fotos auf Ihren PC und löschen Sie sie dann vom Handy.',
+      'helpSyncPhotoModeDesc':
+          'Speziell für die Synchronisierung von Fotos und Videos von Ihrem Handy entwickelt. Wenn aktiviert, erkennt die App automatisch den Kameraordner (DCIM). Fotos werden auf dem Zielgerät in datumsbasierte Unterordner sortiert (z. B. 2026/01, 2026/02), damit Tausende von Fotos übersichtlich organisiert bleiben. Apple HEIC-Fotos können automatisch in JPG konvertiert werden, um die Kompatibilität mit Windows und anderen Plattformen sicherzustellen. Dieser Modus eignet sich perfekt zum Freigeben von Handyspeicher: Synchronisieren Sie Ihre Fotos auf Ihren PC und löschen Sie sie dann vom Handy.',
       'helpMirrorDeletions': 'Löschungen spiegeln',
-      'helpMirrorDeletionsDesc': 'Wenn „Löschungen spiegeln" bei einem Sync-Auftrag aktiviert ist, wird das Löschen einer Datei auf dem Quellgerät diese auch auf dem Zielgerät löschen. So bleiben beide Seiten wirklich synchron – wenn Sie alte Dateien auf einem Gerät aufräumen, werden sie überall aufgeräumt. Seien Sie vorsichtig mit dieser Option: Wenn Sie versehentlich eine Datei löschen, wird sie auch auf dem Ziel gelöscht. Wenn deaktiviert, werden Löschungen nicht weitergegeben und Dateien bleiben auf dem Ziel erhalten, auch nachdem sie von der Quelle gelöscht wurden.',
+      'helpMirrorDeletionsDesc':
+          'Wenn „Löschungen spiegeln" bei einem Sync-Auftrag aktiviert ist, wird das Löschen einer Datei auf dem Quellgerät diese auch auf dem Zielgerät löschen. So bleiben beide Seiten wirklich synchron – wenn Sie alte Dateien auf einem Gerät aufräumen, werden sie überall aufgeräumt. Seien Sie vorsichtig mit dieser Option: Wenn Sie versehentlich eine Datei löschen, wird sie auch auf dem Ziel gelöscht. Wenn deaktiviert, werden Löschungen nicht weitergegeben und Dateien bleiben auf dem Ziel erhalten, auch nachdem sie von der Quelle gelöscht wurden.',
       'helpSyncFilters': 'Sync-Filter',
-      'helpSyncFiltersDesc': 'Steuern Sie mit Ein- und Ausschlussmustern (Glob-Syntax) genau, welche Dateien synchronisiert werden. Beispiel: Fügen Sie „*.jpg, *.png" zu Einschließen hinzu, um nur Bilder zu synchronisieren, oder fügen Sie „*.tmp, Thumbs.db, .DS_Store" zu Ausschließen hinzu, um temporäre Dateien zu überspringen. Muster gelten für Dateinamen, nicht für vollständige Pfade. Wenn Einschließen leer ist, werden standardmäßig alle Dateien einbezogen. Wenn eine Datei sowohl einem Ein- als auch einem Ausschlussmuster entspricht, hat Ausschließen Vorrang. Dies ist nützlich, um nur bestimmte Dateitypen zu synchronisieren oder große Dateien auszulassen, die Sie nicht benötigen.',
+      'helpSyncFiltersDesc':
+          'Steuern Sie mit Ein- und Ausschlussmustern (Glob-Syntax) genau, welche Dateien synchronisiert werden. Beispiel: Fügen Sie „*.jpg, *.png" zu Einschließen hinzu, um nur Bilder zu synchronisieren, oder fügen Sie „*.tmp, Thumbs.db, .DS_Store" zu Ausschließen hinzu, um temporäre Dateien zu überspringen. Muster gelten für Dateinamen, nicht für vollständige Pfade. Wenn Einschließen leer ist, werden standardmäßig alle Dateien einbezogen. Wenn eine Datei sowohl einem Ein- als auch einem Ausschlussmuster entspricht, hat Ausschließen Vorrang. Dies ist nützlich, um nur bestimmte Dateitypen zu synchronisieren oder große Dateien auszulassen, die Sie nicht benötigen.',
       'justNow': 'Gerade eben',
       'syncConflicts': 'Sync-Konflikte',
       'syncResolveConflicts': 'Lösen',
@@ -1525,9 +1755,11 @@ class AppLocalizations {
       'syncWaitingConflicts': 'Warte auf Konfliktlösung…',
       // Faz 3+4 keys
       'autoSyncOnLan': 'Auto-Sync im LAN',
-      'autoSyncOnLanDesc': 'Sync automatisch starten, wenn ein passendes Gerät im Netzwerk gefunden wird',
+      'autoSyncOnLanDesc':
+          'Sync automatisch starten, wenn ein passendes Gerät im Netzwerk gefunden wird',
       'backgroundSync': 'Hintergrund-Sync',
-      'backgroundSyncDesc': 'Dateien im Hintergrund synchronisieren, wenn die App geschlossen ist',
+      'backgroundSyncDesc':
+          'Dateien im Hintergrund synchronisieren, wenn die App geschlossen ist',
       'syncCameraHint': 'Typischer Kameraordner',
       'syncAutoTriggered': 'Auto-Sync ausgelöst',
       'syncIncoming': 'Eingehende Sync',
@@ -1564,12 +1796,16 @@ class AppLocalizations {
       'hotspotConnected': 'Verbunden!',
       'hotspotNotSupported': 'Dieses Gerät kann keinen Hotspot erstellen',
       'hotspotUseOtherDevice': 'Stattdessen auf dem anderen Gerät starten',
-      'webPortalScanInfo': 'Scannen Sie diesen QR mit der Kamera eines beliebigen Geräts',
+      'webPortalScanInfo':
+          'Scannen Sie diesen QR mit der Kamera eines beliebigen Geräts',
       'hotspotCreate': 'Hotspot erstellen',
-      'hotspotCreateDesc': 'WLAN-Hotspot starten, damit andere beitreten können',
+      'hotspotCreateDesc':
+          'WLAN-Hotspot starten, damit andere beitreten können',
       'hotspotJoin': 'Hotspot beitreten',
-      'hotspotJoinDesc': 'QR scannen, um sich mit dem Hotspot eines anderen Geräts zu verbinden',
-      'hotspotJoinDesktopHint': 'Verwenden Sie ein Mobilgerät, um den Hotspot-QR-Code zu scannen',
+      'hotspotJoinDesc':
+          'QR scannen, um sich mit dem Hotspot eines anderen Geräts zu verbinden',
+      'hotspotJoinDesktopHint':
+          'Verwenden Sie ein Mobilgerät, um den Hotspot-QR-Code zu scannen',
       // Server Sync (SFTP)
       'serverSync': 'Server-Sync',
       'addServer': 'Server hinzufügen',
@@ -1602,15 +1838,18 @@ class AppLocalizations {
       'serverSyncTargetServer': 'Zielserver',
       'serverSyncRemoteSubfolder': 'Remote-Unterordner',
       'createServerSyncJob': 'Job erstellen',
-      'noServersConfigured': 'Keine Server konfiguriert. Fügen Sie zuerst einen Server hinzu.',
+      'noServersConfigured':
+          'Keine Server konfiguriert. Fügen Sie zuerst einen Server hinzu.',
       'serverSyncJobs': 'Sync-Jobs',
       'serverSyncConnecting': 'Verbindung wird hergestellt…',
       'serverSyncScanning': 'Remote-Dateien werden gescannt…',
       'serverSyncDisconnected': 'Getrennt',
       'serverSyncLiveWatch': 'Live-Überwachung',
-      'serverSyncLiveWatchDesc': 'Änderungen automatisch auf den Server übertragen',
+      'serverSyncLiveWatchDesc':
+          'Änderungen automatisch auf den Server übertragen',
       'gdrivePathHint': 'MeineDokumente/Backup',
-      'gdrivePathInfo': 'Sie können vorhandene Google Drive-Ordner nicht durchsuchen. Geben Sie einen Ordnernamen ein (z.B. "MeineDokumente/Backup"), die App erstellt ihn automatisch.',
+      'gdrivePathInfo':
+          'Sie können vorhandene Google Drive-Ordner nicht durchsuchen. Geben Sie einen Ordnernamen ein (z.B. "MeineDokumente/Backup"), die App erstellt ihn automatisch.',
       'syncNoJobs': 'Noch keine Sync-Jobs',
       'syncNoJobsDesc': 'Erstellen Sie einen neuen Sync-Job',
       'syncSuccessful': 'Erfolgreich',
@@ -1646,13 +1885,16 @@ class AppLocalizations {
       'uploadFailed': 'Upload fehlgeschlagen',
       'ok': 'OK',
       'helpHotspot': 'Hotspot-Verbindung',
-      'helpHotspotDesc': 'Wenn beide Geräte nicht im selben WLAN sein können, kann ein Gerät einen WLAN-Hotspot erstellen und das andere sich damit verbinden. Dies erstellt ein direktes lokales Netzwerk zwischen beiden Geräten ohne Router oder Internet. Nach der Verbindung mit dem Hotspot erkennt die App das andere Gerät automatisch. Alle Funktionen arbeiten normal: Dateiübertragung, Zwischenablage-Freigabe und Ordnersynchronisation.',
+      'helpHotspotDesc':
+          'Wenn beide Geräte nicht im selben WLAN sein können, kann ein Gerät einen WLAN-Hotspot erstellen und das andere sich damit verbinden. Dies erstellt ein direktes lokales Netzwerk zwischen beiden Geräten ohne Router oder Internet. Nach der Verbindung mit dem Hotspot erkennt die App das andere Gerät automatisch. Alle Funktionen arbeiten normal: Dateiübertragung, Zwischenablage-Freigabe und Ordnersynchronisation.',
       'helpServerSync': 'Server-Sync (SFTP)',
-      'helpServerSyncDesc': 'Synchronisieren Sie Ihre Dateien mit einem entfernten SFTP-Server wie NAS, VPS oder jedem SSH-fähigen Gerät. Konfigurieren Sie Ihre Serververbindung (Host, Port, Benutzername, Passwort oder privater Schlüssel) in den Einstellungen. Erstellen Sie dann einen Sync-Auftrag mit lokalem Ordner und Remote-Pfad. Die App vergleicht beide Seiten und überträgt nur Änderungen. Unterstützt Live-Überwachungsmodus für automatische Synchronisation bei lokalen Dateiänderungen.',
+      'helpServerSyncDesc':
+          'Synchronisieren Sie Ihre Dateien mit einem entfernten SFTP-Server wie NAS, VPS oder jedem SSH-fähigen Gerät. Konfigurieren Sie Ihre Serververbindung (Host, Port, Benutzername, Passwort oder privater Schlüssel) in den Einstellungen. Erstellen Sie dann einen Sync-Auftrag mit lokalem Ordner und Remote-Pfad. Die App vergleicht beide Seiten und überträgt nur Änderungen. Unterstützt Live-Überwachungsmodus für automatische Synchronisation bei lokalen Dateiänderungen.',
       'notifTransferStarted': '{sender} \u2192 {file}',
       'notifTransferComplete': '\u2705 {file}',
       'notifTransferFailed': '\u274c {file}',
-      'notifSyncReceiving': '\uD83D\uDD04 Sync von {sender} wird empfangen\u2026',
+      'notifSyncReceiving':
+          '\uD83D\uDD04 Sync von {sender} wird empfangen\u2026',
       'notifSyncComplete': '\u2705 {job}: {count} Dateien \u2192 {device}',
       'notifTransferring': 'Übertragung\u2026',
       'notifTransferringCount': '{count} Dateien werden übertragen\u2026',
@@ -1668,13 +1910,15 @@ class AppLocalizations {
       'upgradeToPro': 'Auf Pro upgraden',
       'iHaveACode': 'Ich habe einen Code',
       'activateCode': 'Code aktivieren',
-      'activateCodeDesc': 'Geben Sie den Aktivierungscode aus Ihrem Pro-Kauf ein, um Pro auf diesem Gerät freizuschalten.',
+      'activateCodeDesc':
+          'Geben Sie den Aktivierungscode aus Ihrem Pro-Kauf ein, um Pro auf diesem Gerät freizuschalten.',
       'activating': 'Aktivierung…',
       'activate': 'Aktivieren',
       'proActivated': 'Pro erfolgreich aktiviert!',
       'activationFailed': 'Aktivierung fehlgeschlagen. Bitte erneut versuchen.',
       'invalidActivationCode': 'Ungültiges Aktivierungscode-Format.',
-      'deviceLimitReached': 'Gerätelimit erreicht. Entfernen Sie zuerst ein Gerät.',
+      'deviceLimitReached':
+          'Gerätelimit erreicht. Entfernen Sie zuerst ein Gerät.',
       'activationCode': 'Aktivierungscode',
       'activationCodeHint': 'Teilen Sie diesen Code mit Ihren anderen Geräten.',
       'activeDevices': 'Aktive Geräte: {current}/{max}',
@@ -1690,13 +1934,15 @@ class AppLocalizations {
       'storeNotReady': 'Store noch nicht verfügbar.',
       'upgradeSuccess': 'Erfolgreich auf Pro aktualisiert!',
       'cancelTransfer': 'Übertragung abbrechen',
-      'cancelTransferConfirm': 'Möchten Sie diese Übertragung wirklich abbrechen?',
+      'cancelTransferConfirm':
+          'Möchten Sie diese Übertragung wirklich abbrechen?',
       'yes': 'Ja',
       'no': 'Nein',
       'proFeature': 'Pro-Funktion',
       'proFeature_unlimitedSync': 'Unbegrenzte Sync-Jobs erfordern Pro.',
       'proFeature_serverSync': 'Server-Sync (SFTP/FTP/WebDAV) erfordert Pro.',
-      'proFeature_cloudSync': 'Cloud-Sync (Google Drive/OneDrive) erfordert Pro.',
+      'proFeature_cloudSync':
+          'Cloud-Sync (Google Drive/OneDrive) erfordert Pro.',
       'proFeature_relayTransfer': 'Internet-Transfer via Relay erfordert Pro.',
       'proFeature_quickSendToServer': 'Schnellsenden an Server erfordert Pro.',
       'proFeature_liveWatch': 'Live-Dateiüberwachung erfordert Pro.',
@@ -1704,9 +1950,11 @@ class AppLocalizations {
       'proFeature_scheduledSync': 'Geplanter Sync erfordert Pro.',
       'proFeature_unlimitedFileSize': 'Dateien über 500 MB erfordern Pro.',
       'shareProLan': 'Pro über LAN teilen',
-      'shareProLanConfirm': 'Pro-Aktivierungscode mit {name} teilen? Dies aktiviert Pro auf dem Gerät.',
+      'shareProLanConfirm':
+          'Pro-Aktivierungscode mit {name} teilen? Dies aktiviert Pro auf dem Gerät.',
       'shareProLanSuccess': 'Pro erfolgreich mit {name} geteilt!',
-      'shareProLanFailed': 'Pro konnte nicht geteilt werden. Stellen Sie sicher, dass das Gerät online ist.',
+      'shareProLanFailed':
+          'Pro konnte nicht geteilt werden. Stellen Sie sicher, dass das Gerät online ist.',
       'share': 'Teilen',
     },
 
@@ -1718,7 +1966,9 @@ class AppLocalizations {
       'devices': 'Appareils',
       'transfers': 'Transferts',
       'settings': 'Paramètres',
+      'more': 'Plus',
       'collapse': 'Réduire',
+      'expand': 'Développer',
       'sync': 'Synchro.',
       'noDevices': 'Aucun appareil trouvé',
       'scanning': 'Recherche d\'appareils…',
@@ -1733,6 +1983,18 @@ class AppLocalizations {
       'noTransfers': 'Aucun transfert',
       'noTransfersDesc': 'Les fichiers envoyés et reçus apparaîtront ici',
       'clearCompleted': 'Effacer',
+      'activeTransfers': 'Transferts actifs',
+      'attentionRequired': 'Intervention requise',
+      'retryFailed': 'Impossible de relancer le transfert',
+      'transferQueue': 'File d’attente des transferts',
+      'cancelQueue': 'Annuler la file',
+      'cancelQueueConfirm':
+          'Annuler le transfert actuel et retirer tous les fichiers en attente ?',
+      'moveUp': 'Monter',
+      'moveDown': 'Descendre',
+      'removeFromQueue': 'Retirer de la file',
+      'transferControlUnavailable':
+          'Le contrôle du transfert n’est plus disponible',
       'sending': 'Envoi…',
       'receiving': 'Réception…',
       'waiting': 'En attente…',
@@ -1740,6 +2002,7 @@ class AppLocalizations {
       'accepted': 'Accepté',
       'rejected': 'Refusé',
       'transferring': 'Transfert',
+      'paused': 'En pause',
       'completed': 'Terminé',
       'failed': 'Échoué',
       'cancelled': 'Annulé',
@@ -1782,7 +2045,8 @@ class AppLocalizations {
       'save': 'Enregistrer',
       'retry': 'Réessayer',
       'storagePermission': 'Permission de stockage requise',
-      'storagePermissionDesc': 'LifeOS AnyWhere a besoin de l\'accès au stockage pour envoyer et recevoir des fichiers.',
+      'storagePermissionDesc':
+          'LifeOS AnyWhere a besoin de l\'accès au stockage pour envoyer et recevoir des fichiers.',
       'grant': 'Autoriser',
       'openSettings': 'Ouvrir les paramètres',
       'permissionDenied': 'Permission refusée',
@@ -1812,6 +2076,7 @@ class AppLocalizations {
       'selectFolder': 'Choisir un dossier',
       'sendFileOrFolder': 'Envoyer un fichier ou dossier',
       'sendFiles': 'Envoyer des fichiers',
+      'recentTargets': 'Destinations récentes',
       'folderSending': 'Envoi du dossier…',
       'fileReceived': 'Fichier reçu',
       'fileReceiving': 'Réception du fichier…',
@@ -1821,20 +2086,25 @@ class AppLocalizations {
       'clipboardSent': 'Presse-papiers envoyé',
       'clipboard': 'Presse-papiers',
       'clipboardNoEntries': 'Aucune entrée',
-      'clipboardNoEntriesDesc': 'Le contenu partagé du presse-papiers apparaîtra ici',
+      'clipboardNoEntriesDesc':
+          'Le contenu partagé du presse-papiers apparaîtra ici',
       'clearAll': 'Tout effacer',
       'copied': 'Copié dans le presse-papiers',
       'clipboardText': 'Texte',
       'clipboardImage': 'Image',
       'clipboardPasteAndSend': 'Coller et Envoyer',
       'clipboardSend': 'Envoyer le presse-papiers',
-      'clipboardSendHint': 'Copie le texte de votre presse-papiers et l\'envoie à un appareil à proximité',
+      'clipboardSendHint':
+          'Copie le texte de votre presse-papiers et l\'envoie à un appareil à proximité',
       'clipboardSentTo': 'Presse-papiers envoyé à',
       'delete': 'Supprimer',
       'copy': 'Copier',
       'pairDevice': 'Associer un appareil',
       'scanQr': 'Scanner ce code pour associer',
       'close': 'Fermer',
+      'play': 'Lire',
+      'openExternally': 'Ouvrir avec une autre application',
+      'previewUnavailable': 'Ce fichier ne peut pas être prévisualisé.',
       'pairedWith': 'Associé avec {name}',
       'invalidCode': 'Code QR invalide',
       'scanQrTitle': 'Scanner le code QR',
@@ -1851,7 +2121,8 @@ class AppLocalizations {
       'noTargetDevice': 'Aucun appareil cible',
       'folderSync': 'Sync dossier',
       'folderSyncBeta': 'Sync dossier (Bêta)',
-      'folderSyncDesc': 'Répliquer les modifications de dossier local vers un autre appareil.',
+      'folderSyncDesc':
+          'Répliquer les modifications de dossier local vers un autre appareil.',
       'sourceFolder': 'Dossier source',
       'targetDevice': 'Appareil cible',
       'selectFolderToSync': 'Choisir un dossier à synchroniser',
@@ -1865,38 +2136,54 @@ class AppLocalizations {
       'help': 'Aide',
       'helpUsage': 'Guide d\'utilisation',
       'helpDiscovery': 'Découverte d\'appareils',
-      'helpDiscoveryDesc': 'Tous vos appareils sur le même Wi-Fi ou réseau filaire sont détectés automatiquement — aucune configuration nécessaire. L\'app diffuse un signal toutes les quelques secondes pour trouver les appareils à proximité. Si un appareil n\'apparaît pas, vérifiez que les deux appareils sont sur le même réseau, qu\'aucun VPN ne bloque le trafic local, et que votre routeur autorise la communication entre appareils (certains réseaux invités bloquent cela). Vous pouvez aussi appuyer sur « Ajouter manuellement » et saisir l\'adresse IP directement.',
+      'helpDiscoveryDesc':
+          'Tous vos appareils sur le même Wi-Fi ou réseau filaire sont détectés automatiquement — aucune configuration nécessaire. L\'app diffuse un signal toutes les quelques secondes pour trouver les appareils à proximité. Si un appareil n\'apparaît pas, vérifiez que les deux appareils sont sur le même réseau, qu\'aucun VPN ne bloque le trafic local, et que votre routeur autorise la communication entre appareils (certains réseaux invités bloquent cela). Vous pouvez aussi appuyer sur « Ajouter manuellement » et saisir l\'adresse IP directement.',
       'helpSendFiles': 'Envoyer des fichiers',
-      'helpSendFilesDesc': 'Appuyez sur un appareil découvert pour choisir des fichiers ou dossiers à envoyer. Sur bureau (Windows, macOS, Linux), vous pouvez glisser-déposer des fichiers directement sur une carte appareil. Vous pouvez envoyer plusieurs fichiers à la fois — ils sont mis en file d\'attente et transférés un par un. Pendant le transfert, vous voyez la vitesse et la progression en temps réel. Si un fichier existe déjà chez le destinataire, le comportement dépend du paramètre « Écraser les fichiers existants ».',
+      'helpSendFilesDesc':
+          'Appuyez sur un appareil découvert pour choisir des fichiers ou dossiers à envoyer. Sur bureau (Windows, macOS, Linux), vous pouvez glisser-déposer des fichiers directement sur une carte appareil. Vous pouvez envoyer plusieurs fichiers à la fois — ils sont mis en file d\'attente et transférés un par un. Pendant le transfert, vous voyez la vitesse et la progression en temps réel. Si un fichier existe déjà chez le destinataire, le comportement dépend du paramètre « Écraser les fichiers existants ».',
       'helpReceiveFiles': 'Recevoir des fichiers',
-      'helpReceiveFilesDesc': 'Quand quelqu\'un vous envoie un fichier, une notification apparaît pour accepter ou refuser. Les fichiers acceptés sont enregistrés dans le dossier de téléchargement configuré dans les Paramètres. Vous pouvez changer ce dossier à tout moment. Activez « Accepter automatiquement les transferts » dans les Paramètres pour ignorer le dialogue de confirmation et recevoir tous les fichiers entrants automatiquement. Les fichiers reçus apparaissent dans l\'onglet Transferts avec des options pour ouvrir le fichier ou l\'afficher dans le gestionnaire de fichiers.',
+      'helpReceiveFilesDesc':
+          'Quand quelqu\'un vous envoie un fichier, une notification apparaît pour accepter ou refuser. Les fichiers acceptés sont enregistrés dans le dossier de téléchargement configuré dans les Paramètres. Vous pouvez changer ce dossier à tout moment. Activez « Accepter automatiquement les transferts » dans les Paramètres pour ignorer le dialogue de confirmation et recevoir tous les fichiers entrants automatiquement. Les fichiers reçus apparaissent dans l\'onglet Transferts avec des options pour ouvrir le fichier ou l\'afficher dans le gestionnaire de fichiers.',
       'helpQrPairing': 'Association QR',
-      'helpQrPairingDesc': 'Si les appareils ne sont pas détectés automatiquement (sous-réseaux différents, réseaux complexes), utilisez l\'association par code QR pour une connexion en un seul geste. Sur un appareil, allez dans l\'onglet Appareils et appuyez sur l\'icône QR pour afficher un code d\'association. Sur l\'autre appareil, appuyez sur « Scanner QR » et pointez la caméra vers le code. Une fois scanné, les appareils se connectent directement via l\'adresse IP intégrée dans le code QR. Cette association persiste jusqu\'au redémarrage de l\'app.',
+      'helpQrPairingDesc':
+          'Si les appareils ne sont pas détectés automatiquement (sous-réseaux différents, réseaux complexes), utilisez l\'association par code QR pour une connexion en un seul geste. Sur un appareil, allez dans l\'onglet Appareils et appuyez sur l\'icône QR pour afficher un code d\'association. Sur l\'autre appareil, appuyez sur « Scanner QR » et pointez la caméra vers le code. Une fois scanné, les appareils se connectent directement via l\'adresse IP intégrée dans le code QR. Cette association persiste jusqu\'au redémarrage de l\'app.',
       'helpManualIp': 'Connexion IP manuelle',
-      'helpManualIpDesc': 'Si le scan QR n\'est pas disponible (par ex. bureau sans caméra), vous pouvez vous connecter en saisissant l\'adresse IP manuellement. Allez dans l\'onglet Appareils, appuyez sur « Ajouter manuellement » et tapez l\'adresse IP de l\'autre appareil (par ex. 192.168.1.100). L\'app tentera de se connecter sur le port par défaut. Vous pouvez trouver l\'adresse IP de votre appareil dans l\'écran Paramètres ou dans les paramètres réseau de votre système.',
+      'helpManualIpDesc':
+          'Si le scan QR n\'est pas disponible (par ex. bureau sans caméra), vous pouvez vous connecter en saisissant l\'adresse IP manuellement. Allez dans l\'onglet Appareils, appuyez sur « Ajouter manuellement » et tapez l\'adresse IP de l\'autre appareil (par ex. 192.168.1.100). L\'app tentera de se connecter sur le port par défaut. Vous pouvez trouver l\'adresse IP de votre appareil dans l\'écran Paramètres ou dans les paramètres réseau de votre système.',
       'helpDragDrop': 'Glisser-déposer',
-      'helpDragDropDesc': 'Sur les plateformes bureau (Windows, macOS, Linux), vous pouvez glisser des fichiers ou dossiers depuis votre gestionnaire de fichiers et les déposer directement sur une carte appareil dans l\'app. Un indicateur de zone de dépôt apparaît lorsque vous survolez un appareil. Plusieurs fichiers peuvent être déposés en même temps. C\'est le moyen le plus rapide d\'envoyer des fichiers depuis le bureau — aucun dialogue de sélection de fichiers nécessaire.',
+      'helpDragDropDesc':
+          'Sur les plateformes bureau (Windows, macOS, Linux), vous pouvez glisser des fichiers ou dossiers depuis votre gestionnaire de fichiers et les déposer directement sur une carte appareil dans l\'app. Un indicateur de zone de dépôt apparaît lorsque vous survolez un appareil. Plusieurs fichiers peuvent être déposés en même temps. C\'est le moyen le plus rapide d\'envoyer des fichiers depuis le bureau — aucun dialogue de sélection de fichiers nécessaire.',
       'helpClipboard': 'Partage du presse-papiers',
-      'helpClipboardDesc': 'Partagez le contenu de votre presse-papiers (texte ou images) instantanément entre appareils. Appuyez sur l\'icône du presse-papiers sur une carte appareil ou utilisez le bouton « Coller et envoyer » dans l\'onglet Presse-papiers. Les entrées reçues apparaissent dans l\'onglet Presse-papiers avec un historique complet. Vous pouvez appuyer sur n\'importe quelle entrée pour la recopier dans votre presse-papiers. Texte et images sont tous deux supportés. Idéal pour partager rapidement des liens, mots de passe, extraits de code ou captures d\'écran entre votre téléphone et votre ordinateur.',
+      'helpClipboardDesc':
+          'Partagez le contenu de votre presse-papiers (texte ou images) instantanément entre appareils. Appuyez sur l\'icône du presse-papiers sur une carte appareil ou utilisez le bouton « Coller et envoyer » dans l\'onglet Presse-papiers. Les entrées reçues apparaissent dans l\'onglet Presse-papiers avec un historique complet. Vous pouvez appuyer sur n\'importe quelle entrée pour la recopier dans votre presse-papiers. Texte et images sont tous deux supportés. Idéal pour partager rapidement des liens, mots de passe, extraits de code ou captures d\'écran entre votre téléphone et votre ordinateur.',
       'helpSync': 'Synchronisation de dossiers',
-      'helpSyncDesc': 'Créez des tâches de synchronisation pour garder vos dossiers synchronisés entre vos appareils. Chaque tâche surveille un dossier source et reflète les changements vers un appareil cible. Vous pouvez créer plusieurs tâches indépendantes — par exemple, une pour les Documents, une pour les Photos et une pour les Projets. Les changements sont détectés automatiquement : nouveaux fichiers, modifications et suppressions sont tous synchronisés. Chaque tâche de sync est stockée dans son propre sous-dossier chez le destinataire (Sync/<NomAppareil>/<NomTâche>/), les fichiers de différentes tâches ne se mélangent jamais.',
+      'helpSyncDesc':
+          'Créez des tâches de synchronisation pour garder vos dossiers synchronisés entre vos appareils. Chaque tâche surveille un dossier source et reflète les changements vers un appareil cible. Vous pouvez créer plusieurs tâches indépendantes — par exemple, une pour les Documents, une pour les Photos et une pour les Projets. Les changements sont détectés automatiquement : nouveaux fichiers, modifications et suppressions sont tous synchronisés. Chaque tâche de sync est stockée dans son propre sous-dossier chez le destinataire (Sync/<NomAppareil>/<NomTâche>/), les fichiers de différentes tâches ne se mélangent jamais.',
       'helpSyncJobs': 'Tâches de synchronisation',
-      'helpSyncJobsDesc': 'Chaque tâche de sync a son propre nom, dossier source, appareil cible et paramètres. Pour créer une tâche, appuyez sur « Nouvelle Sync » et suivez l\'assistant en 3 étapes : (1) Base — définir un nom, choisir un dossier source et sélectionner un appareil cible ; (2) Options — choisir la direction de sync, la résolution des conflits et le mode ; (3) Filtres — inclure ou exclure des fichiers avec des motifs glob (ex. *.jpg, *.pdf). Une fois créées, les tâches apparaissent comme des cartes dans l\'onglet Sync. Vous pouvez démarrer/arrêter, mettre en pause/reprendre ou supprimer chaque tâche indépendamment.',
+      'helpSyncJobsDesc':
+          'Chaque tâche de sync a son propre nom, dossier source, appareil cible et paramètres. Pour créer une tâche, appuyez sur « Nouvelle Sync » et suivez l\'assistant en 3 étapes : (1) Base — définir un nom, choisir un dossier source et sélectionner un appareil cible ; (2) Options — choisir la direction de sync, la résolution des conflits et le mode ; (3) Filtres — inclure ou exclure des fichiers avec des motifs glob (ex. *.jpg, *.pdf). Une fois créées, les tâches apparaissent comme des cartes dans l\'onglet Sync. Vous pouvez démarrer/arrêter, mettre en pause/reprendre ou supprimer chaque tâche indépendamment.',
       'helpTvMode': 'Mode TV',
-      'helpTvModeDesc': 'Sur Android TV, l\'app passe automatiquement à une disposition avec barre latérale optimisée pour la navigation par télécommande. Tous les boutons et cartes sont agrandis pour une visibilité à distance. Utilisez les flèches de votre télécommande pour naviguer entre les éléments et appuyez sur Entrée/Sélect pour activer. La surbrillance de focus D-pad montre clairement quel élément est sélectionné. Toutes les fonctionnalités marchent sur TV — vous pouvez recevoir des fichiers, parcourir les transferts et gérer les tâches de sync avec votre seule télécommande.',
+      'helpTvModeDesc':
+          'Sur Android TV, l\'app passe automatiquement à une disposition avec barre latérale optimisée pour la navigation par télécommande. Tous les boutons et cartes sont agrandis pour une visibilité à distance. Utilisez les flèches de votre télécommande pour naviguer entre les éléments et appuyez sur Entrée/Sélect pour activer. La surbrillance de focus D-pad montre clairement quel élément est sélectionné. Toutes les fonctionnalités marchent sur TV — vous pouvez recevoir des fichiers, parcourir les transferts et gérer les tâches de sync avec votre seule télécommande.',
       'helpResume': 'Reprise du transfert',
-      'helpResumeDesc': 'Si un transfert de fichier est interrompu — que ce soit par une coupure réseau, la fermeture de l\'app ou la mise en veille de l\'appareil — il reprend automatiquement là où il s\'est arrêté dès que la connexion est rétablie. Pas besoin de renvoyer le fichier entier. C\'est particulièrement utile pour les gros fichiers : une vidéo de 10 Go complétée à 80% continuera à 80%, sans recommencer. La reprise fonctionne aussi bien en envoi qu\'en réception.',
+      'helpResumeDesc':
+          'Si un transfert de fichier est interrompu — que ce soit par une coupure réseau, la fermeture de l\'app ou la mise en veille de l\'appareil — il reprend automatiquement là où il s\'est arrêté dès que la connexion est rétablie. Pas besoin de renvoyer le fichier entier. C\'est particulièrement utile pour les gros fichiers : une vidéo de 10 Go complétée à 80% continuera à 80%, sans recommencer. La reprise fonctionne aussi bien en envoi qu\'en réception.',
       'helpBackground': 'Transfert en arrière-plan',
-      'helpBackgroundDesc': 'Sur Android, les transferts de fichiers continuent même quand vous passez à une autre app ou éteignez l\'écran. Une notification persistante affiche le nom du fichier en cours, le pourcentage de progression et la vitesse de transfert. L\'app utilise un service de premier plan et un wakelock pour empêcher Android d\'interrompre le transfert. À la fin du transfert, vous recevez une notification de complétion. Aucune configuration spéciale nécessaire — ça marche automatiquement.',
+      'helpBackgroundDesc':
+          'Sur Android, les transferts de fichiers continuent même quand vous passez à une autre app ou éteignez l\'écran. Une notification persistante affiche le nom du fichier en cours, le pourcentage de progression et la vitesse de transfert. L\'app utilise un service de premier plan et un wakelock pour empêcher Android d\'interrompre le transfert. À la fin du transfert, vous recevez une notification de complétion. Aucune configuration spéciale nécessaire — ça marche automatiquement.',
       'helpMagicLink': 'Lien Magique',
-      'helpMagicLinkDesc': 'Transférez des fichiers entre appareils sur des réseaux complètement différents — par exemple, de chez vous au bureau, ou vers l\'appareil d\'un ami dans une autre ville. Un appareil appuie sur « Créer une salle » et reçoit un code PIN à 6 chiffres. L\'autre appareil appuie sur « Rejoindre une salle » et entre le PIN. Une connexion directe pair-à-pair est établie via un serveur de signalisation WebRTC pour la poignée de main initiale, puis les données circulent directement entre les appareils quand c\'est possible. Toutes les fonctions standard marchent : envoi de fichiers, partage de presse-papiers et suivi de progression.',
+      'helpMagicLinkDesc':
+          'Transférez des fichiers entre appareils sur des réseaux complètement différents — par exemple, de chez vous au bureau, ou vers l\'appareil d\'un ami dans une autre ville. Un appareil appuie sur « Créer une salle » et reçoit un code PIN à 6 chiffres. L\'autre appareil appuie sur « Rejoindre une salle » et entre le PIN. Une connexion directe pair-à-pair est établie via un serveur de signalisation WebRTC pour la poignée de main initiale, puis les données circulent directement entre les appareils quand c\'est possible. Toutes les fonctions standard marchent : envoi de fichiers, partage de presse-papiers et suivi de progression.',
       'webPortal': 'Portail Web',
       'helpWebPortal': 'Portail Web',
-      'helpWebPortalDesc': 'Accédez à votre appareil depuis n\'importe quel navigateur web sur le même réseau — aucune installation d\'app nécessaire de l\'autre côté. Allez dans les Paramètres et activez le Portail Web pour voir l\'URL d\'accès (ex. http://192.168.1.50:8080). Ouvrez cette URL sur n\'importe quel appareil avec un navigateur : ordinateur portable, tablette ou même smart TV. Vous pouvez téléverser des fichiers vers votre appareil et en télécharger via l\'interface web. Parfait pour des transferts rapides depuis un ordinateur où vous ne voulez pas installer l\'app.',
+      'helpWebPortalDesc':
+          'Accédez à votre appareil depuis n\'importe quel navigateur web sur le même réseau — aucune installation d\'app nécessaire de l\'autre côté. Allez dans les Paramètres et activez le Portail Web pour voir l\'URL d\'accès (ex. http://192.168.1.50:8080). Ouvrez cette URL sur n\'importe quel appareil avec un navigateur : ordinateur portable, tablette ou même smart TV. Vous pouvez téléverser des fichiers vers votre appareil et en télécharger via l\'interface web. Parfait pour des transferts rapides depuis un ordinateur où vous ne voulez pas installer l\'app.',
       'helpAutoSync': 'Sync automatique sur LAN',
-      'helpAutoSyncDesc': 'Quand activé, les tâches de sync démarrent automatiquement dès que l\'appareil cible est découvert sur le réseau. Pas besoin d\'ouvrir l\'app ni d\'appuyer sur quoi que ce soit — connectez-vous simplement au même Wi-Fi et la synchronisation commence. Idéal pour des scénarios comme : sauvegarder automatiquement les photos de votre téléphone sur votre PC chaque fois que vous rentrez chez vous, ou garder vos documents de travail synchronisés chaque fois que vous vous connectez au réseau du bureau.',
+      'helpAutoSyncDesc':
+          'Quand activé, les tâches de sync démarrent automatiquement dès que l\'appareil cible est découvert sur le réseau. Pas besoin d\'ouvrir l\'app ni d\'appuyer sur quoi que ce soit — connectez-vous simplement au même Wi-Fi et la synchronisation commence. Idéal pour des scénarios comme : sauvegarder automatiquement les photos de votre téléphone sur votre PC chaque fois que vous rentrez chez vous, ou garder vos documents de travail synchronisés chaque fois que vous vous connectez au réseau du bureau.',
       'helpSyncReceiveFolder': 'Dossier de réception Sync',
-      'helpSyncReceiveFolderDesc': 'Par défaut, les fichiers reçus via la sync sont enregistrés dans votre dossier de téléchargement dans un sous-dossier « Sync », organisés par nom d\'expéditeur et nom de tâche (ex. Téléchargements/Sync/Téléphone/Documents/). Vous pouvez changer ce dossier de base dans Paramètres → Dossier de réception Sync. Chaque tâche de sync de chaque appareil a son propre sous-dossier, les fichiers ne se chevauchent jamais entre différentes sources de sync.',
+      'helpSyncReceiveFolderDesc':
+          'Par défaut, les fichiers reçus via la sync sont enregistrés dans votre dossier de téléchargement dans un sous-dossier « Sync », organisés par nom d\'expéditeur et nom de tâche (ex. Téléchargements/Sync/Téléphone/Documents/). Vous pouvez changer ce dossier de base dans Paramètres → Dossier de réception Sync. Chaque tâche de sync de chaque appareil a son propre sous-dossier, les fichiers ne se chevauchent jamais entre différentes sources de sync.',
       'syncSetupRequest': 'Demande de sync',
       'syncSetupAccept': 'Accepter',
       'syncSetupReject': 'Refuser',
@@ -1908,7 +2195,8 @@ class AppLocalizations {
       'syncPairings': 'Appareils appariés',
       'syncRemovePairing': 'Supprimer l\'appariement',
       'syncPairingRemoved': 'Appariement supprimé',
-      'syncPairingRemoveConfirm': 'Supprimer l\'appariement « {name} » avec {device} ? Les futures syncs nécessiteront une nouvelle acceptation.',
+      'syncPairingRemoveConfirm':
+          'Supprimer l\'appariement « {name} » avec {device} ? Les futures syncs nécessiteront une nouvelle acceptation.',
       'syncReceivedFiles': 'fichiers reçus',
       'syncRetryFailed': 'Réessayer les échecs',
       'syncCopyErrorReport': 'Copier le rapport d\'erreurs',
@@ -1916,24 +2204,34 @@ class AppLocalizations {
       'syncDirectionOneWay': 'Unidirectionnel',
       'syncDirectionBidirectional': 'Bidirectionnel',
       'helpSyncPairing': 'Appariement Sync',
-      'helpSyncPairingDesc': 'Lors du premier lancement d\'une synchronisation, l\'appareil récepteur affiche un dialogue d\'acceptation permettant de choisir un dossier cible. Une fois accepté, un appariement est créé — les futures synchronisations vers le même appareil sont automatiquement acceptées. Vous pouvez gérer les appariements depuis l\'écran Sync. Les deux appareils partagent le même identifiant de tâche, permettant une synchronisation bidirectionnelle intelligente avec détection des modifications de fichiers.',
+      'helpSyncPairingDesc':
+          'Lors du premier lancement d\'une synchronisation, l\'appareil récepteur affiche un dialogue d\'acceptation permettant de choisir un dossier cible. Une fois accepté, un appariement est créé — les futures synchronisations vers le même appareil sont automatiquement acceptées. Vous pouvez gérer les appariements depuis l\'écran Sync. Les deux appareils partagent le même identifiant de tâche, permettant une synchronisation bidirectionnelle intelligente avec détection des modifications de fichiers.',
       'helpTips': 'Conseils',
-      'helpTip1': 'Les deux appareils doivent être sur le même réseau pour la détection automatique. Utilisez Lien Magique ou Hotspot pour des réseaux différents.',
-      'helpTip2': 'Si les appareils ne sont pas détectés, vérifiez vos paramètres de pare-feu et assurez-vous que la diffusion UDP est autorisée sur le port 42224.',
-      'helpTip3': 'Les connexions Ethernet filaires sont plus rapides et stables que le Wi-Fi pour les transferts de gros fichiers.',
-      'helpTip4': 'Utilisez le limiteur de bande passante dans les Paramètres pour contrôler la vitesse d\'envoi et éviter de saturer un réseau lent.',
-      'helpTip5': 'Activez la sync automatique pour que vos dossiers restent à jour sans intervention manuelle.',
-      'helpTip6': 'Vous pouvez envoyer des dossiers entiers — la structure de répertoires est préservée sur l\'appareil récepteur.',
-      'helpTip7': 'La sync du presse-papiers fonctionne avec le texte et les images — idéal pour partager des liens ou des captures d\'écran.',
+      'helpTip1':
+          'Les deux appareils doivent être sur le même réseau pour la détection automatique. Utilisez Lien Magique ou Hotspot pour des réseaux différents.',
+      'helpTip2':
+          'Si les appareils ne sont pas détectés, vérifiez vos paramètres de pare-feu et assurez-vous que la diffusion UDP est autorisée sur le port 42224.',
+      'helpTip3':
+          'Les connexions Ethernet filaires sont plus rapides et stables que le Wi-Fi pour les transferts de gros fichiers.',
+      'helpTip4':
+          'Utilisez le limiteur de bande passante dans les Paramètres pour contrôler la vitesse d\'envoi et éviter de saturer un réseau lent.',
+      'helpTip5':
+          'Activez la sync automatique pour que vos dossiers restent à jour sans intervention manuelle.',
+      'helpTip6':
+          'Vous pouvez envoyer des dossiers entiers — la structure de répertoires est préservée sur l\'appareil récepteur.',
+      'helpTip7':
+          'La sync du presse-papiers fonctionne avec le texte et les images — idéal pour partager des liens ou des captures d\'écran.',
       'aboutApp': 'À propos de LifeOS AnyWhere',
-      'aboutDesc': 'Partage de fichiers multi-plateforme en réseau local. Envoyez fichiers, dossiers et presse-papiers entre tous vos appareils — instantanément.',
+      'aboutDesc':
+          'Partage de fichiers multi-plateforme en réseau local. Envoyez fichiers, dossiers et presse-papiers entre tous vos appareils — instantanément.',
       'developer': 'Développeur',
       'license': 'Licence',
       'sourceCode': 'Code source',
       'allRightsReserved': 'Tous droits réservés.',
       'website': 'Site web',
       'installOnOtherDevices': 'Installer sur d\'autres appareils',
-      'installOnOtherDevicesDesc': 'Téléchargez LifeOS AnyWhere sur vos autres appareils',
+      'installOnOtherDevicesDesc':
+          'Téléchargez LifeOS AnyWhere sur vos autres appareils',
       'platformSupport': 'Plateformes supportées',
       'platformSupportDesc': 'Android, Android TV, iOS, Windows, Linux, macOS',
       'syncProgress': '{synced} / {total} fichiers',
@@ -1966,12 +2264,14 @@ class AppLocalizations {
       'newSync': 'Nouvelle synchronisation',
       'syncName': 'Nom de la sync',
       'syncJobs': 'Tâches de sync',
-      'noSyncJobs': 'Aucune tâche de synchronisation.\nAppuyez sur le bouton ci-dessous pour commencer.',
+      'noSyncJobs':
+          'Aucune tâche de synchronisation.\nAppuyez sur le bouton ci-dessous pour commencer.',
       'createSync': 'Créer',
       'deleteSync': 'Supprimer',
       'deleteConfirm': 'Supprimer cette tâche de synchronisation ?',
       'syncWatching': 'Surveillance des modifications…',
-      'syncWatchingDesc': 'Les modifications seront synchronisées automatiquement',
+      'syncWatchingDesc':
+          'Les modifications seront synchronisées automatiquement',
       'syncLastChange': 'Dernier : {time}',
       'syncReconnecting': 'Reconnexion…',
       'syncConnectionLost': 'Connexion perdue',
@@ -1995,12 +2295,14 @@ class AppLocalizations {
       // Timeline
       'timeline': 'Chronologie',
       'timelineEmpty': 'Aucune activité',
-      'timelineEmptyDesc': 'Vos transferts et synchronisations apparaîtront ici',
+      'timelineEmptyDesc':
+          'Vos transferts et synchronisations apparaîtront ici',
       'today': "Aujourd'hui",
       'yesterday': 'Hier',
       // Magic Link (Relay)
       'magicLink': 'Lien Magique',
-      'magicLinkDesc': 'Transférez des fichiers entre appareils sur différents réseaux via une connexion pair-à-pair',
+      'magicLinkDesc':
+          'Transférez des fichiers entre appareils sur différents réseaux via une connexion pair-à-pair',
       'createRoom': 'Créer une salle',
       'joinRoom': 'Rejoindre une salle',
       'roomId': 'ID de salle',
@@ -2017,7 +2319,8 @@ class AppLocalizations {
       'syncTargetDevice': 'Appareil cible',
       'syncTargetFolder': 'Dossier cible (Optionnel)',
       'syncDefaultFolder': 'Par défaut (auto)',
-      'syncTargetFolderHint': 'Laisser vide pour utiliser le dossier de sync par défaut sur l\'appareil cible.',
+      'syncTargetFolderHint':
+          'Laisser vide pour utiliser le dossier de sync par défaut sur l\'appareil cible.',
       'syncSelectDevice': 'Sélectionner un appareil',
       'noDevicesFound': 'Aucun appareil trouvé sur le réseau',
       'createSyncJob': 'Créer',
@@ -2026,8 +2329,10 @@ class AppLocalizations {
       'syncDirection': 'Direction de sync',
       'syncOneWay': 'Unidirectionnel',
       'syncBidirectional': 'Bidirectionnel',
-      'syncOneWayDesc': 'Les fichiers sont envoyés uniquement de la source vers la cible.',
-      'syncBidirectionalDesc': 'Les modifications des deux côtés sont synchronisées.',
+      'syncOneWayDesc':
+          'Les fichiers sont envoyés uniquement de la source vers la cible.',
+      'syncBidirectionalDesc':
+          'Les modifications des deux côtés sont synchronisées.',
       'conflictStrategy': 'Résolution des conflits',
       'conflictNewerWins': 'Le plus récent',
       'conflictAskUser': 'Me demander',
@@ -2036,22 +2341,29 @@ class AppLocalizations {
       'syncModeGeneral': 'Général',
       'syncModePhotoVideo': 'Photo/Vidéo',
       'convertHeicToJpg': 'HEIC → JPG',
-      'convertHeicToJpgDesc': 'Convertir automatiquement les photos Apple HEIC en JPG',
+      'convertHeicToJpgDesc':
+          'Convertir automatiquement les photos Apple HEIC en JPG',
       'dateSubfolders': 'Sous-dossiers par date',
       'mirrorDeletions': 'Miroir des suppressions',
-      'mirrorDeletionsDesc': 'Supprimer sur la cible lorsque supprimé de la source',
+      'mirrorDeletionsDesc':
+          'Supprimer sur la cible lorsque supprimé de la source',
       'syncFilters': 'Filtres',
-      'syncFiltersDesc': 'Contrôlez les fichiers synchronisés avec des motifs glob.',
+      'syncFiltersDesc':
+          'Contrôlez les fichiers synchronisés avec des motifs glob.',
       'includePatterns': 'Inclure',
       'excludePatterns': 'Exclure',
       'helpSyncDirection': 'Direction & Conflits',
-      'helpSyncDirectionDesc': 'Chaque tâche de sync peut être unidirectionnelle ou bidirectionnelle. Unidirectionnelle (style sauvegarde) envoie les fichiers uniquement de la source vers la cible — parfait pour sauvegarder votre téléphone sur votre PC. La sync bidirectionnelle reflète les changements dans les deux sens : si vous modifiez un fichier sur l\'un des appareils, le changement est synchronisé sur l\'autre. Quand le même fichier est modifié sur les deux appareils, un conflit survient. Vous pouvez choisir comment résoudre les conflits : « Le plus récent gagne » sélectionne automatiquement la version la plus récente, « Me demander » affiche un dialogue pour chaque conflit, et « Garder les deux » enregistre les deux versions avec un suffixe.',
+      'helpSyncDirectionDesc':
+          'Chaque tâche de sync peut être unidirectionnelle ou bidirectionnelle. Unidirectionnelle (style sauvegarde) envoie les fichiers uniquement de la source vers la cible — parfait pour sauvegarder votre téléphone sur votre PC. La sync bidirectionnelle reflète les changements dans les deux sens : si vous modifiez un fichier sur l\'un des appareils, le changement est synchronisé sur l\'autre. Quand le même fichier est modifié sur les deux appareils, un conflit survient. Vous pouvez choisir comment résoudre les conflits : « Le plus récent gagne » sélectionne automatiquement la version la plus récente, « Me demander » affiche un dialogue pour chaque conflit, et « Garder les deux » enregistre les deux versions avec un suffixe.',
       'helpSyncPhotoMode': 'Mode Photo/Vidéo',
-      'helpSyncPhotoModeDesc': 'Conçu spécifiquement pour la synchronisation de photos et vidéos depuis votre téléphone. Une fois activé, l\'app détecte automatiquement le dossier caméra (DCIM). Les photos sont organisées en sous-dossiers par date sur la cible (ex. 2026/01, 2026/02) pour que des milliers de photos restent bien organisées. Les photos Apple HEIC peuvent être converties automatiquement en JPG pour la compatibilité avec Windows et d\'autres plateformes. Ce mode est parfait pour libérer l\'espace de stockage du téléphone : synchronisez vos photos sur votre PC, puis supprimez-les du téléphone.',
+      'helpSyncPhotoModeDesc':
+          'Conçu spécifiquement pour la synchronisation de photos et vidéos depuis votre téléphone. Une fois activé, l\'app détecte automatiquement le dossier caméra (DCIM). Les photos sont organisées en sous-dossiers par date sur la cible (ex. 2026/01, 2026/02) pour que des milliers de photos restent bien organisées. Les photos Apple HEIC peuvent être converties automatiquement en JPG pour la compatibilité avec Windows et d\'autres plateformes. Ce mode est parfait pour libérer l\'espace de stockage du téléphone : synchronisez vos photos sur votre PC, puis supprimez-les du téléphone.',
       'helpMirrorDeletions': 'Suppression miroir',
-      'helpMirrorDeletionsDesc': 'Quand « Suppression miroir » est activé sur une tâche de sync, supprimer un fichier sur l\'appareil source le supprimera aussi sur la cible. Cela maintient les deux côtés vraiment synchronisés — si vous nettoyez d\'anciens fichiers sur un appareil, ils sont nettoyés partout. Attention avec cette option : si vous supprimez accidentellement un fichier, il sera aussi supprimé sur la cible. Si désactivé, les suppressions ne sont pas propagées et les fichiers restent sur la cible même après suppression de la source.',
+      'helpMirrorDeletionsDesc':
+          'Quand « Suppression miroir » est activé sur une tâche de sync, supprimer un fichier sur l\'appareil source le supprimera aussi sur la cible. Cela maintient les deux côtés vraiment synchronisés — si vous nettoyez d\'anciens fichiers sur un appareil, ils sont nettoyés partout. Attention avec cette option : si vous supprimez accidentellement un fichier, il sera aussi supprimé sur la cible. Si désactivé, les suppressions ne sont pas propagées et les fichiers restent sur la cible même après suppression de la source.',
       'helpSyncFilters': 'Filtres de synchronisation',
-      'helpSyncFiltersDesc': 'Contrôlez exactement quels fichiers sont synchronisés avec des motifs d\'inclusion et d\'exclusion (syntaxe glob). Par exemple : ajoutez « *.jpg, *.png » à Inclure pour ne synchroniser que les images, ou ajoutez « *.tmp, Thumbs.db, .DS_Store » à Exclure pour ignorer les fichiers temporaires. Les motifs s\'appliquent aux noms de fichiers, pas aux chemins complets. Si Inclure est vide, tous les fichiers sont inclus par défaut. Si un fichier correspond à la fois à Inclure et Exclure, Exclure l\'emporte.',
+      'helpSyncFiltersDesc':
+          'Contrôlez exactement quels fichiers sont synchronisés avec des motifs d\'inclusion et d\'exclusion (syntaxe glob). Par exemple : ajoutez « *.jpg, *.png » à Inclure pour ne synchroniser que les images, ou ajoutez « *.tmp, Thumbs.db, .DS_Store » à Exclure pour ignorer les fichiers temporaires. Les motifs s\'appliquent aux noms de fichiers, pas aux chemins complets. Si Inclure est vide, tous les fichiers sont inclus par défaut. Si un fichier correspond à la fois à Inclure et Exclure, Exclure l\'emporte.',
       'justNow': 'À l\'instant',
       'syncConflicts': 'Conflits de sync',
       'syncResolveConflicts': 'Résoudre',
@@ -2066,9 +2378,11 @@ class AppLocalizations {
       'syncWaitingConflicts': 'En attente de résolution…',
       // Faz 3+4 keys
       'autoSyncOnLan': 'Sync auto sur LAN',
-      'autoSyncOnLanDesc': 'Démarrer la sync automatiquement quand un appareil correspondant est trouvé',
+      'autoSyncOnLanDesc':
+          'Démarrer la sync automatiquement quand un appareil correspondant est trouvé',
       'backgroundSync': 'Sync en arrière-plan',
-      'backgroundSyncDesc': 'Synchroniser les fichiers en arrière-plan quand l\'app est fermée',
+      'backgroundSyncDesc':
+          'Synchroniser les fichiers en arrière-plan quand l\'app est fermée',
       'syncCameraHint': 'Dossier caméra typique',
       'syncAutoTriggered': 'Sync auto déclenchée',
       'syncIncoming': 'Sync entrant',
@@ -2105,12 +2419,16 @@ class AppLocalizations {
       'hotspotConnected': 'Connecté !',
       'hotspotNotSupported': 'Cet appareil ne peut pas créer de hotspot',
       'hotspotUseOtherDevice': 'Démarrez depuis l\'autre appareil',
-      'webPortalScanInfo': 'Scannez ce QR avec la caméra de n\'importe quel appareil',
+      'webPortalScanInfo':
+          'Scannez ce QR avec la caméra de n\'importe quel appareil',
       'hotspotCreate': 'Créer un Hotspot',
-      'hotspotCreateDesc': 'Démarrer un hotspot WiFi pour que d\'autres puissent s\'y connecter',
+      'hotspotCreateDesc':
+          'Démarrer un hotspot WiFi pour que d\'autres puissent s\'y connecter',
       'hotspotJoin': 'Rejoindre un Hotspot',
-      'hotspotJoinDesc': 'Scanner le QR pour se connecter au hotspot d\'un autre appareil',
-      'hotspotJoinDesktopHint': 'Utilisez un appareil mobile pour scanner le QR code du hotspot',
+      'hotspotJoinDesc':
+          'Scanner le QR pour se connecter au hotspot d\'un autre appareil',
+      'hotspotJoinDesktopHint':
+          'Utilisez un appareil mobile pour scanner le QR code du hotspot',
       // Server Sync (SFTP)
       'serverSync': 'Sync serveur',
       'addServer': 'Ajouter un serveur',
@@ -2132,7 +2450,8 @@ class AppLocalizations {
       'serverConnectionFailed': 'Échec de connexion : {error}',
       'noServers': 'Aucun serveur configuré',
       'noServersDesc': 'Ajoutez un serveur SFTP pour synchroniser',
-      'deleteServerConfirm': 'Supprimer le serveur « {name} » et toutes ses tâches ?',
+      'deleteServerConfirm':
+          'Supprimer le serveur « {name} » et toutes ses tâches ?',
       'serverLastConnected': 'Connecté {time}',
       'newServerSyncJob': 'Nouveau sync serveur',
       'serverSyncStep1': 'Base',
@@ -2149,9 +2468,11 @@ class AppLocalizations {
       'serverSyncScanning': 'Analyse des fichiers distants…',
       'serverSyncDisconnected': 'Déconnecté',
       'serverSyncLiveWatch': 'Surveillance en direct',
-      'serverSyncLiveWatchDesc': 'Envoyer automatiquement les changements au serveur',
+      'serverSyncLiveWatchDesc':
+          'Envoyer automatiquement les changements au serveur',
       'gdrivePathHint': 'MesDocuments/Sauvegarde',
-      'gdrivePathInfo': 'Vous ne pouvez pas parcourir les dossiers Google Drive existants. Saisissez un nom de dossier (ex. "MesDocuments/Sauvegarde"), l\'application le créera automatiquement.',
+      'gdrivePathInfo':
+          'Vous ne pouvez pas parcourir les dossiers Google Drive existants. Saisissez un nom de dossier (ex. "MesDocuments/Sauvegarde"), l\'application le créera automatiquement.',
       'syncNoJobs': 'Aucun job de sync',
       'syncNoJobsDesc': 'Créez un nouveau job de synchronisation',
       'syncSuccessful': 'Réussi',
@@ -2187,9 +2508,11 @@ class AppLocalizations {
       'uploadFailed': 'Envoi échoué',
       'ok': 'OK',
       'helpHotspot': 'Connexion Hotspot',
-      'helpHotspotDesc': 'Si les deux appareils ne peuvent pas être sur le même réseau Wi-Fi, un appareil peut créer un point d\'accès Wi-Fi et l\'autre s\'y connecter. Cela crée un réseau local direct entre les deux appareils sans routeur ni internet. Une fois connecté au hotspot, l\'application détecte automatiquement l\'autre appareil. Toutes les fonctions marchent normalement : transfert de fichiers, partage du presse-papiers et synchronisation de dossiers.',
+      'helpHotspotDesc':
+          'Si les deux appareils ne peuvent pas être sur le même réseau Wi-Fi, un appareil peut créer un point d\'accès Wi-Fi et l\'autre s\'y connecter. Cela crée un réseau local direct entre les deux appareils sans routeur ni internet. Une fois connecté au hotspot, l\'application détecte automatiquement l\'autre appareil. Toutes les fonctions marchent normalement : transfert de fichiers, partage du presse-papiers et synchronisation de dossiers.',
       'helpServerSync': 'Sync Serveur (SFTP)',
-      'helpServerSyncDesc': 'Synchronisez vos fichiers avec un serveur SFTP distant comme un NAS, VPS ou toute machine SSH. Configurez votre connexion serveur (hôte, port, nom d\'utilisateur, mot de passe ou clé privée) dans les paramètres. Créez ensuite un travail de sync en choisissant un dossier local et un chemin distant. L\'application compare les deux côtés et ne transfère que les modifications. Prend en charge le mode surveillance en direct pour une synchronisation automatique lors des changements locaux.',
+      'helpServerSyncDesc':
+          'Synchronisez vos fichiers avec un serveur SFTP distant comme un NAS, VPS ou toute machine SSH. Configurez votre connexion serveur (hôte, port, nom d\'utilisateur, mot de passe ou clé privée) dans les paramètres. Créez ensuite un travail de sync en choisissant un dossier local et un chemin distant. L\'application compare les deux côtés et ne transfère que les modifications. Prend en charge le mode surveillance en direct pour une synchronisation automatique lors des changements locaux.',
       'notifTransferStarted': '{sender} \u2192 {file}',
       'notifTransferComplete': '\u2705 {file}',
       'notifTransferFailed': '\u274c {file}',
@@ -2209,13 +2532,15 @@ class AppLocalizations {
       'upgradeToPro': 'Passer à Pro',
       'iHaveACode': 'J\'ai un code',
       'activateCode': 'Activer le code',
-      'activateCodeDesc': 'Entrez le code d\'activation de votre achat Pro pour débloquer Pro sur cet appareil.',
+      'activateCodeDesc':
+          'Entrez le code d\'activation de votre achat Pro pour débloquer Pro sur cet appareil.',
       'activating': 'Activation…',
       'activate': 'Activer',
       'proActivated': 'Pro activé avec succès !',
       'activationFailed': 'Échec de l\'activation. Veuillez réessayer.',
       'invalidActivationCode': 'Format de code d\'activation invalide.',
-      'deviceLimitReached': 'Limite d\'appareils atteinte. Supprimez d\'abord un appareil.',
+      'deviceLimitReached':
+          'Limite d\'appareils atteinte. Supprimez d\'abord un appareil.',
       'activationCode': 'Code d\'activation',
       'activationCodeHint': 'Partagez ce code avec vos autres appareils.',
       'activeDevices': 'Appareils actifs : {current}/{max}',
@@ -2231,23 +2556,30 @@ class AppLocalizations {
       'storeNotReady': 'Store pas encore disponible.',
       'upgradeSuccess': 'Mise à niveau vers Pro réussie !',
       'cancelTransfer': 'Annuler le transfert',
-      'cancelTransferConfirm': 'Êtes-vous sûr de vouloir annuler ce transfert ?',
+      'cancelTransferConfirm':
+          'Êtes-vous sûr de vouloir annuler ce transfert ?',
       'yes': 'Oui',
       'no': 'Non',
       'proFeature': 'Fonctionnalité Pro',
       'proFeature_unlimitedSync': 'Tâches sync illimitées nécessitent Pro.',
       'proFeature_serverSync': 'Sync serveur (SFTP/FTP/WebDAV) nécessite Pro.',
-      'proFeature_cloudSync': 'Sync cloud (Google Drive/OneDrive) nécessite Pro.',
-      'proFeature_relayTransfer': 'Transfert Internet via relais nécessite Pro.',
+      'proFeature_cloudSync':
+          'Sync cloud (Google Drive/OneDrive) nécessite Pro.',
+      'proFeature_relayTransfer':
+          'Transfert Internet via relais nécessite Pro.',
       'proFeature_quickSendToServer': 'Envoi rapide au serveur nécessite Pro.',
-      'proFeature_liveWatch': 'Surveillance de fichiers en direct nécessite Pro.',
+      'proFeature_liveWatch':
+          'Surveillance de fichiers en direct nécessite Pro.',
       'proFeature_bidirectionalSync': 'Sync bidirectionnelle nécessite Pro.',
       'proFeature_scheduledSync': 'Sync programmée nécessite Pro.',
-      'proFeature_unlimitedFileSize': 'Fichiers de plus de 500 Mo nécessitent Pro.',
+      'proFeature_unlimitedFileSize':
+          'Fichiers de plus de 500 Mo nécessitent Pro.',
       'shareProLan': 'Partager Pro via LAN',
-      'shareProLanConfirm': 'Partager votre code d\'activation Pro avec {name} ? Cela activera Pro sur son appareil.',
+      'shareProLanConfirm':
+          'Partager votre code d\'activation Pro avec {name} ? Cela activera Pro sur son appareil.',
       'shareProLanSuccess': 'Pro partagé avec {name} avec succès !',
-      'shareProLanFailed': 'Échec du partage Pro. Vérifiez que l\'appareil est en ligne.',
+      'shareProLanFailed':
+          'Échec du partage Pro. Vérifiez que l\'appareil est en ligne.',
       'share': 'Partager',
     },
 
@@ -2259,7 +2591,9 @@ class AppLocalizations {
       'devices': 'Dispositivos',
       'transfers': 'Transferencias',
       'settings': 'Ajustes',
+      'more': 'Más',
       'collapse': 'Contraer',
+      'expand': 'Expandir',
       'sync': 'Sincronizar',
       'noDevices': 'No se encontraron dispositivos',
       'scanning': 'Buscando dispositivos…',
@@ -2274,6 +2608,18 @@ class AppLocalizations {
       'noTransfers': 'Aún no hay transferencias',
       'noTransfersDesc': 'Los archivos enviados y recibidos aparecerán aquí',
       'clearCompleted': 'Limpiar',
+      'activeTransfers': 'Transferencias activas',
+      'attentionRequired': 'Requieren atención',
+      'retryFailed': 'No se pudo reintentar la transferencia',
+      'transferQueue': 'Cola de transferencias',
+      'cancelQueue': 'Cancelar cola',
+      'cancelQueueConfirm':
+          '¿Cancelar la transferencia actual y quitar todos los archivos en espera?',
+      'moveUp': 'Subir',
+      'moveDown': 'Bajar',
+      'removeFromQueue': 'Quitar de la cola',
+      'transferControlUnavailable':
+          'El control de la transferencia ya no está disponible',
       'sending': 'Enviando…',
       'receiving': 'Recibiendo…',
       'waiting': 'Esperando…',
@@ -2281,6 +2627,7 @@ class AppLocalizations {
       'accepted': 'Aceptado',
       'rejected': 'Rechazado',
       'transferring': 'Transfiriendo',
+      'paused': 'En pausa',
       'completed': 'Completado',
       'failed': 'Fallido',
       'cancelled': 'Cancelado',
@@ -2323,7 +2670,8 @@ class AppLocalizations {
       'save': 'Guardar',
       'retry': 'Reintentar',
       'storagePermission': 'Permiso de almacenamiento requerido',
-      'storagePermissionDesc': 'LifeOS AnyWhere necesita acceso al almacenamiento para enviar y recibir archivos.',
+      'storagePermissionDesc':
+          'LifeOS AnyWhere necesita acceso al almacenamiento para enviar y recibir archivos.',
       'grant': 'Conceder',
       'openSettings': 'Abrir ajustes',
       'permissionDenied': 'Permiso denegado',
@@ -2353,6 +2701,7 @@ class AppLocalizations {
       'selectFolder': 'Seleccionar carpeta',
       'sendFileOrFolder': 'Enviar archivo o carpeta',
       'sendFiles': 'Enviar archivos',
+      'recentTargets': 'Destinos recientes',
       'folderSending': 'Enviando carpeta…',
       'fileReceived': 'Archivo recibido',
       'fileReceiving': 'Recibiendo archivo…',
@@ -2362,20 +2711,25 @@ class AppLocalizations {
       'clipboardSent': 'Portapapeles enviado',
       'clipboard': 'Portapapeles',
       'clipboardNoEntries': 'Sin entradas',
-      'clipboardNoEntriesDesc': 'El contenido compartido del portapapeles aparecerá aquí',
+      'clipboardNoEntriesDesc':
+          'El contenido compartido del portapapeles aparecerá aquí',
       'clearAll': 'Borrar todo',
       'copied': 'Copiado al portapapeles',
       'clipboardText': 'Texto',
       'clipboardImage': 'Imagen',
       'clipboardPasteAndSend': 'Pegar y Enviar',
       'clipboardSend': 'Enviar portapapeles',
-      'clipboardSendHint': 'Copia el texto del portapapeles y lo envía a un dispositivo cercano',
+      'clipboardSendHint':
+          'Copia el texto del portapapeles y lo envía a un dispositivo cercano',
       'clipboardSentTo': 'Portapapeles enviado a',
       'delete': 'Eliminar',
       'copy': 'Copiar',
       'pairDevice': 'Emparejar dispositivo',
       'scanQr': 'Escanee el código para emparejar',
       'close': 'Cerrar',
+      'play': 'Reproducir',
+      'openExternally': 'Abrir con otra aplicación',
+      'previewUnavailable': 'Este archivo no se puede previsualizar.',
       'pairedWith': 'Emparejado con {name}',
       'invalidCode': 'Código QR inválido',
       'scanQrTitle': 'Escanear código QR',
@@ -2392,7 +2746,8 @@ class AppLocalizations {
       'noTargetDevice': 'Sin dispositivo de destino',
       'folderSync': 'Sync carpeta',
       'folderSyncBeta': 'Sync de carpeta (Beta)',
-      'folderSyncDesc': 'Reflejar cambios de carpetas locales a otro dispositivo.',
+      'folderSyncDesc':
+          'Reflejar cambios de carpetas locales a otro dispositivo.',
       'sourceFolder': 'Carpeta origen',
       'targetDevice': 'Dispositivo destino',
       'selectFolderToSync': 'Seleccione carpeta a sincronizar',
@@ -2406,38 +2761,54 @@ class AppLocalizations {
       'help': 'Ayuda',
       'helpUsage': 'Cómo usar',
       'helpDiscovery': 'Descubrimiento de dispositivos',
-      'helpDiscoveryDesc': 'Todos los dispositivos en la misma red Wi-Fi o LAN cableada se descubren automáticamente — no se necesita configuración. La app emite una señal cada pocos segundos para encontrar dispositivos cercanos. Si un dispositivo no aparece, asegúrese de que ambos dispositivos estén en la misma red, verifique que ninguna VPN esté bloqueando el tráfico local y confirme que su router permite la comunicación entre dispositivos (algunas redes de invitados lo bloquean). También puede tocar "Añadir manualmente" e ingresar la dirección IP directamente.',
+      'helpDiscoveryDesc':
+          'Todos los dispositivos en la misma red Wi-Fi o LAN cableada se descubren automáticamente — no se necesita configuración. La app emite una señal cada pocos segundos para encontrar dispositivos cercanos. Si un dispositivo no aparece, asegúrese de que ambos dispositivos estén en la misma red, verifique que ninguna VPN esté bloqueando el tráfico local y confirme que su router permite la comunicación entre dispositivos (algunas redes de invitados lo bloquean). También puede tocar "Añadir manualmente" e ingresar la dirección IP directamente.',
       'helpSendFiles': 'Enviar archivos',
-      'helpSendFilesDesc': 'Toque cualquier dispositivo descubierto para seleccionar archivos o carpetas a enviar. En escritorio (Windows, macOS, Linux), puede arrastrar y soltar archivos directamente sobre una tarjeta de dispositivo. Puede enviar varios archivos a la vez — se ponen en cola y se transfieren uno tras otro. Durante la transferencia, puede ver la velocidad y el progreso en tiempo real. Si un archivo ya existe en el receptor, el comportamiento depende del ajuste "Sobrescribir archivos existentes".',
+      'helpSendFilesDesc':
+          'Toque cualquier dispositivo descubierto para seleccionar archivos o carpetas a enviar. En escritorio (Windows, macOS, Linux), puede arrastrar y soltar archivos directamente sobre una tarjeta de dispositivo. Puede enviar varios archivos a la vez — se ponen en cola y se transfieren uno tras otro. Durante la transferencia, puede ver la velocidad y el progreso en tiempo real. Si un archivo ya existe en el receptor, el comportamiento depende del ajuste "Sobrescribir archivos existentes".',
       'helpReceiveFiles': 'Recibir archivos',
-      'helpReceiveFilesDesc': 'Cuando alguien le envía un archivo, aparece una notificación pidiendo aceptar o rechazar. Los archivos aceptados se guardan en la carpeta de descargas configurada en Ajustes. Puede cambiar esta carpeta en cualquier momento. Active "Aceptar transferencias automáticamente" en Ajustes para omitir el diálogo de confirmación y recibir todos los archivos entrantes automáticamente. Los archivos recibidos aparecen en la pestaña Transferencias con opciones para abrir el archivo o mostrarlo en el gestor de archivos.',
+      'helpReceiveFilesDesc':
+          'Cuando alguien le envía un archivo, aparece una notificación pidiendo aceptar o rechazar. Los archivos aceptados se guardan en la carpeta de descargas configurada en Ajustes. Puede cambiar esta carpeta en cualquier momento. Active "Aceptar transferencias automáticamente" en Ajustes para omitir el diálogo de confirmación y recibir todos los archivos entrantes automáticamente. Los archivos recibidos aparecen en la pestaña Transferencias con opciones para abrir el archivo o mostrarlo en el gestor de archivos.',
       'helpQrPairing': 'Emparejamiento QR',
-      'helpQrPairingDesc': 'Si los dispositivos no se descubren automáticamente (subredes diferentes, redes complejas), use el emparejamiento por código QR para una conexión con un solo toque. En un dispositivo, vaya a la pestaña Dispositivos y toque el icono QR para mostrar un código de emparejamiento. En el otro dispositivo, toque "Escanear QR" y apunte la cámara al código. Una vez escaneado, los dispositivos se conectan directamente usando la dirección IP integrada en el código QR. Este emparejamiento persiste hasta que se reinicie la app.',
+      'helpQrPairingDesc':
+          'Si los dispositivos no se descubren automáticamente (subredes diferentes, redes complejas), use el emparejamiento por código QR para una conexión con un solo toque. En un dispositivo, vaya a la pestaña Dispositivos y toque el icono QR para mostrar un código de emparejamiento. En el otro dispositivo, toque "Escanear QR" y apunte la cámara al código. Una vez escaneado, los dispositivos se conectan directamente usando la dirección IP integrada en el código QR. Este emparejamiento persiste hasta que se reinicie la app.',
       'helpManualIp': 'Conexión IP manual',
-      'helpManualIpDesc': 'Si el escaneo QR no está disponible (p. ej., escritorio sin cámara), puede conectarse ingresando la dirección IP manualmente. Vaya a la pestaña Dispositivos, toque "Añadir manualmente" y escriba la dirección IP del otro dispositivo (p. ej. 192.168.1.100). La app intentará conectarse en el puerto predeterminado. Puede encontrar la dirección IP de su dispositivo en la pantalla de Ajustes o en la configuración de red de su sistema.',
+      'helpManualIpDesc':
+          'Si el escaneo QR no está disponible (p. ej., escritorio sin cámara), puede conectarse ingresando la dirección IP manualmente. Vaya a la pestaña Dispositivos, toque "Añadir manualmente" y escriba la dirección IP del otro dispositivo (p. ej. 192.168.1.100). La app intentará conectarse en el puerto predeterminado. Puede encontrar la dirección IP de su dispositivo en la pantalla de Ajustes o en la configuración de red de su sistema.',
       'helpDragDrop': 'Arrastrar y soltar',
-      'helpDragDropDesc': 'En plataformas de escritorio (Windows, macOS, Linux), puede arrastrar archivos o carpetas desde su gestor de archivos y soltarlos directamente sobre una tarjeta de dispositivo en la app. Un indicador de zona de soltar aparece al pasar el cursor sobre un dispositivo. Se pueden soltar varios archivos a la vez. Esta es la forma más rápida de enviar archivos desde escritorio — sin necesidad de diálogo de selección de archivos.',
+      'helpDragDropDesc':
+          'En plataformas de escritorio (Windows, macOS, Linux), puede arrastrar archivos o carpetas desde su gestor de archivos y soltarlos directamente sobre una tarjeta de dispositivo en la app. Un indicador de zona de soltar aparece al pasar el cursor sobre un dispositivo. Se pueden soltar varios archivos a la vez. Esta es la forma más rápida de enviar archivos desde escritorio — sin necesidad de diálogo de selección de archivos.',
       'helpClipboard': 'Compartir portapapeles',
-      'helpClipboardDesc': 'Comparta el contenido de su portapapeles (texto o imágenes) instantáneamente entre dispositivos. Toque el icono del portapapeles en una tarjeta de dispositivo o use el botón "Pegar y enviar" en la pestaña Portapapeles. Las entradas de portapapeles recibidas aparecen en la pestaña Portapapeles con historial completo. Puede tocar cualquier entrada para copiarla de nuevo a su portapapeles. Se admiten tanto texto como imágenes. Esto es perfecto para compartir rápidamente enlaces, contraseñas, fragmentos de código o capturas de pantalla entre su teléfono y su computadora.',
+      'helpClipboardDesc':
+          'Comparta el contenido de su portapapeles (texto o imágenes) instantáneamente entre dispositivos. Toque el icono del portapapeles en una tarjeta de dispositivo o use el botón "Pegar y enviar" en la pestaña Portapapeles. Las entradas de portapapeles recibidas aparecen en la pestaña Portapapeles con historial completo. Puede tocar cualquier entrada para copiarla de nuevo a su portapapeles. Se admiten tanto texto como imágenes. Esto es perfecto para compartir rápidamente enlaces, contraseñas, fragmentos de código o capturas de pantalla entre su teléfono y su computadora.',
       'helpSync': 'Sincronización de carpetas',
-      'helpSyncDesc': 'Cree trabajos de sincronización para mantener carpetas sincronizadas entre sus dispositivos. Cada trabajo vigila una carpeta de origen y refleja los cambios en un dispositivo de destino. Puede crear múltiples trabajos de sincronización independientes — por ejemplo, uno para Documentos, uno para Fotos y uno para Proyectos. Los cambios se detectan automáticamente: archivos nuevos, modificaciones y eliminaciones se sincronizan. Cada trabajo de sincronización en el receptor se almacena en su propia subcarpeta (Sync/<NombreDispositivo>/<NombreTrabajo>/), para que los archivos de diferentes trabajos nunca se mezclen.',
+      'helpSyncDesc':
+          'Cree trabajos de sincronización para mantener carpetas sincronizadas entre sus dispositivos. Cada trabajo vigila una carpeta de origen y refleja los cambios en un dispositivo de destino. Puede crear múltiples trabajos de sincronización independientes — por ejemplo, uno para Documentos, uno para Fotos y uno para Proyectos. Los cambios se detectan automáticamente: archivos nuevos, modificaciones y eliminaciones se sincronizan. Cada trabajo de sincronización en el receptor se almacena en su propia subcarpeta (Sync/<NombreDispositivo>/<NombreTrabajo>/), para que los archivos de diferentes trabajos nunca se mezclen.',
       'helpSyncJobs': 'Trabajos de sincronización',
-      'helpSyncJobsDesc': 'Cada trabajo de sincronización tiene su propio nombre, carpeta de origen, dispositivo de destino y configuración. Para crear un trabajo, toque "Nueva Sync" y siga el asistente de 3 pasos: (1) Básico — establezca un nombre, elija una carpeta de origen y seleccione un dispositivo de destino; (2) Opciones — elija la dirección de sincronización, resolución de conflictos y modo de sincronización; (3) Filtros — incluya o excluya archivos usando patrones glob (p. ej. *.jpg, *.pdf). Una vez creados, los trabajos aparecen como tarjetas en la pestaña Sync. Puede iniciar/detener, pausar/reanudar o eliminar cada trabajo de forma independiente.',
+      'helpSyncJobsDesc':
+          'Cada trabajo de sincronización tiene su propio nombre, carpeta de origen, dispositivo de destino y configuración. Para crear un trabajo, toque "Nueva Sync" y siga el asistente de 3 pasos: (1) Básico — establezca un nombre, elija una carpeta de origen y seleccione un dispositivo de destino; (2) Opciones — elija la dirección de sincronización, resolución de conflictos y modo de sincronización; (3) Filtros — incluya o excluya archivos usando patrones glob (p. ej. *.jpg, *.pdf). Una vez creados, los trabajos aparecen como tarjetas en la pestaña Sync. Puede iniciar/detener, pausar/reanudar o eliminar cada trabajo de forma independiente.',
       'helpTvMode': 'Modo TV',
-      'helpTvModeDesc': 'En Android TV, la app cambia automáticamente a un diseño de barra lateral optimizado para navegación con control remoto. Todos los botones y tarjetas están ampliados para visibilidad a distancia. Use las flechas de su control remoto para moverse entre elementos y presione Enter/Select para activar. El resaltado de enfoque D-pad muestra claramente qué elemento está seleccionado. Todas las funciones funcionan en TV — puede recibir archivos, explorar transferencias y gestionar trabajos de sincronización usando solo su control remoto.',
+      'helpTvModeDesc':
+          'En Android TV, la app cambia automáticamente a un diseño de barra lateral optimizado para navegación con control remoto. Todos los botones y tarjetas están ampliados para visibilidad a distancia. Use las flechas de su control remoto para moverse entre elementos y presione Enter/Select para activar. El resaltado de enfoque D-pad muestra claramente qué elemento está seleccionado. Todas las funciones funcionan en TV — puede recibir archivos, explorar transferencias y gestionar trabajos de sincronización usando solo su control remoto.',
       'helpResume': 'Reanudar transferencia',
-      'helpResumeDesc': 'Si una transferencia de archivos se interrumpe — ya sea por una caída de red, cierre de la app o dispositivo en reposo — se reanuda automáticamente desde donde se detuvo cuando se restablece la conexión. No es necesario reenviar el archivo completo. Esto es especialmente útil para archivos grandes: un vídeo de 10 GB que estaba al 80% continuará desde el 80%, sin reiniciar. La reanudación funciona tanto para envío como para recepción.',
+      'helpResumeDesc':
+          'Si una transferencia de archivos se interrumpe — ya sea por una caída de red, cierre de la app o dispositivo en reposo — se reanuda automáticamente desde donde se detuvo cuando se restablece la conexión. No es necesario reenviar el archivo completo. Esto es especialmente útil para archivos grandes: un vídeo de 10 GB que estaba al 80% continuará desde el 80%, sin reiniciar. La reanudación funciona tanto para envío como para recepción.',
       'helpBackground': 'Transferencia en segundo plano',
-      'helpBackgroundDesc': 'En Android, las transferencias de archivos continúan incluso cuando cambia a otra app o apaga la pantalla. Una notificación persistente muestra el nombre del archivo actual, el porcentaje de progreso y la velocidad de transferencia. La app usa un servicio en primer plano y wakelock para evitar que Android detenga la transferencia. Cuando la transferencia se completa, recibe una notificación de finalización. No se necesita configuración especial — funciona automáticamente.',
+      'helpBackgroundDesc':
+          'En Android, las transferencias de archivos continúan incluso cuando cambia a otra app o apaga la pantalla. Una notificación persistente muestra el nombre del archivo actual, el porcentaje de progreso y la velocidad de transferencia. La app usa un servicio en primer plano y wakelock para evitar que Android detenga la transferencia. Cuando la transferencia se completa, recibe una notificación de finalización. No se necesita configuración especial — funciona automáticamente.',
       'helpMagicLink': 'Enlace Mágico',
-      'helpMagicLinkDesc': 'Transfiera archivos entre dispositivos en redes completamente diferentes — por ejemplo, desde su casa a su oficina, o al dispositivo de un amigo en otra ciudad. Un dispositivo toca "Crear sala" y recibe un código PIN de 6 dígitos. El otro dispositivo toca "Unirse a sala" e ingresa el PIN. Se establece una conexión directa entre pares a través de un servidor de señalización WebRTC para el protocolo inicial, luego los datos fluyen directamente entre dispositivos cuando es posible. Todas las funciones estándar funcionan: envío de archivos, compartir portapapeles y seguimiento de progreso.',
+      'helpMagicLinkDesc':
+          'Transfiera archivos entre dispositivos en redes completamente diferentes — por ejemplo, desde su casa a su oficina, o al dispositivo de un amigo en otra ciudad. Un dispositivo toca "Crear sala" y recibe un código PIN de 6 dígitos. El otro dispositivo toca "Unirse a sala" e ingresa el PIN. Se establece una conexión directa entre pares a través de un servidor de señalización WebRTC para el protocolo inicial, luego los datos fluyen directamente entre dispositivos cuando es posible. Todas las funciones estándar funcionan: envío de archivos, compartir portapapeles y seguimiento de progreso.',
       'webPortal': 'Portal Web',
       'helpWebPortal': 'Portal Web',
-      'helpWebPortalDesc': 'Acceda a su dispositivo desde cualquier navegador web en la misma red — sin necesidad de instalar ninguna app en el otro lado. Vaya a Ajustes y active el Portal Web para ver la URL de acceso (p. ej. http://192.168.1.50:8080). Abra esta URL en cualquier dispositivo con navegador: portátil, tableta o incluso un smart TV. Puede subir archivos a su dispositivo y descargar archivos desde él a través de la interfaz web. Perfecto para transferencias rápidas desde una computadora donde no desea instalar la app.',
+      'helpWebPortalDesc':
+          'Acceda a su dispositivo desde cualquier navegador web en la misma red — sin necesidad de instalar ninguna app en el otro lado. Vaya a Ajustes y active el Portal Web para ver la URL de acceso (p. ej. http://192.168.1.50:8080). Abra esta URL en cualquier dispositivo con navegador: portátil, tableta o incluso un smart TV. Puede subir archivos a su dispositivo y descargar archivos desde él a través de la interfaz web. Perfecto para transferencias rápidas desde una computadora donde no desea instalar la app.',
       'helpAutoSync': 'Auto-sync en LAN',
-      'helpAutoSyncDesc': 'Cuando está activado, los trabajos de sincronización se inician automáticamente tan pronto como el dispositivo de destino se descubre en la red. No necesita abrir la app ni tocar nada — solo conéctese al mismo Wi-Fi y la sincronización comienza. Esto es ideal para escenarios como: respaldar automáticamente las fotos de su teléfono a su PC cada vez que llega a casa, o mantener sus documentos de trabajo sincronizados cada vez que se conecta a la red de la oficina.',
+      'helpAutoSyncDesc':
+          'Cuando está activado, los trabajos de sincronización se inician automáticamente tan pronto como el dispositivo de destino se descubre en la red. No necesita abrir la app ni tocar nada — solo conéctese al mismo Wi-Fi y la sincronización comienza. Esto es ideal para escenarios como: respaldar automáticamente las fotos de su teléfono a su PC cada vez que llega a casa, o mantener sus documentos de trabajo sincronizados cada vez que se conecta a la red de la oficina.',
       'helpSyncReceiveFolder': 'Carpeta de recepción Sync',
-      'helpSyncReceiveFolderDesc': 'Por defecto, los archivos recibidos a través de la sincronización se guardan en su carpeta de descargas dentro de una subcarpeta "Sync", organizados por nombre del remitente y nombre del trabajo (p. ej. Descargas/Sync/Teléfono/Documentos/). Puede cambiar esta carpeta base en Ajustes → Carpeta de recepción Sync. Cada trabajo de sincronización de cada dispositivo tiene su propia subcarpeta, para que los archivos nunca se superpongan entre diferentes fuentes de sincronización.',
+      'helpSyncReceiveFolderDesc':
+          'Por defecto, los archivos recibidos a través de la sincronización se guardan en su carpeta de descargas dentro de una subcarpeta "Sync", organizados por nombre del remitente y nombre del trabajo (p. ej. Descargas/Sync/Teléfono/Documentos/). Puede cambiar esta carpeta base en Ajustes → Carpeta de recepción Sync. Cada trabajo de sincronización de cada dispositivo tiene su propia subcarpeta, para que los archivos nunca se superpongan entre diferentes fuentes de sincronización.',
       'syncSetupRequest': 'Solicitud de sync',
       'syncSetupAccept': 'Aceptar',
       'syncSetupReject': 'Rechazar',
@@ -2449,7 +2820,8 @@ class AppLocalizations {
       'syncPairings': 'Dispositivos emparejados',
       'syncRemovePairing': 'Eliminar emparejamiento',
       'syncPairingRemoved': 'Emparejamiento eliminado',
-      'syncPairingRemoveConfirm': '¿Eliminar emparejamiento "{name}" con {device}? Las futuras sincronizaciones requerirán nueva aceptación.',
+      'syncPairingRemoveConfirm':
+          '¿Eliminar emparejamiento "{name}" con {device}? Las futuras sincronizaciones requerirán nueva aceptación.',
       'syncReceivedFiles': 'archivos recibidos',
       'syncRetryFailed': 'Reintentar fallidos',
       'syncCopyErrorReport': 'Copiar informe de errores',
@@ -2457,24 +2829,34 @@ class AppLocalizations {
       'syncDirectionOneWay': 'Unidireccional',
       'syncDirectionBidirectional': 'Bidireccional',
       'helpSyncPairing': 'Emparejamiento Sync',
-      'helpSyncPairingDesc': 'Al iniciar un sync por primera vez, el dispositivo receptor muestra un diálogo de aceptación donde el usuario puede elegir una carpeta destino. Una vez aceptado, se crea un emparejamiento — las futuras sincronizaciones al mismo dispositivo se aceptan automáticamente. Puedes gestionar los emparejamientos desde la pantalla Sync. Ambos dispositivos comparten el mismo ID de tarea, habilitando sincronización bidireccional inteligente con detección de cambios en archivos.',
+      'helpSyncPairingDesc':
+          'Al iniciar un sync por primera vez, el dispositivo receptor muestra un diálogo de aceptación donde el usuario puede elegir una carpeta destino. Una vez aceptado, se crea un emparejamiento — las futuras sincronizaciones al mismo dispositivo se aceptan automáticamente. Puedes gestionar los emparejamientos desde la pantalla Sync. Ambos dispositivos comparten el mismo ID de tarea, habilitando sincronización bidireccional inteligente con detección de cambios en archivos.',
       'helpTips': 'Consejos',
-      'helpTip1': 'Ambos dispositivos deben estar en la misma red para el descubrimiento automático. Use Enlace Mágico o Hotspot para redes diferentes.',
-      'helpTip2': 'Si no se detectan dispositivos, revise la configuración del firewall y asegúrese de que la difusión UDP esté permitida en el puerto 42224.',
-      'helpTip3': 'Las conexiones Ethernet por cable son más rápidas y estables que Wi-Fi para transferencias de archivos grandes.',
-      'helpTip4': 'Use el límite de ancho de banda en Ajustes para controlar la velocidad de subida y evitar saturar una red lenta.',
-      'helpTip5': 'Active la sincronización automática para que sus carpetas se mantengan actualizadas sin intervención manual.',
-      'helpTip6': 'Puede enviar carpetas enteras — la estructura de directorios se conserva en el dispositivo receptor.',
-      'helpTip7': 'La sincronización del portapapeles funciona con texto e imágenes — ideal para compartir enlaces o capturas de pantalla.',
+      'helpTip1':
+          'Ambos dispositivos deben estar en la misma red para el descubrimiento automático. Use Enlace Mágico o Hotspot para redes diferentes.',
+      'helpTip2':
+          'Si no se detectan dispositivos, revise la configuración del firewall y asegúrese de que la difusión UDP esté permitida en el puerto 42224.',
+      'helpTip3':
+          'Las conexiones Ethernet por cable son más rápidas y estables que Wi-Fi para transferencias de archivos grandes.',
+      'helpTip4':
+          'Use el límite de ancho de banda en Ajustes para controlar la velocidad de subida y evitar saturar una red lenta.',
+      'helpTip5':
+          'Active la sincronización automática para que sus carpetas se mantengan actualizadas sin intervención manual.',
+      'helpTip6':
+          'Puede enviar carpetas enteras — la estructura de directorios se conserva en el dispositivo receptor.',
+      'helpTip7':
+          'La sincronización del portapapeles funciona con texto e imágenes — ideal para compartir enlaces o capturas de pantalla.',
       'aboutApp': 'Acerca de LifeOS AnyWhere',
-      'aboutDesc': 'Compartir archivos multiplataforma en red local. Envíe archivos, carpetas y portapapeles entre todos sus dispositivos — al instante.',
+      'aboutDesc':
+          'Compartir archivos multiplataforma en red local. Envíe archivos, carpetas y portapapeles entre todos sus dispositivos — al instante.',
       'developer': 'Desarrollador',
       'license': 'Licencia',
       'sourceCode': 'Código fuente',
       'allRightsReserved': 'Todos los derechos reservados.',
       'website': 'Sitio web',
       'installOnOtherDevices': 'Instalar en otros dispositivos',
-      'installOnOtherDevicesDesc': 'Descarga LifeOS AnyWhere en tus otros dispositivos',
+      'installOnOtherDevicesDesc':
+          'Descarga LifeOS AnyWhere en tus otros dispositivos',
       'platformSupport': 'Plataformas soportadas',
       'platformSupportDesc': 'Android, Android TV, iOS, Windows, Linux, macOS',
       'syncProgress': '{synced} / {total} archivos',
@@ -2507,7 +2889,8 @@ class AppLocalizations {
       'newSync': 'Nueva sincronización',
       'syncName': 'Nombre de sync',
       'syncJobs': 'Tareas de sync',
-      'noSyncJobs': 'Aún no hay tareas de sincronización.\nToque el botón de abajo para comenzar.',
+      'noSyncJobs':
+          'Aún no hay tareas de sincronización.\nToque el botón de abajo para comenzar.',
       'createSync': 'Crear',
       'deleteSync': 'Eliminar',
       'deleteConfirm': '¿Eliminar esta tarea de sincronización?',
@@ -2536,12 +2919,14 @@ class AppLocalizations {
       // Timeline
       'timeline': 'Cronología',
       'timelineEmpty': 'Sin actividad',
-      'timelineEmptyDesc': 'Las transferencias y sincronizaciones aparecerán aquí',
+      'timelineEmptyDesc':
+          'Las transferencias y sincronizaciones aparecerán aquí',
       'today': 'Hoy',
       'yesterday': 'Ayer',
       // Magic Link (Relay)
       'magicLink': 'Enlace Mágico',
-      'magicLinkDesc': 'Transfiere archivos entre dispositivos en diferentes redes mediante una conexión peer-to-peer',
+      'magicLinkDesc':
+          'Transfiere archivos entre dispositivos en diferentes redes mediante una conexión peer-to-peer',
       'createRoom': 'Crear sala',
       'joinRoom': 'Unirse a sala',
       'roomId': 'ID de sala',
@@ -2558,7 +2943,8 @@ class AppLocalizations {
       'syncTargetDevice': 'Dispositivo destino',
       'syncTargetFolder': 'Carpeta destino (Opcional)',
       'syncDefaultFolder': 'Predeterminada (auto)',
-      'syncTargetFolderHint': 'Dejar vacío para usar la carpeta de sync predeterminada en el dispositivo destino.',
+      'syncTargetFolderHint':
+          'Dejar vacío para usar la carpeta de sync predeterminada en el dispositivo destino.',
       'syncSelectDevice': 'Seleccionar un dispositivo',
       'noDevicesFound': 'No se encontraron dispositivos en la red',
       'createSyncJob': 'Crear',
@@ -2577,22 +2963,28 @@ class AppLocalizations {
       'syncModeGeneral': 'General',
       'syncModePhotoVideo': 'Foto/Vídeo',
       'convertHeicToJpg': 'HEIC → JPG',
-      'convertHeicToJpgDesc': 'Convertir automáticamente fotos Apple HEIC a JPG',
+      'convertHeicToJpgDesc':
+          'Convertir automáticamente fotos Apple HEIC a JPG',
       'dateSubfolders': 'Subcarpetas por fecha',
       'mirrorDeletions': 'Reflejar eliminaciones',
       'mirrorDeletionsDesc': 'Eliminar en destino al eliminar del origen',
       'syncFilters': 'Filtros',
-      'syncFiltersDesc': 'Controle qué archivos se sincronizan con patrones glob.',
+      'syncFiltersDesc':
+          'Controle qué archivos se sincronizan con patrones glob.',
       'includePatterns': 'Incluir',
       'excludePatterns': 'Excluir',
       'helpSyncDirection': 'Dirección y Conflictos',
-      'helpSyncDirectionDesc': 'Cada trabajo de sincronización puede ser unidireccional o bidireccional. Unidireccional (estilo respaldo) envía archivos solo del origen al destino — perfecto para respaldar su teléfono a su PC. La sincronización bidireccional refleja cambios en ambas direcciones: si edita un archivo en cualquier dispositivo, el cambio se sincroniza al otro. Cuando el mismo archivo se modifica en ambos dispositivos, ocurre un conflicto. Puede elegir cómo resolver conflictos: "El más nuevo gana" selecciona automáticamente la versión modificada más recientemente, "Preguntarme" muestra un diálogo para cada conflicto, y "Mantener ambos" guarda ambas versiones con un sufijo.',
+      'helpSyncDirectionDesc':
+          'Cada trabajo de sincronización puede ser unidireccional o bidireccional. Unidireccional (estilo respaldo) envía archivos solo del origen al destino — perfecto para respaldar su teléfono a su PC. La sincronización bidireccional refleja cambios en ambas direcciones: si edita un archivo en cualquier dispositivo, el cambio se sincroniza al otro. Cuando el mismo archivo se modifica en ambos dispositivos, ocurre un conflicto. Puede elegir cómo resolver conflictos: "El más nuevo gana" selecciona automáticamente la versión modificada más recientemente, "Preguntarme" muestra un diálogo para cada conflicto, y "Mantener ambos" guarda ambas versiones con un sufijo.',
       'helpSyncPhotoMode': 'Modo Foto/Vídeo',
-      'helpSyncPhotoModeDesc': 'Diseñado específicamente para sincronizar fotos y vídeos desde su teléfono. Cuando está activado, la app detecta automáticamente la carpeta de la cámara (DCIM). Las fotos se organizan en subcarpetas por fecha en el destino (p. ej. 2026/01, 2026/02) para que miles de fotos se mantengan ordenadas. Las fotos Apple HEIC pueden convertirse automáticamente a JPG para compatibilidad con Windows y otras plataformas. Este modo es perfecto para liberar espacio en el teléfono: sincronice sus fotos a su PC y luego elimínelas del teléfono.',
+      'helpSyncPhotoModeDesc':
+          'Diseñado específicamente para sincronizar fotos y vídeos desde su teléfono. Cuando está activado, la app detecta automáticamente la carpeta de la cámara (DCIM). Las fotos se organizan en subcarpetas por fecha en el destino (p. ej. 2026/01, 2026/02) para que miles de fotos se mantengan ordenadas. Las fotos Apple HEIC pueden convertirse automáticamente a JPG para compatibilidad con Windows y otras plataformas. Este modo es perfecto para liberar espacio en el teléfono: sincronice sus fotos a su PC y luego elimínelas del teléfono.',
       'helpMirrorDeletions': 'Reflejar eliminaciones',
-      'helpMirrorDeletionsDesc': 'Cuando "Reflejar eliminaciones" está activado en un trabajo de sincronización, eliminar un archivo en el dispositivo de origen también lo eliminará en el destino. Esto mantiene ambos lados verdaderamente sincronizados — si limpia archivos antiguos en un dispositivo, se limpian en todas partes. Tenga cuidado con esta opción: si elimina un archivo accidentalmente, también se eliminará en el destino. Si está desactivado, las eliminaciones no se propagan y los archivos permanecen en el destino incluso después de ser eliminados del origen.',
+      'helpMirrorDeletionsDesc':
+          'Cuando "Reflejar eliminaciones" está activado en un trabajo de sincronización, eliminar un archivo en el dispositivo de origen también lo eliminará en el destino. Esto mantiene ambos lados verdaderamente sincronizados — si limpia archivos antiguos en un dispositivo, se limpian en todas partes. Tenga cuidado con esta opción: si elimina un archivo accidentalmente, también se eliminará en el destino. Si está desactivado, las eliminaciones no se propagan y los archivos permanecen en el destino incluso después de ser eliminados del origen.',
       'helpSyncFilters': 'Filtros de sincronización',
-      'helpSyncFiltersDesc': 'Controle exactamente qué archivos se sincronizan usando patrones de inclusión y exclusión (sintaxis glob). Por ejemplo: añada "*.jpg, *.png" a Incluir para sincronizar solo imágenes, o añada "*.tmp, Thumbs.db, .DS_Store" a Excluir para omitir archivos temporales. Los patrones se aplican a nombres de archivo, no a rutas completas. Si Incluir está vacío, todos los archivos se incluyen por defecto. Si un archivo coincide con Incluir y Excluir, Excluir prevalece. Esto es útil para sincronizar solo tipos de archivo específicos u omitir archivos grandes que no necesita.',
+      'helpSyncFiltersDesc':
+          'Controle exactamente qué archivos se sincronizan usando patrones de inclusión y exclusión (sintaxis glob). Por ejemplo: añada "*.jpg, *.png" a Incluir para sincronizar solo imágenes, o añada "*.tmp, Thumbs.db, .DS_Store" a Excluir para omitir archivos temporales. Los patrones se aplican a nombres de archivo, no a rutas completas. Si Incluir está vacío, todos los archivos se incluyen por defecto. Si un archivo coincide con Incluir y Excluir, Excluir prevalece. Esto es útil para sincronizar solo tipos de archivo específicos u omitir archivos grandes que no necesita.',
       'justNow': 'Ahora mismo',
       'syncConflicts': 'Conflictos de sincronización',
       'syncResolveConflicts': 'Resolver',
@@ -2607,9 +2999,11 @@ class AppLocalizations {
       'syncWaitingConflicts': 'Esperando resolución de conflictos…',
       // Faz 3+4 keys
       'autoSyncOnLan': 'Sync automático en LAN',
-      'autoSyncOnLanDesc': 'Iniciar sync automáticamente al encontrar un dispositivo en la red',
+      'autoSyncOnLanDesc':
+          'Iniciar sync automáticamente al encontrar un dispositivo en la red',
       'backgroundSync': 'Sync en segundo plano',
-      'backgroundSyncDesc': 'Sincronizar archivos en segundo plano cuando la app está cerrada',
+      'backgroundSyncDesc':
+          'Sincronizar archivos en segundo plano cuando la app está cerrada',
       'syncCameraHint': 'Carpeta de cámara típica',
       'syncAutoTriggered': 'Sync automático activado',
       'syncIncoming': 'Sync entrante',
@@ -2646,12 +3040,15 @@ class AppLocalizations {
       'hotspotConnected': '¡Conectado!',
       'hotspotNotSupported': 'Este dispositivo no puede crear un hotspot',
       'hotspotUseOtherDevice': 'Inicia desde el otro dispositivo',
-      'webPortalScanInfo': 'Escanea este QR con la cámara de cualquier dispositivo',
+      'webPortalScanInfo':
+          'Escanea este QR con la cámara de cualquier dispositivo',
       'hotspotCreate': 'Crear Hotspot',
       'hotspotCreateDesc': 'Iniciar un hotspot WiFi para que otros se conecten',
       'hotspotJoin': 'Unirse al Hotspot',
-      'hotspotJoinDesc': 'Escanea el QR para conectarte al hotspot de otro dispositivo',
-      'hotspotJoinDesktopHint': 'Usa un dispositivo móvil para escanear el código QR del hotspot',
+      'hotspotJoinDesc':
+          'Escanea el QR para conectarte al hotspot de otro dispositivo',
+      'hotspotJoinDesktopHint':
+          'Usa un dispositivo móvil para escanear el código QR del hotspot',
       // Server Sync (SFTP)
       'serverSync': 'Sync servidor',
       'addServer': 'Agregar servidor',
@@ -2692,7 +3089,8 @@ class AppLocalizations {
       'serverSyncLiveWatch': 'Vigilancia en vivo',
       'serverSyncLiveWatchDesc': 'Enviar cambios al servidor automáticamente',
       'gdrivePathHint': 'MisDocumentos/Respaldo',
-      'gdrivePathInfo': 'No puede explorar las carpetas existentes de Google Drive. Ingrese un nombre de carpeta (ej. "MisDocumentos/Respaldo"), la aplicación la creará automáticamente.',
+      'gdrivePathInfo':
+          'No puede explorar las carpetas existentes de Google Drive. Ingrese un nombre de carpeta (ej. "MisDocumentos/Respaldo"), la aplicación la creará automáticamente.',
       'syncNoJobs': 'Sin trabajos de sincronización',
       'syncNoJobsDesc': 'Cree un nuevo trabajo de sincronización',
       'syncSuccessful': 'Exitoso',
@@ -2728,9 +3126,11 @@ class AppLocalizations {
       'uploadFailed': 'Subida fallida',
       'ok': 'Aceptar',
       'helpHotspot': 'Conexión Hotspot',
-      'helpHotspotDesc': 'Si ambos dispositivos no pueden estar en la misma red Wi-Fi, un dispositivo puede crear un punto de acceso Wi-Fi y el otro conectarse a él. Esto crea una red local directa entre los dos dispositivos sin necesidad de router ni internet. Una vez conectado al hotspot, la app descubre automáticamente el otro dispositivo. Todas las funciones funcionan normalmente: transferencia de archivos, portapapeles compartido y sincronización de carpetas.',
+      'helpHotspotDesc':
+          'Si ambos dispositivos no pueden estar en la misma red Wi-Fi, un dispositivo puede crear un punto de acceso Wi-Fi y el otro conectarse a él. Esto crea una red local directa entre los dos dispositivos sin necesidad de router ni internet. Una vez conectado al hotspot, la app descubre automáticamente el otro dispositivo. Todas las funciones funcionan normalmente: transferencia de archivos, portapapeles compartido y sincronización de carpetas.',
       'helpServerSync': 'Sync Servidor (SFTP)',
-      'helpServerSyncDesc': 'Sincronice sus archivos con un servidor SFTP remoto como NAS, VPS o cualquier máquina con SSH. Configure su conexión de servidor (host, puerto, usuario, contraseña o clave privada) en Ajustes. Luego cree un trabajo de sincronización eligiendo una carpeta local y una ruta remota. La app compara ambos lados y transfiere solo los cambios. Soporta modo de vigilancia en vivo para sincronización automática cuando los archivos cambian localmente.',
+      'helpServerSyncDesc':
+          'Sincronice sus archivos con un servidor SFTP remoto como NAS, VPS o cualquier máquina con SSH. Configure su conexión de servidor (host, puerto, usuario, contraseña o clave privada) en Ajustes. Luego cree un trabajo de sincronización eligiendo una carpeta local y una ruta remota. La app compara ambos lados y transfiere solo los cambios. Soporta modo de vigilancia en vivo para sincronización automática cuando los archivos cambian localmente.',
       'notifTransferStarted': '{sender} \u2192 {file}',
       'notifTransferComplete': '\u2705 {file}',
       'notifTransferFailed': '\u274c {file}',
@@ -2750,15 +3150,18 @@ class AppLocalizations {
       'upgradeToPro': 'Mejorar a Pro',
       'iHaveACode': 'Tengo un c\u00f3digo',
       'activateCode': 'Activar c\u00f3digo',
-      'activateCodeDesc': 'Ingresa el c\u00f3digo de activaci\u00f3n de tu compra Pro para desbloquear Pro en este dispositivo.',
+      'activateCodeDesc':
+          'Ingresa el c\u00f3digo de activaci\u00f3n de tu compra Pro para desbloquear Pro en este dispositivo.',
       'activating': 'Activando…',
       'activate': 'Activar',
       'proActivated': '\u00a1Pro activado correctamente!',
       'activationFailed': 'Error en la activaci\u00f3n. Intenta de nuevo.',
       'invalidActivationCode': 'Formato de c\u00f3digo inv\u00e1lido.',
-      'deviceLimitReached': 'L\u00edmite de dispositivos alcanzado. Elimina uno primero.',
+      'deviceLimitReached':
+          'L\u00edmite de dispositivos alcanzado. Elimina uno primero.',
       'activationCode': 'C\u00f3digo de activaci\u00f3n',
-      'activationCodeHint': 'Comparte este c\u00f3digo con tus otros dispositivos.',
+      'activationCodeHint':
+          'Comparte este c\u00f3digo con tus otros dispositivos.',
       'activeDevices': 'Dispositivos activos: {current}/{max}',
       'planDeviceCount': '{current}/{max} dispositivos',
       'removeDevice': 'Eliminar dispositivo',
@@ -2772,23 +3175,30 @@ class AppLocalizations {
       'storeNotReady': 'Tienda no disponible a\u00fan.',
       'upgradeSuccess': '\u00a1Actualización a Pro exitosa!',
       'cancelTransfer': 'Cancelar transferencia',
-      'cancelTransferConfirm': '\u00bfEstá seguro de que desea cancelar esta transferencia?',
+      'cancelTransferConfirm':
+          '\u00bfEstá seguro de que desea cancelar esta transferencia?',
       'yes': 'Sí',
       'no': 'No',
       'proFeature': 'Funci\u00f3n Pro',
       'proFeature_unlimitedSync': 'Trabajos sync ilimitados requieren Pro.',
-      'proFeature_serverSync': 'Sync con servidor (SFTP/FTP/WebDAV) requiere Pro.',
-      'proFeature_cloudSync': 'Sync en la nube (Google Drive/OneDrive) requiere Pro.',
+      'proFeature_serverSync':
+          'Sync con servidor (SFTP/FTP/WebDAV) requiere Pro.',
+      'proFeature_cloudSync':
+          'Sync en la nube (Google Drive/OneDrive) requiere Pro.',
       'proFeature_relayTransfer': 'Transferencia por Internet requiere Pro.',
-      'proFeature_quickSendToServer': 'Env\u00edo r\u00e1pido al servidor requiere Pro.',
+      'proFeature_quickSendToServer':
+          'Env\u00edo r\u00e1pido al servidor requiere Pro.',
       'proFeature_liveWatch': 'Vigilancia en vivo de archivos requiere Pro.',
       'proFeature_bidirectionalSync': 'Sync bidireccional requiere Pro.',
       'proFeature_scheduledSync': 'Sync programado requiere Pro.',
-      'proFeature_unlimitedFileSize': 'Archivos de m\u00e1s de 500 MB requieren Pro.',
+      'proFeature_unlimitedFileSize':
+          'Archivos de m\u00e1s de 500 MB requieren Pro.',
       'shareProLan': 'Compartir Pro por LAN',
-      'shareProLanConfirm': '\u00bfCompartir tu c\u00f3digo de activaci\u00f3n Pro con {name}? Esto activar\u00e1 Pro en su dispositivo.',
+      'shareProLanConfirm':
+          '\u00bfCompartir tu c\u00f3digo de activaci\u00f3n Pro con {name}? Esto activar\u00e1 Pro en su dispositivo.',
       'shareProLanSuccess': '\u00a1Pro compartido con {name} exitosamente!',
-      'shareProLanFailed': 'No se pudo compartir Pro. Aseg\u00farate de que el dispositivo est\u00e9 en l\u00ednea.',
+      'shareProLanFailed':
+          'No se pudo compartir Pro. Aseg\u00farate de que el dispositivo est\u00e9 en l\u00ednea.',
       'share': 'Compartir',
     },
 
@@ -2800,7 +3210,9 @@ class AppLocalizations {
       'devices': 'Dispositivi',
       'transfers': 'Trasferimenti',
       'settings': 'Impostazioni',
+      'more': 'Altro',
       'collapse': 'Comprimi',
+      'expand': 'Espandi',
       'sync': 'Sincronizza',
       'noDevices': 'Nessun dispositivo trovato',
       'scanning': 'Ricerca dispositivi…',
@@ -2815,6 +3227,18 @@ class AppLocalizations {
       'noTransfers': 'Nessun trasferimento',
       'noTransfersDesc': 'I file inviati e ricevuti appariranno qui',
       'clearCompleted': 'Cancella',
+      'activeTransfers': 'Trasferimenti attivi',
+      'attentionRequired': 'Richiedono attenzione',
+      'retryFailed': 'Impossibile riprovare il trasferimento',
+      'transferQueue': 'Coda trasferimenti',
+      'cancelQueue': 'Annulla coda',
+      'cancelQueueConfirm':
+          'Annullare il trasferimento corrente e rimuovere tutti i file in attesa?',
+      'moveUp': 'Sposta su',
+      'moveDown': 'Sposta giù',
+      'removeFromQueue': 'Rimuovi dalla coda',
+      'transferControlUnavailable':
+          'Il controllo del trasferimento non è più disponibile',
       'sending': 'Invio…',
       'receiving': 'Ricezione…',
       'waiting': 'In attesa…',
@@ -2822,6 +3246,7 @@ class AppLocalizations {
       'accepted': 'Accettato',
       'rejected': 'Rifiutato',
       'transferring': 'Trasferimento',
+      'paused': 'In pausa',
       'completed': 'Completato',
       'failed': 'Fallito',
       'cancelled': 'Annullato',
@@ -2864,7 +3289,8 @@ class AppLocalizations {
       'save': 'Salva',
       'retry': 'Riprova',
       'storagePermission': 'Permesso di archiviazione necessario',
-      'storagePermissionDesc': 'LifeOS AnyWhere necessita dell\'accesso all\'archiviazione per inviare e ricevere file.',
+      'storagePermissionDesc':
+          'LifeOS AnyWhere necessita dell\'accesso all\'archiviazione per inviare e ricevere file.',
       'grant': 'Concedi',
       'openSettings': 'Apri impostazioni',
       'permissionDenied': 'Permesso negato',
@@ -2894,6 +3320,7 @@ class AppLocalizations {
       'selectFolder': 'Seleziona cartella',
       'sendFileOrFolder': 'Invia file o cartella',
       'sendFiles': 'Invia file',
+      'recentTargets': 'Destinazioni recenti',
       'folderSending': 'Invio cartella…',
       'fileReceived': 'File ricevuto',
       'fileReceiving': 'Ricezione file…',
@@ -2903,20 +3330,25 @@ class AppLocalizations {
       'clipboardSent': 'Appunti inviati',
       'clipboard': 'Appunti',
       'clipboardNoEntries': 'Nessuna voce',
-      'clipboardNoEntriesDesc': 'I contenuti condivisi degli appunti appariranno qui',
+      'clipboardNoEntriesDesc':
+          'I contenuti condivisi degli appunti appariranno qui',
       'clearAll': 'Cancella tutto',
       'copied': 'Copiato negli appunti',
       'clipboardText': 'Testo',
       'clipboardImage': 'Immagine',
       'clipboardPasteAndSend': 'Incolla e Invia',
       'clipboardSend': 'Invia appunti',
-      'clipboardSendHint': 'Copia il testo dagli appunti e lo invia a un dispositivo nelle vicinanze',
+      'clipboardSendHint':
+          'Copia il testo dagli appunti e lo invia a un dispositivo nelle vicinanze',
       'clipboardSentTo': 'Appunti inviati a',
       'delete': 'Elimina',
       'copy': 'Copia',
       'pairDevice': 'Associa dispositivo',
       'scanQr': 'Scansiona il codice per associare',
       'close': 'Chiudi',
+      'play': 'Riproduci',
+      'openExternally': 'Apri con un’altra app',
+      'previewUnavailable': 'Questo file non può essere visualizzato.',
       'pairedWith': 'Associato con {name}',
       'invalidCode': 'Codice QR non valido',
       'scanQrTitle': 'Scansiona codice QR',
@@ -2933,7 +3365,8 @@ class AppLocalizations {
       'noTargetDevice': 'Nessun dispositivo di destinazione',
       'folderSync': 'Sync cartella',
       'folderSyncBeta': 'Sync cartella (Beta)',
-      'folderSyncDesc': 'Replica le modifiche della cartella locale su un altro dispositivo.',
+      'folderSyncDesc':
+          'Replica le modifiche della cartella locale su un altro dispositivo.',
       'sourceFolder': 'Cartella sorgente',
       'targetDevice': 'Dispositivo destinazione',
       'selectFolderToSync': 'Seleziona cartella da sincronizzare',
@@ -2947,38 +3380,54 @@ class AppLocalizations {
       'help': 'Aiuto',
       'helpUsage': 'Come usare',
       'helpDiscovery': 'Rilevamento dispositivi',
-      'helpDiscoveryDesc': 'Tutti i dispositivi sulla stessa rete Wi-Fi o LAN cablata vengono rilevati automaticamente — nessuna configurazione necessaria. L\'app invia un segnale ogni pochi secondi per trovare i dispositivi nelle vicinanze. Se un dispositivo non appare, assicurati che entrambi siano sulla stessa rete, controlla che nessuna VPN blocchi il traffico locale e verifica che il router consenta la comunicazione tra dispositivi (alcune reti ospiti la bloccano). Puoi anche toccare « Aggiungi manualmente » e inserire l\'indirizzo IP direttamente.',
+      'helpDiscoveryDesc':
+          'Tutti i dispositivi sulla stessa rete Wi-Fi o LAN cablata vengono rilevati automaticamente — nessuna configurazione necessaria. L\'app invia un segnale ogni pochi secondi per trovare i dispositivi nelle vicinanze. Se un dispositivo non appare, assicurati che entrambi siano sulla stessa rete, controlla che nessuna VPN blocchi il traffico locale e verifica che il router consenta la comunicazione tra dispositivi (alcune reti ospiti la bloccano). Puoi anche toccare « Aggiungi manualmente » e inserire l\'indirizzo IP direttamente.',
       'helpSendFiles': 'Inviare file',
-      'helpSendFilesDesc': 'Tocca qualsiasi dispositivo rilevato per scegliere file o cartelle da inviare. Su desktop (Windows, macOS, Linux), puoi trascinare i file direttamente su una scheda dispositivo. Puoi inviare più file contemporaneamente — vengono messi in coda e trasferiti uno dopo l\'altro. Durante il trasferimento, puoi vedere velocità e progresso in tempo reale. Se un file esiste già sul destinatario, il comportamento dipende dall\'impostazione « Sovrascrivi file esistenti ».',
+      'helpSendFilesDesc':
+          'Tocca qualsiasi dispositivo rilevato per scegliere file o cartelle da inviare. Su desktop (Windows, macOS, Linux), puoi trascinare i file direttamente su una scheda dispositivo. Puoi inviare più file contemporaneamente — vengono messi in coda e trasferiti uno dopo l\'altro. Durante il trasferimento, puoi vedere velocità e progresso in tempo reale. Se un file esiste già sul destinatario, il comportamento dipende dall\'impostazione « Sovrascrivi file esistenti ».',
       'helpReceiveFiles': 'Ricevere file',
-      'helpReceiveFilesDesc': 'Quando qualcuno ti invia un file, appare una notifica per accettare o rifiutare. I file accettati vengono salvati nella cartella download configurata nelle Impostazioni. Puoi cambiare questa cartella in qualsiasi momento. Attiva « Accetta trasferimenti automaticamente » nelle Impostazioni per saltare il dialogo di conferma e ricevere tutti i file in arrivo automaticamente. I file ricevuti appaiono nella scheda Trasferimenti con opzioni per aprire il file o mostrarlo nel gestore file.',
+      'helpReceiveFilesDesc':
+          'Quando qualcuno ti invia un file, appare una notifica per accettare o rifiutare. I file accettati vengono salvati nella cartella download configurata nelle Impostazioni. Puoi cambiare questa cartella in qualsiasi momento. Attiva « Accetta trasferimenti automaticamente » nelle Impostazioni per saltare il dialogo di conferma e ricevere tutti i file in arrivo automaticamente. I file ricevuti appaiono nella scheda Trasferimenti con opzioni per aprire il file o mostrarlo nel gestore file.',
       'helpQrPairing': 'Associazione QR',
-      'helpQrPairingDesc': 'Se i dispositivi non vengono rilevati automaticamente (sottoreti diverse, reti complesse), usa l\'associazione tramite codice QR per una connessione con un tocco. Su un dispositivo, vai alla scheda Dispositivi e tocca l\'icona QR per mostrare un codice di associazione. Sull\'altro dispositivo, tocca « Scansiona QR » e punta la fotocamera verso il codice. Una volta scansionato, i dispositivi si connettono direttamente tramite l\'indirizzo IP integrato nel codice QR. Questa associazione persiste fino al riavvio dell\'app.',
+      'helpQrPairingDesc':
+          'Se i dispositivi non vengono rilevati automaticamente (sottoreti diverse, reti complesse), usa l\'associazione tramite codice QR per una connessione con un tocco. Su un dispositivo, vai alla scheda Dispositivi e tocca l\'icona QR per mostrare un codice di associazione. Sull\'altro dispositivo, tocca « Scansiona QR » e punta la fotocamera verso il codice. Una volta scansionato, i dispositivi si connettono direttamente tramite l\'indirizzo IP integrato nel codice QR. Questa associazione persiste fino al riavvio dell\'app.',
       'helpManualIp': 'Connessione IP manuale',
-      'helpManualIpDesc': 'Se la scansione QR non è disponibile (es. desktop senza fotocamera), puoi connetterti inserendo l\'indirizzo IP manualmente. Vai alla scheda Dispositivi, tocca « Aggiungi manualmente » e digita l\'indirizzo IP dell\'altro dispositivo (es. 192.168.1.100). L\'app tenterà di connettersi sulla porta predefinita. Puoi trovare l\'indirizzo IP del tuo dispositivo nella schermata Impostazioni o nelle impostazioni di rete del tuo sistema.',
+      'helpManualIpDesc':
+          'Se la scansione QR non è disponibile (es. desktop senza fotocamera), puoi connetterti inserendo l\'indirizzo IP manualmente. Vai alla scheda Dispositivi, tocca « Aggiungi manualmente » e digita l\'indirizzo IP dell\'altro dispositivo (es. 192.168.1.100). L\'app tenterà di connettersi sulla porta predefinita. Puoi trovare l\'indirizzo IP del tuo dispositivo nella schermata Impostazioni o nelle impostazioni di rete del tuo sistema.',
       'helpDragDrop': 'Trascina e rilascia',
-      'helpDragDropDesc': 'Sulle piattaforme desktop (Windows, macOS, Linux), puoi trascinare file o cartelle dal gestore file e rilasciarli direttamente su una scheda dispositivo nell\'app. Un indicatore di zona di rilascio appare quando passi il cursore su un dispositivo. Più file possono essere rilasciati contemporaneamente. Questo è il modo più veloce per inviare file dal desktop — nessun dialogo di selezione file necessario.',
+      'helpDragDropDesc':
+          'Sulle piattaforme desktop (Windows, macOS, Linux), puoi trascinare file o cartelle dal gestore file e rilasciarli direttamente su una scheda dispositivo nell\'app. Un indicatore di zona di rilascio appare quando passi il cursore su un dispositivo. Più file possono essere rilasciati contemporaneamente. Questo è il modo più veloce per inviare file dal desktop — nessun dialogo di selezione file necessario.',
       'helpClipboard': 'Condivisione appunti',
-      'helpClipboardDesc': 'Condividi il contenuto dei tuoi appunti (testo o immagini) istantaneamente tra dispositivi. Tocca l\'icona degli appunti su una scheda dispositivo o usa il pulsante « Incolla e invia » nella scheda Appunti. Le voci ricevute appaiono nella scheda Appunti con cronologia completa. Puoi toccare qualsiasi voce per ricopiarla nei tuoi appunti. Testo e immagini sono entrambi supportati. Perfetto per condividere rapidamente link, password, frammenti di codice o screenshot tra telefono e computer.',
+      'helpClipboardDesc':
+          'Condividi il contenuto dei tuoi appunti (testo o immagini) istantaneamente tra dispositivi. Tocca l\'icona degli appunti su una scheda dispositivo o usa il pulsante « Incolla e invia » nella scheda Appunti. Le voci ricevute appaiono nella scheda Appunti con cronologia completa. Puoi toccare qualsiasi voce per ricopiarla nei tuoi appunti. Testo e immagini sono entrambi supportati. Perfetto per condividere rapidamente link, password, frammenti di codice o screenshot tra telefono e computer.',
       'helpSync': 'Sincronizzazione cartelle',
-      'helpSyncDesc': 'Crea processi di sincronizzazione per mantenere le cartelle sincronizzate tra i tuoi dispositivi. Ogni processo sorveglia una cartella sorgente e riflette le modifiche su un dispositivo di destinazione. Puoi creare più processi indipendenti — ad esempio, uno per Documenti, uno per Foto e uno per Progetti. Le modifiche vengono rilevate automaticamente: nuovi file, modifiche ed eliminazioni vengono tutti sincronizzati. Ogni processo di sync viene memorizzato nella propria sottocartella sul destinatario (Sync/<NomeDispositivo>/<NomeProcesso>/), i file di diversi processi non si mescolano mai.',
+      'helpSyncDesc':
+          'Crea processi di sincronizzazione per mantenere le cartelle sincronizzate tra i tuoi dispositivi. Ogni processo sorveglia una cartella sorgente e riflette le modifiche su un dispositivo di destinazione. Puoi creare più processi indipendenti — ad esempio, uno per Documenti, uno per Foto e uno per Progetti. Le modifiche vengono rilevate automaticamente: nuovi file, modifiche ed eliminazioni vengono tutti sincronizzati. Ogni processo di sync viene memorizzato nella propria sottocartella sul destinatario (Sync/<NomeDispositivo>/<NomeProcesso>/), i file di diversi processi non si mescolano mai.',
       'helpSyncJobs': 'Processi di sincronizzazione',
-      'helpSyncJobsDesc': 'Ogni processo di sync ha il proprio nome, cartella sorgente, dispositivo di destinazione e impostazioni. Per creare un processo, tocca « Nuova Sync » e segui la procedura guidata in 3 passaggi: (1) Base — imposta un nome, scegli una cartella sorgente e seleziona un dispositivo di destinazione; (2) Opzioni — scegli la direzione di sync, la risoluzione dei conflitti e la modalità; (3) Filtri — includi o escludi file usando pattern glob (es. *.jpg, *.pdf). Una volta creati, i processi appaiono come schede nella tab Sync. Puoi avviare/fermare, mettere in pausa/riprendere o eliminare ogni processo in modo indipendente.',
+      'helpSyncJobsDesc':
+          'Ogni processo di sync ha il proprio nome, cartella sorgente, dispositivo di destinazione e impostazioni. Per creare un processo, tocca « Nuova Sync » e segui la procedura guidata in 3 passaggi: (1) Base — imposta un nome, scegli una cartella sorgente e seleziona un dispositivo di destinazione; (2) Opzioni — scegli la direzione di sync, la risoluzione dei conflitti e la modalità; (3) Filtri — includi o escludi file usando pattern glob (es. *.jpg, *.pdf). Una volta creati, i processi appaiono come schede nella tab Sync. Puoi avviare/fermare, mettere in pausa/riprendere o eliminare ogni processo in modo indipendente.',
       'helpTvMode': 'Modalità TV',
-      'helpTvModeDesc': 'Su Android TV, l\'app passa automaticamente a un layout con barra laterale ottimizzato per la navigazione con telecomando. Tutti i pulsanti e le schede sono ingranditi per la visibilità a distanza. Usa i tasti freccia sul telecomando per spostarti tra gli elementi e premi Invio/Select per attivare. L\'evidenziazione del focus D-pad mostra chiaramente quale elemento è selezionato. Tutte le funzionalità funzionano sulla TV — puoi ricevere file, sfogliare i trasferimenti e gestire i processi di sync usando solo il telecomando.',
+      'helpTvModeDesc':
+          'Su Android TV, l\'app passa automaticamente a un layout con barra laterale ottimizzato per la navigazione con telecomando. Tutti i pulsanti e le schede sono ingranditi per la visibilità a distanza. Usa i tasti freccia sul telecomando per spostarti tra gli elementi e premi Invio/Select per attivare. L\'evidenziazione del focus D-pad mostra chiaramente quale elemento è selezionato. Tutte le funzionalità funzionano sulla TV — puoi ricevere file, sfogliare i trasferimenti e gestire i processi di sync usando solo il telecomando.',
       'helpResume': 'Riprendi trasferimento',
-      'helpResumeDesc': 'Se un trasferimento di file viene interrotto — che sia per una caduta della rete, la chiusura dell\'app o la sospensione del dispositivo — riprende automaticamente da dove si era fermato quando la connessione viene ripristinata. Non è necessario rinviare l\'intero file. Particolarmente utile per file grandi: un video da 10 GB completato all\'80% continuerà dall\'80%, senza ricominciare. La ripresa funziona sia per l\'invio che per la ricezione.',
+      'helpResumeDesc':
+          'Se un trasferimento di file viene interrotto — che sia per una caduta della rete, la chiusura dell\'app o la sospensione del dispositivo — riprende automaticamente da dove si era fermato quando la connessione viene ripristinata. Non è necessario rinviare l\'intero file. Particolarmente utile per file grandi: un video da 10 GB completato all\'80% continuerà dall\'80%, senza ricominciare. La ripresa funziona sia per l\'invio che per la ricezione.',
       'helpBackground': 'Trasferimento in background',
-      'helpBackgroundDesc': 'Su Android, i trasferimenti di file continuano anche quando passi a un\'altra app o spegni lo schermo. Una notifica persistente mostra il nome del file corrente, la percentuale di progresso e la velocità di trasferimento. L\'app usa un servizio in primo piano e un wakelock per impedire ad Android di interrompere il trasferimento. Al completamento, ricevi una notifica di completamento. Nessuna configurazione speciale necessaria — funziona automaticamente.',
+      'helpBackgroundDesc':
+          'Su Android, i trasferimenti di file continuano anche quando passi a un\'altra app o spegni lo schermo. Una notifica persistente mostra il nome del file corrente, la percentuale di progresso e la velocità di trasferimento. L\'app usa un servizio in primo piano e un wakelock per impedire ad Android di interrompere il trasferimento. Al completamento, ricevi una notifica di completamento. Nessuna configurazione speciale necessaria — funziona automaticamente.',
       'helpMagicLink': 'Link Magico',
-      'helpMagicLinkDesc': 'Trasferisci file tra dispositivi su reti completamente diverse — ad esempio, da casa tua all\'ufficio, o al dispositivo di un amico in un\'altra città. Un dispositivo tocca « Crea stanza » e riceve un codice PIN a 6 cifre. L\'altro dispositivo tocca « Entra nella stanza » e inserisce il PIN. Una connessione diretta peer-to-peer viene stabilita tramite un server di segnalazione WebRTC per l\'handshake iniziale, poi i dati fluiscono direttamente tra i dispositivi quando possibile. Tutte le funzioni standard funzionano: invio file, condivisione appunti e tracciamento del progresso.',
+      'helpMagicLinkDesc':
+          'Trasferisci file tra dispositivi su reti completamente diverse — ad esempio, da casa tua all\'ufficio, o al dispositivo di un amico in un\'altra città. Un dispositivo tocca « Crea stanza » e riceve un codice PIN a 6 cifre. L\'altro dispositivo tocca « Entra nella stanza » e inserisce il PIN. Una connessione diretta peer-to-peer viene stabilita tramite un server di segnalazione WebRTC per l\'handshake iniziale, poi i dati fluiscono direttamente tra i dispositivi quando possibile. Tutte le funzioni standard funzionano: invio file, condivisione appunti e tracciamento del progresso.',
       'webPortal': 'Portale Web',
       'helpWebPortal': 'Portale Web',
-      'helpWebPortalDesc': 'Accedi al tuo dispositivo da qualsiasi browser web sulla stessa rete — nessuna installazione di app necessaria dall\'altra parte. Vai nelle Impostazioni e attiva il Portale Web per vedere l\'URL di accesso (es. http://192.168.1.50:8080). Apri questo URL su qualsiasi dispositivo con un browser: laptop, tablet o anche smart TV. Puoi caricare file sul tuo dispositivo e scaricarli tramite l\'interfaccia web. Perfetto per trasferimenti rapidi da un computer dove non vuoi installare l\'app.',
+      'helpWebPortalDesc':
+          'Accedi al tuo dispositivo da qualsiasi browser web sulla stessa rete — nessuna installazione di app necessaria dall\'altra parte. Vai nelle Impostazioni e attiva il Portale Web per vedere l\'URL di accesso (es. http://192.168.1.50:8080). Apri questo URL su qualsiasi dispositivo con un browser: laptop, tablet o anche smart TV. Puoi caricare file sul tuo dispositivo e scaricarli tramite l\'interfaccia web. Perfetto per trasferimenti rapidi da un computer dove non vuoi installare l\'app.',
       'helpAutoSync': 'Sync automatico su LAN',
-      'helpAutoSyncDesc': 'Quando attivato, i processi di sync partono automaticamente non appena il dispositivo di destinazione viene scoperto sulla rete. Non serve aprire l\'app né toccare nulla — basta connettersi allo stesso Wi-Fi e la sincronizzazione inizia. Ideale per scenari come: backup automatico delle foto del telefono sul PC ogni volta che torni a casa, o mantenere i documenti di lavoro sincronizzati ogni volta che ti connetti alla rete dell\'ufficio.',
+      'helpAutoSyncDesc':
+          'Quando attivato, i processi di sync partono automaticamente non appena il dispositivo di destinazione viene scoperto sulla rete. Non serve aprire l\'app né toccare nulla — basta connettersi allo stesso Wi-Fi e la sincronizzazione inizia. Ideale per scenari come: backup automatico delle foto del telefono sul PC ogni volta che torni a casa, o mantenere i documenti di lavoro sincronizzati ogni volta che ti connetti alla rete dell\'ufficio.',
       'helpSyncReceiveFolder': 'Cartella ricezione Sync',
-      'helpSyncReceiveFolderDesc': 'Per impostazione predefinita, i file ricevuti tramite sync vengono salvati nella cartella download in una sottocartella « Sync », organizzati per nome mittente e nome processo (es. Download/Sync/Telefono/Documenti/). Puoi cambiare questa cartella base in Impostazioni → Cartella ricezione Sync. Ogni processo di sync da ogni dispositivo ha la propria sottocartella, i file non si sovrappongono mai tra diverse sorgenti di sync.',
+      'helpSyncReceiveFolderDesc':
+          'Per impostazione predefinita, i file ricevuti tramite sync vengono salvati nella cartella download in una sottocartella « Sync », organizzati per nome mittente e nome processo (es. Download/Sync/Telefono/Documenti/). Puoi cambiare questa cartella base in Impostazioni → Cartella ricezione Sync. Ogni processo di sync da ogni dispositivo ha la propria sottocartella, i file non si sovrappongono mai tra diverse sorgenti di sync.',
       'syncSetupRequest': 'Richiesta di sync',
       'syncSetupAccept': 'Accetta',
       'syncSetupReject': 'Rifiuta',
@@ -2990,7 +3439,8 @@ class AppLocalizations {
       'syncPairings': 'Dispositivi accoppiati',
       'syncRemovePairing': 'Rimuovi accoppiamento',
       'syncPairingRemoved': 'Accoppiamento rimosso',
-      'syncPairingRemoveConfirm': 'Rimuovere l\'accoppiamento "{name}" con {device}? Le future sincronizzazioni richiederanno una nuova accettazione.',
+      'syncPairingRemoveConfirm':
+          'Rimuovere l\'accoppiamento "{name}" con {device}? Le future sincronizzazioni richiederanno una nuova accettazione.',
       'syncReceivedFiles': 'file ricevuti',
       'syncRetryFailed': 'Riprova falliti',
       'syncCopyErrorReport': 'Copia rapporto errori',
@@ -2998,24 +3448,34 @@ class AppLocalizations {
       'syncDirectionOneWay': 'Unidirezionale',
       'syncDirectionBidirectional': 'Bidirezionale',
       'helpSyncPairing': 'Accoppiamento Sync',
-      'helpSyncPairingDesc': 'Quando si avvia una sincronizzazione per la prima volta, il dispositivo ricevente mostra un dialogo di accettazione dove l\'utente può scegliere una cartella di destinazione. Una volta accettato, viene creato un accoppiamento — le sincronizzazioni future verso lo stesso dispositivo vengono accettate automaticamente. Puoi gestire gli accoppiamenti dalla schermata Sync. Entrambi i dispositivi condividono lo stesso ID lavoro, abilitando la sincronizzazione bidirezionale intelligente con rilevamento delle modifiche ai file.',
+      'helpSyncPairingDesc':
+          'Quando si avvia una sincronizzazione per la prima volta, il dispositivo ricevente mostra un dialogo di accettazione dove l\'utente può scegliere una cartella di destinazione. Una volta accettato, viene creato un accoppiamento — le sincronizzazioni future verso lo stesso dispositivo vengono accettate automaticamente. Puoi gestire gli accoppiamenti dalla schermata Sync. Entrambi i dispositivi condividono lo stesso ID lavoro, abilitando la sincronizzazione bidirezionale intelligente con rilevamento delle modifiche ai file.',
       'helpTips': 'Suggerimenti',
-      'helpTip1': 'Entrambi i dispositivi devono essere sulla stessa rete per il rilevamento automatico. Usa Link Magico o Hotspot per reti diverse.',
-      'helpTip2': 'Se i dispositivi non vengono rilevati, controlla le impostazioni del firewall e assicurati che il broadcast UDP sia consentito sulla porta 42224.',
-      'helpTip3': 'Le connessioni Ethernet cablate sono più veloci e stabili del Wi-Fi per i trasferimenti di file grandi.',
-      'helpTip4': 'Usa il limite di banda nelle Impostazioni per controllare la velocità di upload ed evitare di saturare una rete lenta.',
-      'helpTip5': 'Attiva la sync automatica per mantenere le cartelle aggiornate senza intervento manuale.',
-      'helpTip6': 'Puoi inviare intere cartelle — la struttura delle directory viene preservata sul dispositivo ricevente.',
-      'helpTip7': 'La sync degli appunti funziona con testo e immagini — ottima per condividere link o screenshot.',
+      'helpTip1':
+          'Entrambi i dispositivi devono essere sulla stessa rete per il rilevamento automatico. Usa Link Magico o Hotspot per reti diverse.',
+      'helpTip2':
+          'Se i dispositivi non vengono rilevati, controlla le impostazioni del firewall e assicurati che il broadcast UDP sia consentito sulla porta 42224.',
+      'helpTip3':
+          'Le connessioni Ethernet cablate sono più veloci e stabili del Wi-Fi per i trasferimenti di file grandi.',
+      'helpTip4':
+          'Usa il limite di banda nelle Impostazioni per controllare la velocità di upload ed evitare di saturare una rete lenta.',
+      'helpTip5':
+          'Attiva la sync automatica per mantenere le cartelle aggiornate senza intervento manuale.',
+      'helpTip6':
+          'Puoi inviare intere cartelle — la struttura delle directory viene preservata sul dispositivo ricevente.',
+      'helpTip7':
+          'La sync degli appunti funziona con testo e immagini — ottima per condividere link o screenshot.',
       'aboutApp': 'Info su LifeOS AnyWhere',
-      'aboutDesc': 'Condivisione file multipiattaforma in rete locale. Invia file, cartelle e appunti tra tutti i tuoi dispositivi — istantaneamente.',
+      'aboutDesc':
+          'Condivisione file multipiattaforma in rete locale. Invia file, cartelle e appunti tra tutti i tuoi dispositivi — istantaneamente.',
       'developer': 'Sviluppatore',
       'license': 'Licenza',
       'sourceCode': 'Codice sorgente',
       'allRightsReserved': 'Tutti i diritti riservati.',
       'website': 'Sito web',
       'installOnOtherDevices': 'Installa su altri dispositivi',
-      'installOnOtherDevicesDesc': 'Scarica LifeOS AnyWhere sui tuoi altri dispositivi',
+      'installOnOtherDevicesDesc':
+          'Scarica LifeOS AnyWhere sui tuoi altri dispositivi',
       'platformSupport': 'Piattaforme supportate',
       'platformSupportDesc': 'Android, Android TV, iOS, Windows, Linux, macOS',
       'syncProgress': '{synced} / {total} file',
@@ -3048,7 +3508,8 @@ class AppLocalizations {
       'newSync': 'Nuova sincronizzazione',
       'syncName': 'Nome sync',
       'syncJobs': 'Attività di sync',
-      'noSyncJobs': 'Nessuna attività di sincronizzazione.\nTocca il pulsante qui sotto per iniziare.',
+      'noSyncJobs':
+          'Nessuna attività di sincronizzazione.\nTocca il pulsante qui sotto per iniziare.',
       'createSync': 'Crea',
       'deleteSync': 'Elimina',
       'deleteConfirm': 'Eliminare questa attività di sincronizzazione?',
@@ -3077,12 +3538,14 @@ class AppLocalizations {
       // Timeline
       'timeline': 'Cronologia',
       'timelineEmpty': 'Nessuna attività',
-      'timelineEmptyDesc': 'I trasferimenti e le sincronizzazioni appariranno qui',
+      'timelineEmptyDesc':
+          'I trasferimenti e le sincronizzazioni appariranno qui',
       'today': 'Oggi',
       'yesterday': 'Ieri',
       // Magic Link (Relay)
       'magicLink': 'Link Magico',
-      'magicLinkDesc': 'Trasferisci file tra dispositivi su reti diverse tramite una connessione peer-to-peer',
+      'magicLinkDesc':
+          'Trasferisci file tra dispositivi su reti diverse tramite una connessione peer-to-peer',
       'createRoom': 'Crea stanza',
       'joinRoom': 'Unisciti alla stanza',
       'roomId': 'ID stanza',
@@ -3099,7 +3562,8 @@ class AppLocalizations {
       'syncTargetDevice': 'Dispositivo di destinazione',
       'syncTargetFolder': 'Cartella di destinazione (Opzionale)',
       'syncDefaultFolder': 'Predefinita (auto)',
-      'syncTargetFolderHint': 'Lasciare vuoto per usare la cartella di sync predefinita sul dispositivo di destinazione.',
+      'syncTargetFolderHint':
+          'Lasciare vuoto per usare la cartella di sync predefinita sul dispositivo di destinazione.',
       'syncSelectDevice': 'Seleziona un dispositivo',
       'noDevicesFound': 'Nessun dispositivo trovato nella rete',
       'createSyncJob': 'Crea',
@@ -3108,8 +3572,10 @@ class AppLocalizations {
       'syncDirection': 'Direzione sync',
       'syncOneWay': 'Unidirezionale',
       'syncBidirectional': 'Bidirezionale',
-      'syncOneWayDesc': 'I file vengono inviati solo dall\'origine alla destinazione.',
-      'syncBidirectionalDesc': 'Le modifiche su entrambi i lati vengono sincronizzate.',
+      'syncOneWayDesc':
+          'I file vengono inviati solo dall\'origine alla destinazione.',
+      'syncBidirectionalDesc':
+          'Le modifiche su entrambi i lati vengono sincronizzate.',
       'conflictStrategy': 'Risoluzione conflitti',
       'conflictNewerWins': 'Il più recente',
       'conflictAskUser': 'Chiedi a me',
@@ -3118,22 +3584,29 @@ class AppLocalizations {
       'syncModeGeneral': 'Generale',
       'syncModePhotoVideo': 'Foto/Video',
       'convertHeicToJpg': 'HEIC → JPG',
-      'convertHeicToJpgDesc': 'Converti automaticamente le foto Apple HEIC in JPG',
+      'convertHeicToJpgDesc':
+          'Converti automaticamente le foto Apple HEIC in JPG',
       'dateSubfolders': 'Sottocartelle per data',
       'mirrorDeletions': 'Rispecchia eliminazioni',
-      'mirrorDeletionsDesc': 'Elimina sulla destinazione quando eliminato dall\'origine',
+      'mirrorDeletionsDesc':
+          'Elimina sulla destinazione quando eliminato dall\'origine',
       'syncFilters': 'Filtri',
-      'syncFiltersDesc': 'Controlla quali file vengono sincronizzati con pattern glob.',
+      'syncFiltersDesc':
+          'Controlla quali file vengono sincronizzati con pattern glob.',
       'includePatterns': 'Includi',
       'excludePatterns': 'Escludi',
       'helpSyncDirection': 'Direzione e Conflitti',
-      'helpSyncDirectionDesc': 'Ogni processo di sync può essere unidirezionale o bidirezionale. Unidirezionale (stile backup) invia i file solo dalla sorgente alla destinazione — perfetto per il backup del telefono sul PC. La sync bidirezionale riflette le modifiche in entrambe le direzioni: se modifichi un file su uno dei dispositivi, la modifica viene sincronizzata sull\'altro. Quando lo stesso file viene modificato su entrambi i dispositivi, si verifica un conflitto. Puoi scegliere come risolvere i conflitti: « Il più recente vince » seleziona automaticamente la versione più recente, « Chiedimi » mostra un dialogo per ogni conflitto, e « Mantieni entrambi » salva entrambe le versioni con un suffisso.',
+      'helpSyncDirectionDesc':
+          'Ogni processo di sync può essere unidirezionale o bidirezionale. Unidirezionale (stile backup) invia i file solo dalla sorgente alla destinazione — perfetto per il backup del telefono sul PC. La sync bidirezionale riflette le modifiche in entrambe le direzioni: se modifichi un file su uno dei dispositivi, la modifica viene sincronizzata sull\'altro. Quando lo stesso file viene modificato su entrambi i dispositivi, si verifica un conflitto. Puoi scegliere come risolvere i conflitti: « Il più recente vince » seleziona automaticamente la versione più recente, « Chiedimi » mostra un dialogo per ogni conflitto, e « Mantieni entrambi » salva entrambe le versioni con un suffisso.',
       'helpSyncPhotoMode': 'Modalità Foto/Video',
-      'helpSyncPhotoModeDesc': 'Progettato specificamente per la sincronizzazione di foto e video dal telefono. Quando attivato, l\'app rileva automaticamente la cartella fotocamera (DCIM). Le foto vengono organizzate in sottocartelle per data sulla destinazione (es. 2026/01, 2026/02) così migliaia di foto restano ordinate. Le foto Apple HEIC possono essere convertite automaticamente in JPG per la compatibilità con Windows e altre piattaforme. Questa modalità è perfetta per liberare spazio sul telefono: sincronizza le foto sul PC, poi eliminale dal telefono.',
+      'helpSyncPhotoModeDesc':
+          'Progettato specificamente per la sincronizzazione di foto e video dal telefono. Quando attivato, l\'app rileva automaticamente la cartella fotocamera (DCIM). Le foto vengono organizzate in sottocartelle per data sulla destinazione (es. 2026/01, 2026/02) così migliaia di foto restano ordinate. Le foto Apple HEIC possono essere convertite automaticamente in JPG per la compatibilità con Windows e altre piattaforme. Questa modalità è perfetta per liberare spazio sul telefono: sincronizza le foto sul PC, poi eliminale dal telefono.',
       'helpMirrorDeletions': 'Eliminazioni speculari',
-      'helpMirrorDeletionsDesc': 'Quando « Eliminazioni speculari » è attivato su un processo di sync, eliminare un file sul dispositivo sorgente lo eliminerà anche sulla destinazione. Questo mantiene entrambi i lati veramente sincronizzati — se pulisci vecchi file su un dispositivo, vengono puliti ovunque. Attenzione con questa opzione: se elimini accidentalmente un file, verrà eliminato anche sulla destinazione. Se disattivato, le eliminazioni non vengono propagate e i file restano sulla destinazione anche dopo essere stati eliminati dalla sorgente.',
+      'helpMirrorDeletionsDesc':
+          'Quando « Eliminazioni speculari » è attivato su un processo di sync, eliminare un file sul dispositivo sorgente lo eliminerà anche sulla destinazione. Questo mantiene entrambi i lati veramente sincronizzati — se pulisci vecchi file su un dispositivo, vengono puliti ovunque. Attenzione con questa opzione: se elimini accidentalmente un file, verrà eliminato anche sulla destinazione. Se disattivato, le eliminazioni non vengono propagate e i file restano sulla destinazione anche dopo essere stati eliminati dalla sorgente.',
       'helpSyncFilters': 'Filtri di sincronizzazione',
-      'helpSyncFiltersDesc': 'Controlla esattamente quali file vengono sincronizzati usando pattern di inclusione ed esclusione (sintassi glob). Ad esempio: aggiungi « *.jpg, *.png » a Includi per sincronizzare solo immagini, o aggiungi « *.tmp, Thumbs.db, .DS_Store » a Escludi per saltare i file temporanei. I pattern si applicano ai nomi dei file, non ai percorsi completi. Se Includi è vuoto, tutti i file vengono inclusi per impostazione predefinita. Se un file corrisponde sia a Includi che a Escludi, Escludi prevale.',
+      'helpSyncFiltersDesc':
+          'Controlla esattamente quali file vengono sincronizzati usando pattern di inclusione ed esclusione (sintassi glob). Ad esempio: aggiungi « *.jpg, *.png » a Includi per sincronizzare solo immagini, o aggiungi « *.tmp, Thumbs.db, .DS_Store » a Escludi per saltare i file temporanei. I pattern si applicano ai nomi dei file, non ai percorsi completi. Se Includi è vuoto, tutti i file vengono inclusi per impostazione predefinita. Se un file corrisponde sia a Includi che a Escludi, Escludi prevale.',
       'justNow': 'Proprio ora',
       'syncConflicts': 'Conflitti di sincronizzazione',
       'syncResolveConflicts': 'Risolvi',
@@ -3148,9 +3621,11 @@ class AppLocalizations {
       'syncWaitingConflicts': 'In attesa di risoluzione conflitti…',
       // Faz 3+4 keys
       'autoSyncOnLan': 'Sync auto su LAN',
-      'autoSyncOnLanDesc': 'Avvia la sync automaticamente quando un dispositivo corrispondente viene trovato',
+      'autoSyncOnLanDesc':
+          'Avvia la sync automaticamente quando un dispositivo corrispondente viene trovato',
       'backgroundSync': 'Sync in background',
-      'backgroundSyncDesc': 'Sincronizza i file in background quando l\'app è chiusa',
+      'backgroundSyncDesc':
+          'Sincronizza i file in background quando l\'app è chiusa',
       'syncCameraHint': 'Cartella fotocamera tipica',
       'syncAutoTriggered': 'Sync auto attivata',
       'syncIncoming': 'Sync in entrata',
@@ -3187,12 +3662,15 @@ class AppLocalizations {
       'hotspotConnected': 'Connesso!',
       'hotspotNotSupported': 'Questo dispositivo non può creare un hotspot',
       'hotspotUseOtherDevice': 'Avvia dall\'altro dispositivo',
-      'webPortalScanInfo': 'Scansiona questo QR con la fotocamera di qualsiasi dispositivo',
+      'webPortalScanInfo':
+          'Scansiona questo QR con la fotocamera di qualsiasi dispositivo',
       'hotspotCreate': 'Crea Hotspot',
       'hotspotCreateDesc': 'Avvia un hotspot WiFi per far connettere altri',
       'hotspotJoin': 'Unisciti all\'Hotspot',
-      'hotspotJoinDesc': 'Scansiona il QR per connetterti all\'hotspot di un altro dispositivo',
-      'hotspotJoinDesktopHint': 'Usa un dispositivo mobile per scansionare il QR code dell\'hotspot',
+      'hotspotJoinDesc':
+          'Scansiona il QR per connetterti all\'hotspot di un altro dispositivo',
+      'hotspotJoinDesktopHint':
+          'Usa un dispositivo mobile per scansionare il QR code dell\'hotspot',
       // Server Sync (SFTP)
       'serverSync': 'Sync server',
       'addServer': 'Aggiungi server',
@@ -3214,7 +3692,8 @@ class AppLocalizations {
       'serverConnectionFailed': 'Connessione fallita: {error}',
       'noServers': 'Nessun server configurato',
       'noServersDesc': 'Aggiungi un server SFTP per sincronizzare',
-      'deleteServerConfirm': 'Eliminare il server "{name}" e tutte le attività?',
+      'deleteServerConfirm':
+          'Eliminare il server "{name}" e tutte le attività?',
       'serverLastConnected': 'Connesso {time}',
       'newServerSyncJob': 'Nuovo sync server',
       'serverSyncStep1': 'Base',
@@ -3233,7 +3712,8 @@ class AppLocalizations {
       'serverSyncLiveWatch': 'Monitoraggio live',
       'serverSyncLiveWatchDesc': 'Invia automaticamente le modifiche al server',
       'gdrivePathHint': 'MieiDocumenti/Backup',
-      'gdrivePathInfo': 'Non è possibile sfogliare le cartelle esistenti di Google Drive. Inserisci un nome di cartella (es. "MieiDocumenti/Backup"), l\'app la creerà automaticamente.',
+      'gdrivePathInfo':
+          'Non è possibile sfogliare le cartelle esistenti di Google Drive. Inserisci un nome di cartella (es. "MieiDocumenti/Backup"), l\'app la creerà automaticamente.',
       'syncNoJobs': 'Nessun job di sincronizzazione',
       'syncNoJobsDesc': 'Crea un nuovo job di sincronizzazione',
       'syncSuccessful': 'Riuscito',
@@ -3269,9 +3749,11 @@ class AppLocalizations {
       'uploadFailed': 'Caricamento fallito',
       'ok': 'OK',
       'helpHotspot': 'Connessione Hotspot',
-      'helpHotspotDesc': 'Se entrambi i dispositivi non possono essere sulla stessa rete Wi-Fi, un dispositivo può creare un hotspot Wi-Fi e l\'altro connettersi. Questo crea una rete locale diretta tra i due dispositivi senza bisogno di router o internet. Una volta connesso all\'hotspot, l\'app rileva automaticamente l\'altro dispositivo. Tutte le funzioni funzionano normalmente: trasferimento file, condivisione appunti e sincronizzazione cartelle.',
+      'helpHotspotDesc':
+          'Se entrambi i dispositivi non possono essere sulla stessa rete Wi-Fi, un dispositivo può creare un hotspot Wi-Fi e l\'altro connettersi. Questo crea una rete locale diretta tra i due dispositivi senza bisogno di router o internet. Una volta connesso all\'hotspot, l\'app rileva automaticamente l\'altro dispositivo. Tutte le funzioni funzionano normalmente: trasferimento file, condivisione appunti e sincronizzazione cartelle.',
       'helpServerSync': 'Sync Server (SFTP)',
-      'helpServerSyncDesc': 'Sincronizza i tuoi file con un server SFTP remoto come NAS, VPS o qualsiasi macchina SSH. Configura la connessione del server (host, porta, nome utente, password o chiave privata) nelle Impostazioni. Poi crea un lavoro di sync scegliendo una cartella locale e un percorso remoto. L\'app confronta entrambi i lati e trasferisce solo le modifiche. Supporta la modalità di sorveglianza in tempo reale per la sincronizzazione automatica quando i file cambiano localmente.',
+      'helpServerSyncDesc':
+          'Sincronizza i tuoi file con un server SFTP remoto come NAS, VPS o qualsiasi macchina SSH. Configura la connessione del server (host, porta, nome utente, password o chiave privata) nelle Impostazioni. Poi crea un lavoro di sync scegliendo una cartella locale e un percorso remoto. L\'app confronta entrambi i lati e trasferisce solo le modifiche. Supporta la modalità di sorveglianza in tempo reale per la sincronizzazione automatica quando i file cambiano localmente.',
       'notifTransferStarted': '{sender} \u2192 {file}',
       'notifTransferComplete': '\u2705 {file}',
       'notifTransferFailed': '\u274c {file}',
@@ -3291,15 +3773,18 @@ class AppLocalizations {
       'upgradeToPro': 'Passa a Pro',
       'iHaveACode': 'Ho un codice',
       'activateCode': 'Attiva codice',
-      'activateCodeDesc': 'Inserisci il codice di attivazione del tuo acquisto Pro per sbloccare Pro su questo dispositivo.',
+      'activateCodeDesc':
+          'Inserisci il codice di attivazione del tuo acquisto Pro per sbloccare Pro su questo dispositivo.',
       'activating': 'Attivazione…',
       'activate': 'Attiva',
       'proActivated': 'Pro attivato con successo!',
       'activationFailed': 'Attivazione fallita. Riprova.',
       'invalidActivationCode': 'Formato codice di attivazione non valido.',
-      'deviceLimitReached': 'Limite dispositivi raggiunto. Rimuovi prima un dispositivo.',
+      'deviceLimitReached':
+          'Limite dispositivi raggiunto. Rimuovi prima un dispositivo.',
       'activationCode': 'Codice di attivazione',
-      'activationCodeHint': 'Condividi questo codice con gli altri tuoi dispositivi.',
+      'activationCodeHint':
+          'Condividi questo codice con gli altri tuoi dispositivi.',
       'activeDevices': 'Dispositivi attivi: {current}/{max}',
       'planDeviceCount': '{current}/{max} dispositivi',
       'removeDevice': 'Rimuovi dispositivo',
@@ -3313,23 +3798,28 @@ class AppLocalizations {
       'storeNotReady': 'Store non ancora disponibile.',
       'upgradeSuccess': 'Aggiornamento a Pro riuscito!',
       'cancelTransfer': 'Annulla trasferimento',
-      'cancelTransferConfirm': 'Sei sicuro di voler annullare questo trasferimento?',
+      'cancelTransferConfirm':
+          'Sei sicuro di voler annullare questo trasferimento?',
       'yes': 'Sì',
       'no': 'No',
       'proFeature': 'Funzione Pro',
       'proFeature_unlimitedSync': 'Job sync illimitati richiedono Pro.',
       'proFeature_serverSync': 'Sync server (SFTP/FTP/WebDAV) richiede Pro.',
-      'proFeature_cloudSync': 'Sync cloud (Google Drive/OneDrive) richiede Pro.',
-      'proFeature_relayTransfer': 'Trasferimento Internet via relay richiede Pro.',
+      'proFeature_cloudSync':
+          'Sync cloud (Google Drive/OneDrive) richiede Pro.',
+      'proFeature_relayTransfer':
+          'Trasferimento Internet via relay richiede Pro.',
       'proFeature_quickSendToServer': 'Invio rapido al server richiede Pro.',
       'proFeature_liveWatch': 'Monitoraggio file in tempo reale richiede Pro.',
       'proFeature_bidirectionalSync': 'Sync bidirezionale richiede Pro.',
       'proFeature_scheduledSync': 'Sync programmata richiede Pro.',
       'proFeature_unlimitedFileSize': 'File oltre 500 MB richiedono Pro.',
       'shareProLan': 'Condividi Pro via LAN',
-      'shareProLanConfirm': 'Condividere il codice di attivazione Pro con {name}? Questo attiver\u00e0 Pro sul dispositivo.',
+      'shareProLanConfirm':
+          'Condividere il codice di attivazione Pro con {name}? Questo attiver\u00e0 Pro sul dispositivo.',
       'shareProLanSuccess': 'Pro condiviso con {name} con successo!',
-      'shareProLanFailed': 'Impossibile condividere Pro. Assicurati che il dispositivo sia online.',
+      'shareProLanFailed':
+          'Impossibile condividere Pro. Assicurati che il dispositivo sia online.',
       'share': 'Condividi',
     },
 
@@ -3341,7 +3831,9 @@ class AppLocalizations {
       'devices': 'Устройства',
       'transfers': 'Передачи',
       'settings': 'Настройки',
+      'more': 'Ещё',
       'collapse': 'Свернуть',
+      'expand': 'Развернуть',
       'sync': 'Синхр.',
       'noDevices': 'Устройства не найдены',
       'scanning': 'Поиск устройств…',
@@ -3356,6 +3848,17 @@ class AppLocalizations {
       'noTransfers': 'Пока нет передач',
       'noTransfersDesc': 'Отправленные и полученные файлы появятся здесь',
       'clearCompleted': 'Очистить',
+      'activeTransfers': 'Активные передачи',
+      'attentionRequired': 'Требуют внимания',
+      'retryFailed': 'Не удалось повторить передачу',
+      'transferQueue': 'Очередь передач',
+      'cancelQueue': 'Отменить очередь',
+      'cancelQueueConfirm':
+          'Отменить текущую передачу и удалить все ожидающие файлы?',
+      'moveUp': 'Переместить вверх',
+      'moveDown': 'Переместить вниз',
+      'removeFromQueue': 'Удалить из очереди',
+      'transferControlUnavailable': 'Управление передачей больше недоступно',
       'sending': 'Отправка…',
       'receiving': 'Получение…',
       'waiting': 'Ожидание…',
@@ -3363,6 +3866,7 @@ class AppLocalizations {
       'accepted': 'Принято',
       'rejected': 'Отклонено',
       'transferring': 'Передача',
+      'paused': 'Приостановлено',
       'completed': 'Завершено',
       'failed': 'Ошибка',
       'cancelled': 'Отменено',
@@ -3405,7 +3909,8 @@ class AppLocalizations {
       'save': 'Сохранить',
       'retry': 'Повторить',
       'storagePermission': 'Требуется разрешение на хранилище',
-      'storagePermissionDesc': 'LifeOS AnyWhere нужен доступ к хранилищу для отправки и получения файлов.',
+      'storagePermissionDesc':
+          'LifeOS AnyWhere нужен доступ к хранилищу для отправки и получения файлов.',
       'grant': 'Разрешить',
       'openSettings': 'Открыть настройки',
       'permissionDenied': 'Разрешение отклонено',
@@ -3435,6 +3940,7 @@ class AppLocalizations {
       'selectFolder': 'Выбрать папку',
       'sendFileOrFolder': 'Отправить файл или папку',
       'sendFiles': 'Отправить файлы',
+      'recentTargets': 'Недавние получатели',
       'folderSending': 'Отправка папки…',
       'fileReceived': 'Файл получен',
       'fileReceiving': 'Получение файла…',
@@ -3451,13 +3957,17 @@ class AppLocalizations {
       'clipboardImage': 'Изображение',
       'clipboardPasteAndSend': 'Вставить и Отправить',
       'clipboardSend': 'Отправить буфер',
-      'clipboardSendHint': 'Копирует текст из буфера обмена и отправляет его на ближайшее устройство',
+      'clipboardSendHint':
+          'Копирует текст из буфера обмена и отправляет его на ближайшее устройство',
       'clipboardSentTo': 'Буфер обмена отправлен на',
       'delete': 'Удалить',
       'copy': 'Копировать',
       'pairDevice': 'Сопрячь устройство',
       'scanQr': 'Отсканируйте код для сопряжения',
       'close': 'Закрыть',
+      'play': 'Воспроизвести',
+      'openExternally': 'Открыть в другом приложении',
+      'previewUnavailable': 'Предпросмотр этого файла недоступен.',
       'pairedWith': 'Сопряжено с {name}',
       'invalidCode': 'Недействительный QR-код',
       'scanQrTitle': 'Сканировать QR-код',
@@ -3488,38 +3998,54 @@ class AppLocalizations {
       'help': 'Справка',
       'helpUsage': 'Как использовать',
       'helpDiscovery': 'Обнаружение устройств',
-      'helpDiscoveryDesc': 'Все ваши устройства в одной Wi-Fi или проводной локальной сети обнаруживаются автоматически — никакой настройки не требуется. Приложение каждые несколько секунд рассылает сигнал для поиска ближайших устройств. Если устройство не появляется, убедитесь, что оба устройства находятся в одной сети, проверьте, что VPN не блокирует локальный трафик, и убедитесь, что ваш роутер разрешает связь между устройствами (некоторые гостевые сети это блокируют). Вы также можете нажать «Добавить вручную» и ввести IP-адрес напрямую.',
+      'helpDiscoveryDesc':
+          'Все ваши устройства в одной Wi-Fi или проводной локальной сети обнаруживаются автоматически — никакой настройки не требуется. Приложение каждые несколько секунд рассылает сигнал для поиска ближайших устройств. Если устройство не появляется, убедитесь, что оба устройства находятся в одной сети, проверьте, что VPN не блокирует локальный трафик, и убедитесь, что ваш роутер разрешает связь между устройствами (некоторые гостевые сети это блокируют). Вы также можете нажать «Добавить вручную» и ввести IP-адрес напрямую.',
       'helpSendFiles': 'Отправка файлов',
-      'helpSendFilesDesc': 'Нажмите на любое обнаруженное устройство, чтобы выбрать файлы или папки для отправки. На десктопе (Windows, macOS, Linux) можно перетаскивать файлы прямо на карточку устройства. Можно отправлять несколько файлов одновременно — они ставятся в очередь и передаются последовательно. Во время передачи отображаются скорость и прогресс в реальном времени. Если файл уже существует на принимающем устройстве, поведение зависит от настройки «Перезаписывать существующие файлы».',
+      'helpSendFilesDesc':
+          'Нажмите на любое обнаруженное устройство, чтобы выбрать файлы или папки для отправки. На десктопе (Windows, macOS, Linux) можно перетаскивать файлы прямо на карточку устройства. Можно отправлять несколько файлов одновременно — они ставятся в очередь и передаются последовательно. Во время передачи отображаются скорость и прогресс в реальном времени. Если файл уже существует на принимающем устройстве, поведение зависит от настройки «Перезаписывать существующие файлы».',
       'helpReceiveFiles': 'Получение файлов',
-      'helpReceiveFilesDesc': 'Когда кто-то отправляет вам файл, появляется уведомление с запросом на принятие или отклонение. Принятые файлы сохраняются в папку загрузок, указанную в Настройках. Вы можете изменить эту папку в любое время. Включите «Автоприём» в Настройках, чтобы пропустить диалог подтверждения и автоматически принимать все входящие файлы. Полученные файлы отображаются во вкладке «Передачи» с возможностью открыть файл или показать его в файловом менеджере.',
+      'helpReceiveFilesDesc':
+          'Когда кто-то отправляет вам файл, появляется уведомление с запросом на принятие или отклонение. Принятые файлы сохраняются в папку загрузок, указанную в Настройках. Вы можете изменить эту папку в любое время. Включите «Автоприём» в Настройках, чтобы пропустить диалог подтверждения и автоматически принимать все входящие файлы. Полученные файлы отображаются во вкладке «Передачи» с возможностью открыть файл или показать его в файловом менеджере.',
       'helpQrPairing': 'QR-сопряжение',
-      'helpQrPairingDesc': 'Если устройства не обнаруживаются автоматически (разные подсети, сложные сети), используйте QR-сопряжение для подключения в одно касание. На одном устройстве перейдите во вкладку «Устройства» и нажмите значок QR для отображения кода сопряжения. На другом устройстве нажмите «Сканировать QR» и наведите камеру на код. После сканирования устройства подключаются напрямую по IP-адресу, встроенному в QR-код. Это сопряжение сохраняется до перезапуска приложения.',
+      'helpQrPairingDesc':
+          'Если устройства не обнаруживаются автоматически (разные подсети, сложные сети), используйте QR-сопряжение для подключения в одно касание. На одном устройстве перейдите во вкладку «Устройства» и нажмите значок QR для отображения кода сопряжения. На другом устройстве нажмите «Сканировать QR» и наведите камеру на код. После сканирования устройства подключаются напрямую по IP-адресу, встроенному в QR-код. Это сопряжение сохраняется до перезапуска приложения.',
       'helpManualIp': 'Подключение по IP вручную',
-      'helpManualIpDesc': 'Если сканирование QR недоступно (например, десктоп без камеры), можно подключиться, введя IP-адрес вручную. Перейдите во вкладку «Устройства», нажмите «Добавить вручную» и введите IP-адрес другого устройства (например, 192.168.1.100). Приложение попытается подключиться через порт по умолчанию. IP-адрес вашего устройства можно найти на экране Настроек или в сетевых настройках системы.',
+      'helpManualIpDesc':
+          'Если сканирование QR недоступно (например, десктоп без камеры), можно подключиться, введя IP-адрес вручную. Перейдите во вкладку «Устройства», нажмите «Добавить вручную» и введите IP-адрес другого устройства (например, 192.168.1.100). Приложение попытается подключиться через порт по умолчанию. IP-адрес вашего устройства можно найти на экране Настроек или в сетевых настройках системы.',
       'helpDragDrop': 'Перетаскивание',
-      'helpDragDropDesc': 'На десктопных платформах (Windows, macOS, Linux) можно перетаскивать файлы или папки из файлового менеджера прямо на карточку устройства в приложении. При наведении на устройство появляется индикатор зоны сброса. Можно перетащить несколько файлов одновременно. Это самый быстрый способ отправки файлов с десктопа — без диалога выбора файлов.',
+      'helpDragDropDesc':
+          'На десктопных платформах (Windows, macOS, Linux) можно перетаскивать файлы или папки из файлового менеджера прямо на карточку устройства в приложении. При наведении на устройство появляется индикатор зоны сброса. Можно перетащить несколько файлов одновременно. Это самый быстрый способ отправки файлов с десктопа — без диалога выбора файлов.',
       'helpClipboard': 'Обмен буфером обмена',
-      'helpClipboardDesc': 'Мгновенно делитесь содержимым буфера обмена (текстом или изображениями) между устройствами. Нажмите значок буфера обмена на карточке устройства или используйте кнопку «Вставить и отправить» во вкладке «Буфер обмена». Полученные записи буфера обмена отображаются во вкладке «Буфер обмена» с полной историей. Нажмите на любую запись, чтобы скопировать её обратно. Поддерживаются текст и изображения. Идеально подходит для быстрого обмена ссылками, паролями, фрагментами кода или скриншотами между телефоном и компьютером.',
+      'helpClipboardDesc':
+          'Мгновенно делитесь содержимым буфера обмена (текстом или изображениями) между устройствами. Нажмите значок буфера обмена на карточке устройства или используйте кнопку «Вставить и отправить» во вкладке «Буфер обмена». Полученные записи буфера обмена отображаются во вкладке «Буфер обмена» с полной историей. Нажмите на любую запись, чтобы скопировать её обратно. Поддерживаются текст и изображения. Идеально подходит для быстрого обмена ссылками, паролями, фрагментами кода или скриншотами между телефоном и компьютером.',
       'helpSync': 'Синхронизация папок',
-      'helpSyncDesc': 'Создавайте задачи синхронизации для поддержания папок в актуальном состоянии на всех устройствах. Каждая задача отслеживает исходную папку и зеркалирует изменения на целевое устройство. Можно создать несколько независимых задач — например, одну для Документов, одну для Фотографий и одну для Проектов. Изменения обнаруживаются автоматически: новые файлы, модификации и удаления синхронизируются. Каждая задача на принимающем устройстве хранится в собственной подпапке (Sync/<ИмяУстройства>/<ИмяЗадачи>/), поэтому файлы из разных задач никогда не смешиваются.',
+      'helpSyncDesc':
+          'Создавайте задачи синхронизации для поддержания папок в актуальном состоянии на всех устройствах. Каждая задача отслеживает исходную папку и зеркалирует изменения на целевое устройство. Можно создать несколько независимых задач — например, одну для Документов, одну для Фотографий и одну для Проектов. Изменения обнаруживаются автоматически: новые файлы, модификации и удаления синхронизируются. Каждая задача на принимающем устройстве хранится в собственной подпапке (Sync/<ИмяУстройства>/<ИмяЗадачи>/), поэтому файлы из разных задач никогда не смешиваются.',
       'helpSyncJobs': 'Задачи синхронизации',
-      'helpSyncJobsDesc': 'Каждая задача синхронизации имеет своё название, исходную папку, целевое устройство и настройки. Чтобы создать задачу, нажмите «Новая синхронизация» и следуйте 3-шаговому мастеру: (1) Основное — задайте имя, выберите исходную папку и целевое устройство; (2) Параметры — выберите направление синхронизации, разрешение конфликтов и режим синхронизации; (3) Фильтры — включайте или исключайте файлы с помощью glob-шаблонов (например, *.jpg, *.pdf). После создания задачи отображаются как карточки во вкладке «Синхронизация». Можно запускать/останавливать, приостанавливать/возобновлять или удалять каждую задачу независимо.',
+      'helpSyncJobsDesc':
+          'Каждая задача синхронизации имеет своё название, исходную папку, целевое устройство и настройки. Чтобы создать задачу, нажмите «Новая синхронизация» и следуйте 3-шаговому мастеру: (1) Основное — задайте имя, выберите исходную папку и целевое устройство; (2) Параметры — выберите направление синхронизации, разрешение конфликтов и режим синхронизации; (3) Фильтры — включайте или исключайте файлы с помощью glob-шаблонов (например, *.jpg, *.pdf). После создания задачи отображаются как карточки во вкладке «Синхронизация». Можно запускать/останавливать, приостанавливать/возобновлять или удалять каждую задачу независимо.',
       'helpTvMode': 'Режим ТВ',
-      'helpTvModeDesc': 'На Android TV приложение автоматически переключается на боковую панель, оптимизированную для навигации пультом. Все кнопки и карточки увеличены для видимости на расстоянии. Используйте стрелки на пульте для перемещения между элементами и нажмите Enter/Select для активации. Подсветка фокуса D-pad чётко показывает выбранный элемент. Все функции работают на ТВ — можно получать файлы, просматривать передачи и управлять задачами синхронизации, используя только пульт.',
+      'helpTvModeDesc':
+          'На Android TV приложение автоматически переключается на боковую панель, оптимизированную для навигации пультом. Все кнопки и карточки увеличены для видимости на расстоянии. Используйте стрелки на пульте для перемещения между элементами и нажмите Enter/Select для активации. Подсветка фокуса D-pad чётко показывает выбранный элемент. Все функции работают на ТВ — можно получать файлы, просматривать передачи и управлять задачами синхронизации, используя только пульт.',
       'helpResume': 'Возобновление передачи',
-      'helpResumeDesc': 'Если передача файла прервана — из-за потери сети, закрытия приложения или перехода устройства в сон — она автоматически возобновляется с того места, где остановилась, когда соединение восстановится. Не нужно отправлять файл заново. Это особенно полезно для больших файлов: видео размером 10 ГБ, загруженное на 80%, продолжится с 80%, а не начнётся сначала. Возобновление работает как для отправки, так и для получения.',
+      'helpResumeDesc':
+          'Если передача файла прервана — из-за потери сети, закрытия приложения или перехода устройства в сон — она автоматически возобновляется с того места, где остановилась, когда соединение восстановится. Не нужно отправлять файл заново. Это особенно полезно для больших файлов: видео размером 10 ГБ, загруженное на 80%, продолжится с 80%, а не начнётся сначала. Возобновление работает как для отправки, так и для получения.',
       'helpBackground': 'Фоновая передача',
-      'helpBackgroundDesc': 'На Android передачи файлов продолжаются, даже когда вы переключаетесь на другое приложение или выключаете экран. Постоянное уведомление показывает имя текущего файла, процент прогресса и скорость передачи. Приложение использует фоновый сервис и wakelock для предотвращения завершения передачи системой Android. По завершении передачи вы получаете уведомление. Специальная настройка не требуется — всё работает автоматически.',
+      'helpBackgroundDesc':
+          'На Android передачи файлов продолжаются, даже когда вы переключаетесь на другое приложение или выключаете экран. Постоянное уведомление показывает имя текущего файла, процент прогресса и скорость передачи. Приложение использует фоновый сервис и wakelock для предотвращения завершения передачи системой Android. По завершении передачи вы получаете уведомление. Специальная настройка не требуется — всё работает автоматически.',
       'helpMagicLink': 'Волшебная ссылка',
-      'helpMagicLinkDesc': 'Передавайте файлы между устройствами в совершенно разных сетях — например, из дома в офис или другу в другом городе. Одно устройство нажимает «Создать комнату» и получает 6-значный PIN-код. Другое устройство нажимает «Присоединиться» и вводит PIN. Устанавливается прямое P2P-соединение через сервер сигнализации WebRTC для начального рукопожатия, затем данные передаются напрямую между устройствами, когда это возможно. Все стандартные функции работают: отправка файлов, обмен буфером обмена и отслеживание прогресса.',
+      'helpMagicLinkDesc':
+          'Передавайте файлы между устройствами в совершенно разных сетях — например, из дома в офис или другу в другом городе. Одно устройство нажимает «Создать комнату» и получает 6-значный PIN-код. Другое устройство нажимает «Присоединиться» и вводит PIN. Устанавливается прямое P2P-соединение через сервер сигнализации WebRTC для начального рукопожатия, затем данные передаются напрямую между устройствами, когда это возможно. Все стандартные функции работают: отправка файлов, обмен буфером обмена и отслеживание прогресса.',
       'webPortal': 'Веб-портал',
       'helpWebPortal': 'Веб-портал',
-      'helpWebPortalDesc': 'Получите доступ к устройству из любого браузера в той же сети — установка приложения на другой стороне не требуется. Перейдите в Настройки и включите Веб-портал, чтобы увидеть URL доступа (например, http://192.168.1.50:8080). Откройте этот URL на любом устройстве с браузером: ноутбуке, планшете или даже Smart TV. Через веб-интерфейс можно загружать файлы на устройство и скачивать с него. Идеально для быстрой передачи с компьютера, на который не хочется устанавливать приложение.',
+      'helpWebPortalDesc':
+          'Получите доступ к устройству из любого браузера в той же сети — установка приложения на другой стороне не требуется. Перейдите в Настройки и включите Веб-портал, чтобы увидеть URL доступа (например, http://192.168.1.50:8080). Откройте этот URL на любом устройстве с браузером: ноутбуке, планшете или даже Smart TV. Через веб-интерфейс можно загружать файлы на устройство и скачивать с него. Идеально для быстрой передачи с компьютера, на который не хочется устанавливать приложение.',
       'helpAutoSync': 'Автосинхронизация в LAN',
-      'helpAutoSyncDesc': 'При включении задачи синхронизации запускаются автоматически, как только целевое устройство обнаруживается в сети. Не нужно открывать приложение или нажимать что-либо — просто подключитесь к тому же Wi-Fi, и синхронизация начнётся. Идеально подходит для сценариев вроде: автоматического резервного копирования фотографий с телефона на ПК каждый раз, когда вы приходите домой, или поддержания рабочих документов в синхронизации при подключении к офисной сети.',
+      'helpAutoSyncDesc':
+          'При включении задачи синхронизации запускаются автоматически, как только целевое устройство обнаруживается в сети. Не нужно открывать приложение или нажимать что-либо — просто подключитесь к тому же Wi-Fi, и синхронизация начнётся. Идеально подходит для сценариев вроде: автоматического резервного копирования фотографий с телефона на ПК каждый раз, когда вы приходите домой, или поддержания рабочих документов в синхронизации при подключении к офисной сети.',
       'helpSyncReceiveFolder': 'Папка получения синхронизации',
-      'helpSyncReceiveFolderDesc': 'По умолчанию файлы, полученные через синхронизацию, сохраняются в папке загрузок в подпапке «Sync», организованной по имени отправителя и имени задачи (например, Загрузки/Sync/Телефон/Документы/). Вы можете изменить эту базовую папку в Настройки → Папка получения синхронизации. Каждая задача синхронизации от каждого устройства получает собственную подпапку, поэтому файлы из разных источников никогда не перемешиваются.',
+      'helpSyncReceiveFolderDesc':
+          'По умолчанию файлы, полученные через синхронизацию, сохраняются в папке загрузок в подпапке «Sync», организованной по имени отправителя и имени задачи (например, Загрузки/Sync/Телефон/Документы/). Вы можете изменить эту базовую папку в Настройки → Папка получения синхронизации. Каждая задача синхронизации от каждого устройства получает собственную подпапку, поэтому файлы из разных источников никогда не перемешиваются.',
       'syncSetupRequest': 'Запрос синхронизации',
       'syncSetupAccept': 'Принять',
       'syncSetupReject': 'Отклонить',
@@ -3531,7 +4057,8 @@ class AppLocalizations {
       'syncPairings': 'Сопряжённые устройства',
       'syncRemovePairing': 'Удалить сопряжение',
       'syncPairingRemoved': 'Сопряжение удалено',
-      'syncPairingRemoveConfirm': 'Удалить сопряжение «{name}» с {device}? Будущие синхронизации потребуют повторного подтверждения.',
+      'syncPairingRemoveConfirm':
+          'Удалить сопряжение «{name}» с {device}? Будущие синхронизации потребуют повторного подтверждения.',
       'syncReceivedFiles': 'файлов получено',
       'syncRetryFailed': 'Повторить неудачные',
       'syncCopyErrorReport': 'Копировать отчёт об ошибках',
@@ -3539,24 +4066,34 @@ class AppLocalizations {
       'syncDirectionOneWay': 'Односторонняя',
       'syncDirectionBidirectional': 'Двусторонняя',
       'helpSyncPairing': 'Сопряжение Sync',
-      'helpSyncPairingDesc': 'При первом запуске синхронизации на устройстве-получателе появляется диалог подтверждения, где можно выбрать целевую папку. После принятия создаётся сопряжение — будущие синхронизации с тем же устройством принимаются автоматически. Управлять сопряжениями можно на экране Sync. Оба устройства используют одинаковый ID задания, что обеспечивает умную двустороннюю синхронизацию с обнаружением изменений файлов.',
+      'helpSyncPairingDesc':
+          'При первом запуске синхронизации на устройстве-получателе появляется диалог подтверждения, где можно выбрать целевую папку. После принятия создаётся сопряжение — будущие синхронизации с тем же устройством принимаются автоматически. Управлять сопряжениями можно на экране Sync. Оба устройства используют одинаковый ID задания, что обеспечивает умную двустороннюю синхронизацию с обнаружением изменений файлов.',
       'helpTips': 'Советы',
-      'helpTip1': 'Оба устройства должны быть в одной сети для автообнаружения. Используйте Волшебную ссылку или Hotspot для разных сетей.',
-      'helpTip2': 'Если устройства не обнаруживаются, проверьте настройки файрвола и убедитесь, что UDP-широковещание разрешено на порту 42224.',
-      'helpTip3': 'Проводное Ethernet-соединение быстрее и стабильнее Wi-Fi для передачи больших файлов.',
-      'helpTip4': 'Используйте ограничение пропускной способности в Настройках для ограничения скорости загрузки и предотвращения перегрузки медленной сети.',
-      'helpTip5': 'Включите автосинхронизацию, чтобы ваши папки оставались актуальными без ручного вмешательства.',
-      'helpTip6': 'Можно отправлять целые папки — структура каталогов сохраняется на принимающем устройстве.',
-      'helpTip7': 'Синхронизация буфера обмена работает как с текстом, так и с изображениями — отлично подходит для обмена ссылками или скриншотами.',
+      'helpTip1':
+          'Оба устройства должны быть в одной сети для автообнаружения. Используйте Волшебную ссылку или Hotspot для разных сетей.',
+      'helpTip2':
+          'Если устройства не обнаруживаются, проверьте настройки файрвола и убедитесь, что UDP-широковещание разрешено на порту 42224.',
+      'helpTip3':
+          'Проводное Ethernet-соединение быстрее и стабильнее Wi-Fi для передачи больших файлов.',
+      'helpTip4':
+          'Используйте ограничение пропускной способности в Настройках для ограничения скорости загрузки и предотвращения перегрузки медленной сети.',
+      'helpTip5':
+          'Включите автосинхронизацию, чтобы ваши папки оставались актуальными без ручного вмешательства.',
+      'helpTip6':
+          'Можно отправлять целые папки — структура каталогов сохраняется на принимающем устройстве.',
+      'helpTip7':
+          'Синхронизация буфера обмена работает как с текстом, так и с изображениями — отлично подходит для обмена ссылками или скриншотами.',
       'aboutApp': 'О LifeOS AnyWhere',
-      'aboutDesc': 'Кроссплатформенный обмен файлами в локальной сети. Мгновенно отправляйте файлы, папки и буфер обмена между всеми устройствами.',
+      'aboutDesc':
+          'Кроссплатформенный обмен файлами в локальной сети. Мгновенно отправляйте файлы, папки и буфер обмена между всеми устройствами.',
       'developer': 'Разработчик',
       'license': 'Лицензия',
       'sourceCode': 'Исходный код',
       'allRightsReserved': 'Все права защищены.',
       'website': 'Веб-сайт',
       'installOnOtherDevices': 'Установить на другие устройства',
-      'installOnOtherDevicesDesc': 'Загрузите LifeOS AnyWhere на другие устройства',
+      'installOnOtherDevicesDesc':
+          'Загрузите LifeOS AnyWhere на другие устройства',
       'platformSupport': 'Поддерживаемые платформы',
       'platformSupportDesc': 'Android, Android TV, iOS, Windows, Linux, macOS',
       'syncProgress': '{synced} / {total} файлов',
@@ -3589,7 +4126,8 @@ class AppLocalizations {
       'newSync': 'Новая синхронизация',
       'syncName': 'Название синхр.',
       'syncJobs': 'Задачи синхронизации',
-      'noSyncJobs': 'Задач синхронизации пока нет.\nНажмите кнопку ниже, чтобы начать.',
+      'noSyncJobs':
+          'Задач синхронизации пока нет.\nНажмите кнопку ниже, чтобы начать.',
       'createSync': 'Создать',
       'deleteSync': 'Удалить',
       'deleteConfirm': 'Удалить эту задачу синхронизации?',
@@ -3623,7 +4161,8 @@ class AppLocalizations {
       'yesterday': 'Вчера',
       // Magic Link (Relay)
       'magicLink': 'Волшебная ссылка',
-      'magicLinkDesc': 'Передавайте файлы между устройствами в разных сетях через одноранговое соединение',
+      'magicLinkDesc':
+          'Передавайте файлы между устройствами в разных сетях через одноранговое соединение',
       'createRoom': 'Создать комнату',
       'joinRoom': 'Войти в комнату',
       'roomId': 'ID комнаты',
@@ -3640,7 +4179,8 @@ class AppLocalizations {
       'syncTargetDevice': 'Целевое устройство',
       'syncTargetFolder': 'Целевая папка (Необязательно)',
       'syncDefaultFolder': 'По умолчанию (авто)',
-      'syncTargetFolderHint': 'Оставьте пустым, чтобы использовать папку синхронизации по умолчанию на целевом устройстве.',
+      'syncTargetFolderHint':
+          'Оставьте пустым, чтобы использовать папку синхронизации по умолчанию на целевом устройстве.',
       'syncSelectDevice': 'Выбрать устройство',
       'noDevicesFound': 'Устройства в сети не найдены',
       'createSyncJob': 'Создать',
@@ -3650,7 +4190,8 @@ class AppLocalizations {
       'syncOneWay': 'Одностороннее',
       'syncBidirectional': 'Двустороннее',
       'syncOneWayDesc': 'Файлы отправляются только от источника к цели.',
-      'syncBidirectionalDesc': 'Изменения на обоих устройствах синхронизируются.',
+      'syncBidirectionalDesc':
+          'Изменения на обоих устройствах синхронизируются.',
       'conflictStrategy': 'Разрешение конфликтов',
       'conflictNewerWins': 'Новее побеждает',
       'conflictAskUser': 'Спросить',
@@ -3659,22 +4200,28 @@ class AppLocalizations {
       'syncModeGeneral': 'Общий',
       'syncModePhotoVideo': 'Фото/Видео',
       'convertHeicToJpg': 'HEIC → JPG',
-      'convertHeicToJpgDesc': 'Автоматически конвертировать Apple HEIC фото в JPG',
+      'convertHeicToJpgDesc':
+          'Автоматически конвертировать Apple HEIC фото в JPG',
       'dateSubfolders': 'Подпапки по дате',
       'mirrorDeletions': 'Зеркалить удаления',
       'mirrorDeletionsDesc': 'Удалять на цели при удалении из источника',
       'syncFilters': 'Фильтры',
-      'syncFiltersDesc': 'Управляйте синхронизацией файлов с помощью шаблонов glob.',
+      'syncFiltersDesc':
+          'Управляйте синхронизацией файлов с помощью шаблонов glob.',
       'includePatterns': 'Включить',
       'excludePatterns': 'Исключить',
       'helpSyncDirection': 'Направление и Конфликты',
-      'helpSyncDirectionDesc': 'Каждая задача синхронизации может быть односторонней или двусторонней. Односторонняя (стиль резервного копирования) отправляет файлы только из источника в цель — идеально для резервного копирования телефона на ПК. Двусторонняя синхронизация зеркалирует изменения в обоих направлениях: если вы редактируете файл на любом устройстве, изменение синхронизируется на другое. Когда один и тот же файл изменён на обоих устройствах, возникает конфликт. Вы можете выбрать способ разрешения конфликтов: «Новый побеждает» автоматически выбирает последнюю изменённую версию, «Спросить меня» показывает диалог для каждого конфликта, а «Оставить оба» сохраняет обе версии с суффиксом.',
+      'helpSyncDirectionDesc':
+          'Каждая задача синхронизации может быть односторонней или двусторонней. Односторонняя (стиль резервного копирования) отправляет файлы только из источника в цель — идеально для резервного копирования телефона на ПК. Двусторонняя синхронизация зеркалирует изменения в обоих направлениях: если вы редактируете файл на любом устройстве, изменение синхронизируется на другое. Когда один и тот же файл изменён на обоих устройствах, возникает конфликт. Вы можете выбрать способ разрешения конфликтов: «Новый побеждает» автоматически выбирает последнюю изменённую версию, «Спросить меня» показывает диалог для каждого конфликта, а «Оставить оба» сохраняет обе версии с суффиксом.',
       'helpSyncPhotoMode': 'Режим Фото/Видео',
-      'helpSyncPhotoModeDesc': 'Разработан специально для синхронизации фотографий и видео с телефона. При включении приложение автоматически определяет папку камеры (DCIM). Фотографии организуются в подпапки по дате на целевом устройстве (например, 2026/01, 2026/02), чтобы тысячи фотографий оставались аккуратно упорядоченными. Фотографии Apple HEIC могут автоматически конвертироваться в JPG для совместимости с Windows и другими платформами. Этот режим идеально подходит для освобождения памяти телефона: синхронизируйте фотографии на ПК, а затем удалите их с телефона.',
+      'helpSyncPhotoModeDesc':
+          'Разработан специально для синхронизации фотографий и видео с телефона. При включении приложение автоматически определяет папку камеры (DCIM). Фотографии организуются в подпапки по дате на целевом устройстве (например, 2026/01, 2026/02), чтобы тысячи фотографий оставались аккуратно упорядоченными. Фотографии Apple HEIC могут автоматически конвертироваться в JPG для совместимости с Windows и другими платформами. Этот режим идеально подходит для освобождения памяти телефона: синхронизируйте фотографии на ПК, а затем удалите их с телефона.',
       'helpMirrorDeletions': 'Зеркальное удаление',
-      'helpMirrorDeletionsDesc': 'Когда «Зеркалить удаления» включено для задачи синхронизации, удаление файла на исходном устройстве также удалит его на целевом. Это поддерживает обе стороны по-настоящему в синхронизации — если вы очистите старые файлы на одном устройстве, они будут очищены везде. Будьте осторожны с этой опцией: если вы случайно удалите файл, он будет удалён и на целевом устройстве. Если отключено, удаления не распространяются и файлы остаются на целевом устройстве даже после удаления из источника.',
+      'helpMirrorDeletionsDesc':
+          'Когда «Зеркалить удаления» включено для задачи синхронизации, удаление файла на исходном устройстве также удалит его на целевом. Это поддерживает обе стороны по-настоящему в синхронизации — если вы очистите старые файлы на одном устройстве, они будут очищены везде. Будьте осторожны с этой опцией: если вы случайно удалите файл, он будет удалён и на целевом устройстве. Если отключено, удаления не распространяются и файлы остаются на целевом устройстве даже после удаления из источника.',
       'helpSyncFilters': 'Фильтры синхронизации',
-      'helpSyncFiltersDesc': 'Точно контролируйте, какие файлы синхронизируются, с помощью шаблонов включения и исключения (синтаксис glob). Например: добавьте «*.jpg, *.png» в Включить для синхронизации только изображений, или добавьте «*.tmp, Thumbs.db, .DS_Store» в Исключить для пропуска временных файлов. Шаблоны применяются к именам файлов, а не к полным путям. Если Включить пустое, все файлы включаются по умолчанию. Если файл соответствует обоим шаблонам — Включить и Исключить — Исключить имеет приоритет. Это полезно для синхронизации только определённых типов файлов или пропуска больших ненужных файлов.',
+      'helpSyncFiltersDesc':
+          'Точно контролируйте, какие файлы синхронизируются, с помощью шаблонов включения и исключения (синтаксис glob). Например: добавьте «*.jpg, *.png» в Включить для синхронизации только изображений, или добавьте «*.tmp, Thumbs.db, .DS_Store» в Исключить для пропуска временных файлов. Шаблоны применяются к именам файлов, а не к полным путям. Если Включить пустое, все файлы включаются по умолчанию. Если файл соответствует обоим шаблонам — Включить и Исключить — Исключить имеет приоритет. Это полезно для синхронизации только определённых типов файлов или пропуска больших ненужных файлов.',
       'justNow': 'Только что',
       'syncConflicts': 'Конфликты синхронизации',
       'syncResolveConflicts': 'Решить',
@@ -3689,9 +4236,11 @@ class AppLocalizations {
       'syncWaitingConflicts': 'Ожидание разрешения конфликтов…',
       // Faz 3+4 keys
       'autoSyncOnLan': 'Авто-синхронизация в LAN',
-      'autoSyncOnLanDesc': 'Автоматически запускать синхронизацию при обнаружении устройства в сети',
+      'autoSyncOnLanDesc':
+          'Автоматически запускать синхронизацию при обнаружении устройства в сети',
       'backgroundSync': 'Фоновая синхронизация',
-      'backgroundSyncDesc': 'Синхронизировать файлы в фоновом режиме, когда приложение закрыто',
+      'backgroundSyncDesc':
+          'Синхронизировать файлы в фоновом режиме, когда приложение закрыто',
       'syncCameraHint': 'Типичная папка камеры',
       'syncAutoTriggered': 'Авто-синхронизация запущена',
       'syncIncoming': 'Входящая синхр.',
@@ -3730,10 +4279,13 @@ class AppLocalizations {
       'hotspotUseOtherDevice': 'Запустите на другом устройстве',
       'webPortalScanInfo': 'Отсканируйте этот QR камерой любого устройства',
       'hotspotCreate': 'Создать точку доступа',
-      'hotspotCreateDesc': 'Запустить WiFi-точку доступа для подключения других',
+      'hotspotCreateDesc':
+          'Запустить WiFi-точку доступа для подключения других',
       'hotspotJoin': 'Присоединиться к точке доступа',
-      'hotspotJoinDesc': 'Отсканируйте QR для подключения к точке доступа другого устройства',
-      'hotspotJoinDesktopHint': 'Используйте мобильное устройство для сканирования QR-кода',
+      'hotspotJoinDesc':
+          'Отсканируйте QR для подключения к точке доступа другого устройства',
+      'hotspotJoinDesktopHint':
+          'Используйте мобильное устройство для сканирования QR-кода',
       // Server Sync (SFTP)
       'serverSync': 'Синхронизация',
       'addServer': 'Добавить сервер',
@@ -3774,7 +4326,8 @@ class AppLocalizations {
       'serverSyncLiveWatch': 'Живое наблюдение',
       'serverSyncLiveWatchDesc': 'Автоматически отправлять изменения на сервер',
       'gdrivePathHint': 'МоиДокументы/Резервная',
-      'gdrivePathInfo': 'Вы не можете просматривать существующие папки Google Drive. Введите имя папки (например, "МоиДокументы/Резервная"), приложение создаст её автоматически.',
+      'gdrivePathInfo':
+          'Вы не можете просматривать существующие папки Google Drive. Введите имя папки (например, "МоиДокументы/Резервная"), приложение создаст её автоматически.',
       'syncNoJobs': 'Нет заданий синхронизации',
       'syncNoJobsDesc': 'Создайте новое задание синхронизации',
       'syncSuccessful': 'Успешно',
@@ -3810,13 +4363,16 @@ class AppLocalizations {
       'uploadFailed': 'Ошибка загрузки',
       'ok': 'ОК',
       'helpHotspot': 'Подключение через точку доступа',
-      'helpHotspotDesc': 'Если оба устройства не могут быть в одной Wi-Fi сети, одно устройство может создать точку доступа Wi-Fi, а другое подключиться к ней. Это создаёт прямую локальную сеть между двумя устройствами без маршрутизатора или интернета. После подключения к точке доступа приложение автоматически обнаруживает другое устройство. Все функции работают нормально: передача файлов, обмен буфером обмена и синхронизация папок.',
+      'helpHotspotDesc':
+          'Если оба устройства не могут быть в одной Wi-Fi сети, одно устройство может создать точку доступа Wi-Fi, а другое подключиться к ней. Это создаёт прямую локальную сеть между двумя устройствами без маршрутизатора или интернета. После подключения к точке доступа приложение автоматически обнаруживает другое устройство. Все функции работают нормально: передача файлов, обмен буфером обмена и синхронизация папок.',
       'helpServerSync': 'Синхронизация с сервером (SFTP)',
-      'helpServerSyncDesc': 'Синхронизируйте файлы с удалённым SFTP-сервером, таким как NAS, VPS или любой машиной с SSH. Настройте подключение к серверу (хост, порт, имя пользователя, пароль или приватный ключ) в Настройках. Затем создайте задание синхронизации, выбрав локальную папку и удалённый путь. Приложение сравнивает обе стороны и передаёт только изменения. Поддерживает режим живого наблюдения для автоматической синхронизации при локальных изменениях файлов.',
+      'helpServerSyncDesc':
+          'Синхронизируйте файлы с удалённым SFTP-сервером, таким как NAS, VPS или любой машиной с SSH. Настройте подключение к серверу (хост, порт, имя пользователя, пароль или приватный ключ) в Настройках. Затем создайте задание синхронизации, выбрав локальную папку и удалённый путь. Приложение сравнивает обе стороны и передаёт только изменения. Поддерживает режим живого наблюдения для автоматической синхронизации при локальных изменениях файлов.',
       'notifTransferStarted': '{sender} \u2192 {file}',
       'notifTransferComplete': '\u2705 {file}',
       'notifTransferFailed': '\u274c {file}',
-      'notifSyncReceiving': '\uD83D\uDD04 Получение синхронизации от {sender}\u2026',
+      'notifSyncReceiving':
+          '\uD83D\uDD04 Получение синхронизации от {sender}\u2026',
       'notifSyncComplete': '\u2705 {job}: {count} файлов \u2192 {device}',
       'notifTransferring': 'Передача\u2026',
       'notifTransferringCount': 'Передача {count} файлов\u2026',
@@ -3832,13 +4388,15 @@ class AppLocalizations {
       'upgradeToPro': 'Перейти на Pro',
       'iHaveACode': 'У меня есть код',
       'activateCode': 'Активировать код',
-      'activateCodeDesc': 'Введите код активации из покупки Pro для разблокировки Pro на этом устройстве.',
+      'activateCodeDesc':
+          'Введите код активации из покупки Pro для разблокировки Pro на этом устройстве.',
       'activating': 'Активация…',
       'activate': 'Активировать',
       'proActivated': 'Pro успешно активирован!',
       'activationFailed': 'Ошибка активации. Попробуйте снова.',
       'invalidActivationCode': 'Неверный формат кода активации.',
-      'deviceLimitReached': 'Достигнут лимит устройств. Сначала удалите устройство.',
+      'deviceLimitReached':
+          'Достигнут лимит устройств. Сначала удалите устройство.',
       'activationCode': 'Код активации',
       'activationCodeHint': 'Поделитесь этим кодом с другими устройствами.',
       'activeDevices': 'Активные устройства: {current}/{max}',
@@ -3859,8 +4417,10 @@ class AppLocalizations {
       'no': 'Нет',
       'proFeature': 'Функция Pro',
       'proFeature_unlimitedSync': 'Безлимитные задачи синхр. требуют Pro.',
-      'proFeature_serverSync': 'Синхр. с сервером (SFTP/FTP/WebDAV) требует Pro.',
-      'proFeature_cloudSync': 'Облачная синхр. (Google Drive/OneDrive) требует Pro.',
+      'proFeature_serverSync':
+          'Синхр. с сервером (SFTP/FTP/WebDAV) требует Pro.',
+      'proFeature_cloudSync':
+          'Облачная синхр. (Google Drive/OneDrive) требует Pro.',
       'proFeature_relayTransfer': 'Интернет-передача через relay требует Pro.',
       'proFeature_quickSendToServer': 'Быстрая отправка на сервер требует Pro.',
       'proFeature_liveWatch': 'Отслеживание файлов требует Pro.',
@@ -3868,9 +4428,11 @@ class AppLocalizations {
       'proFeature_scheduledSync': 'Синхр. по расписанию требует Pro.',
       'proFeature_unlimitedFileSize': 'Файлы более 500 МБ требуют Pro.',
       'shareProLan': 'Поделиться Pro по LAN',
-      'shareProLanConfirm': 'Поделиться кодом активации Pro с {name}? Это активирует Pro на устройстве.',
+      'shareProLanConfirm':
+          'Поделиться кодом активации Pro с {name}? Это активирует Pro на устройстве.',
       'shareProLanSuccess': 'Pro успешно передан {name}!',
-      'shareProLanFailed': 'Не удалось поделиться Pro. Убедитесь, что устройство онлайн.',
+      'shareProLanFailed':
+          'Не удалось поделиться Pro. Убедитесь, что устройство онлайн.',
       'share': 'Поделиться',
     },
 
@@ -3882,7 +4444,9 @@ class AppLocalizations {
       'devices': '设备',
       'transfers': '传输',
       'settings': '设置',
+      'more': '更多',
       'collapse': '收起',
+      'expand': '展开',
       'sync': '同步',
       'noDevices': '未找到设备',
       'scanning': '正在搜索设备…',
@@ -3897,6 +4461,16 @@ class AppLocalizations {
       'noTransfers': '暂无传输',
       'noTransfersDesc': '已发送和已接收的文件将显示在此处',
       'clearCompleted': '清除',
+      'activeTransfers': '活动传输',
+      'attentionRequired': '需要处理',
+      'retryFailed': '无法重试传输',
+      'transferQueue': '传输队列',
+      'cancelQueue': '取消队列',
+      'cancelQueueConfirm': '取消当前传输并移除所有等待中的文件？',
+      'moveUp': '上移',
+      'moveDown': '下移',
+      'removeFromQueue': '从队列移除',
+      'transferControlUnavailable': '传输控制已不可用',
       'sending': '正在发送…',
       'receiving': '正在接收…',
       'waiting': '等待中…',
@@ -3904,6 +4478,7 @@ class AppLocalizations {
       'accepted': '已接受',
       'rejected': '已拒绝',
       'transferring': '传输中',
+      'paused': '已暂停',
       'completed': '已完成',
       'failed': '失败',
       'cancelled': '已取消',
@@ -3976,6 +4551,7 @@ class AppLocalizations {
       'selectFolder': '选择文件夹',
       'sendFileOrFolder': '发送文件或文件夹',
       'sendFiles': '发送文件',
+      'recentTargets': '最近使用的目标',
       'folderSending': '正在发送文件夹…',
       'fileReceived': '文件已接收',
       'fileReceiving': '正在接收文件…',
@@ -3999,6 +4575,9 @@ class AppLocalizations {
       'pairDevice': '配对设备',
       'scanQr': '扫描此代码进行配对',
       'close': '关闭',
+      'play': '播放',
+      'openExternally': '使用其他应用打开',
+      'previewUnavailable': '无法在此设备上预览该文件。',
       'pairedWith': '已与 {name} 配对',
       'invalidCode': '无效的二维码',
       'scanQrTitle': '扫描二维码',
@@ -4029,38 +4608,54 @@ class AppLocalizations {
       'help': '帮助',
       'helpUsage': '使用方法',
       'helpDiscovery': '设备发现',
-      'helpDiscoveryDesc': '同一 Wi-Fi 或有线局域网上的所有设备会自动被发现，无需任何设置。应用每隔几秒广播一次信号以查找附近的设备。如果某台设备未出现，请确保两台设备在同一网络上，检查是否有 VPN 阻止了本地流量，并确认您的路由器允许设备间通信（某些访客网络会阻止此功能）。您也可以点击"手动添加"并直接输入 IP 地址。',
+      'helpDiscoveryDesc':
+          '同一 Wi-Fi 或有线局域网上的所有设备会自动被发现，无需任何设置。应用每隔几秒广播一次信号以查找附近的设备。如果某台设备未出现，请确保两台设备在同一网络上，检查是否有 VPN 阻止了本地流量，并确认您的路由器允许设备间通信（某些访客网络会阻止此功能）。您也可以点击"手动添加"并直接输入 IP 地址。',
       'helpSendFiles': '发送文件',
-      'helpSendFilesDesc': '点击任意已发现的设备即可选择要发送的文件或文件夹。在桌面端（Windows、macOS、Linux），您可以将文件直接拖放到设备卡片上。支持同时发送多个文件——它们会排队依次传输。传输过程中可以看到实时速度和进度。如果接收端已存在同名文件，行为取决于"覆盖现有文件"设置。',
+      'helpSendFilesDesc':
+          '点击任意已发现的设备即可选择要发送的文件或文件夹。在桌面端（Windows、macOS、Linux），您可以将文件直接拖放到设备卡片上。支持同时发送多个文件——它们会排队依次传输。传输过程中可以看到实时速度和进度。如果接收端已存在同名文件，行为取决于"覆盖现有文件"设置。',
       'helpReceiveFiles': '接收文件',
-      'helpReceiveFilesDesc': '当有人向您发送文件时，会弹出通知询问是否接受或拒绝。接受的文件保存到设置中配置的下载文件夹，您可以随时更改此文件夹。在设置中启用"自动接受传输"可跳过确认对话框，自动接收所有传入文件。已接收的文件会显示在"传输"标签页中，可直接打开文件或在文件管理器中查看。',
+      'helpReceiveFilesDesc':
+          '当有人向您发送文件时，会弹出通知询问是否接受或拒绝。接受的文件保存到设置中配置的下载文件夹，您可以随时更改此文件夹。在设置中启用"自动接受传输"可跳过确认对话框，自动接收所有传入文件。已接收的文件会显示在"传输"标签页中，可直接打开文件或在文件管理器中查看。',
       'helpQrPairing': '二维码配对',
-      'helpQrPairingDesc': '如果设备未被自动发现（不同子网、复杂网络），可使用二维码配对实现一键连接。在一台设备上进入"设备"标签页，点击二维码图标显示配对码。在另一台设备上点击"扫描二维码"，将摄像头对准配对码。扫描完成后，设备通过嵌入在二维码中的 IP 地址直接连接。此配对在应用重启前一直有效。',
+      'helpQrPairingDesc':
+          '如果设备未被自动发现（不同子网、复杂网络），可使用二维码配对实现一键连接。在一台设备上进入"设备"标签页，点击二维码图标显示配对码。在另一台设备上点击"扫描二维码"，将摄像头对准配对码。扫描完成后，设备通过嵌入在二维码中的 IP 地址直接连接。此配对在应用重启前一直有效。',
       'helpManualIp': '手动 IP 连接',
-      'helpManualIpDesc': '如果无法使用二维码扫描（例如没有摄像头的桌面设备），可以手动输入 IP 地址进行连接。进入"设备"标签页，点击"手动添加"，输入另一台设备的 IP 地址（例如 192.168.1.100）。应用将尝试通过默认端口进行连接。您可以在设置界面或系统网络设置中找到本机的 IP 地址。',
+      'helpManualIpDesc':
+          '如果无法使用二维码扫描（例如没有摄像头的桌面设备），可以手动输入 IP 地址进行连接。进入"设备"标签页，点击"手动添加"，输入另一台设备的 IP 地址（例如 192.168.1.100）。应用将尝试通过默认端口进行连接。您可以在设置界面或系统网络设置中找到本机的 IP 地址。',
       'helpDragDrop': '拖放传输',
-      'helpDragDropDesc': '在桌面平台（Windows、macOS、Linux）上，您可以从文件管理器中拖拽文件或文件夹，直接放到应用中的设备卡片上。当您将文件悬停在设备上方时，会出现放置区域指示器。支持一次拖放多个文件。这是桌面端发送文件最快捷的方式——无需打开文件选择对话框。',
+      'helpDragDropDesc':
+          '在桌面平台（Windows、macOS、Linux）上，您可以从文件管理器中拖拽文件或文件夹，直接放到应用中的设备卡片上。当您将文件悬停在设备上方时，会出现放置区域指示器。支持一次拖放多个文件。这是桌面端发送文件最快捷的方式——无需打开文件选择对话框。',
       'helpClipboard': '剪贴板共享',
-      'helpClipboardDesc': '在设备之间即时共享剪贴板内容（文本或图片）。点击设备卡片上的剪贴板图标，或使用"剪贴板"标签页中的"粘贴并发送"按钮。接收到的剪贴板条目会显示在"剪贴板"标签页中并保留完整历史记录。点击任意条目即可将其复制回剪贴板。支持文本和图片。非常适合在手机和电脑之间快速共享链接、密码、代码片段或截图。',
+      'helpClipboardDesc':
+          '在设备之间即时共享剪贴板内容（文本或图片）。点击设备卡片上的剪贴板图标，或使用"剪贴板"标签页中的"粘贴并发送"按钮。接收到的剪贴板条目会显示在"剪贴板"标签页中并保留完整历史记录。点击任意条目即可将其复制回剪贴板。支持文本和图片。非常适合在手机和电脑之间快速共享链接、密码、代码片段或截图。',
       'helpSync': '文件夹同步',
-      'helpSyncDesc': '创建同步任务以保持设备间的文件夹同步。每个任务监视一个源文件夹并将更改镜像到目标设备。您可以创建多个独立的同步任务——例如一个用于"文档"，一个用于"照片"，一个用于"项目"。系统自动检测更改：新文件、修改和删除都会被同步。接收端的每个同步任务存储在各自的子文件夹中（Sync/<设备名>/<任务名>/），不同任务的文件不会混在一起。',
+      'helpSyncDesc':
+          '创建同步任务以保持设备间的文件夹同步。每个任务监视一个源文件夹并将更改镜像到目标设备。您可以创建多个独立的同步任务——例如一个用于"文档"，一个用于"照片"，一个用于"项目"。系统自动检测更改：新文件、修改和删除都会被同步。接收端的每个同步任务存储在各自的子文件夹中（Sync/<设备名>/<任务名>/），不同任务的文件不会混在一起。',
       'helpSyncJobs': '同步任务',
-      'helpSyncJobsDesc': '每个同步任务都有自己的名称、源文件夹、目标设备和设置。要创建任务，点击"新建同步"并按照三步向导操作：(1) 基本设置——设定名称、选择源文件夹和目标设备；(2) 选项——选择同步方向、冲突解决方式和同步模式；(3) 过滤器——使用通配符模式包含或排除文件（例如 *.jpg、*.pdf）。创建后，任务以卡片形式显示在"同步"标签页中。您可以独立地启动/停止、暂停/恢复或删除每个任务。',
+      'helpSyncJobsDesc':
+          '每个同步任务都有自己的名称、源文件夹、目标设备和设置。要创建任务，点击"新建同步"并按照三步向导操作：(1) 基本设置——设定名称、选择源文件夹和目标设备；(2) 选项——选择同步方向、冲突解决方式和同步模式；(3) 过滤器——使用通配符模式包含或排除文件（例如 *.jpg、*.pdf）。创建后，任务以卡片形式显示在"同步"标签页中。您可以独立地启动/停止、暂停/恢复或删除每个任务。',
       'helpTvMode': '电视模式',
-      'helpTvModeDesc': '在 Android TV 上，应用自动切换为针对遥控器导航优化的侧边栏布局。所有按钮和卡片都放大显示，方便远距离查看。使用遥控器上的方向键在项目之间移动，按确认/选择键激活。方向键焦点高亮清晰显示当前选中的项目。所有功能都可在电视上使用——您可以接收文件、浏览传输记录和管理同步任务，全程只需遥控器操作。',
+      'helpTvModeDesc':
+          '在 Android TV 上，应用自动切换为针对遥控器导航优化的侧边栏布局。所有按钮和卡片都放大显示，方便远距离查看。使用遥控器上的方向键在项目之间移动，按确认/选择键激活。方向键焦点高亮清晰显示当前选中的项目。所有功能都可在电视上使用——您可以接收文件、浏览传输记录和管理同步任务，全程只需遥控器操作。',
       'helpResume': '续传',
-      'helpResumeDesc': '如果文件传输被中断——无论是网络断开、应用关闭还是设备进入休眠——当连接恢复时会自动从中断处继续。无需重新发送整个文件。这对大文件特别有用：一个传输到 80% 的 10 GB 视频文件将从 80% 处继续，而不是重头开始。续传功能在发送和接收时都有效。',
+      'helpResumeDesc':
+          '如果文件传输被中断——无论是网络断开、应用关闭还是设备进入休眠——当连接恢复时会自动从中断处继续。无需重新发送整个文件。这对大文件特别有用：一个传输到 80% 的 10 GB 视频文件将从 80% 处继续，而不是重头开始。续传功能在发送和接收时都有效。',
       'helpBackground': '后台传输',
-      'helpBackgroundDesc': '在 Android 上，即使您切换到其他应用或关闭屏幕，文件传输也会继续。持续通知会显示当前文件名、进度百分比和传输速度。应用使用前台服务和唤醒锁来防止 Android 终止传输。传输完成后，您会收到完成通知。无需特殊设置——一切自动运行。',
+      'helpBackgroundDesc':
+          '在 Android 上，即使您切换到其他应用或关闭屏幕，文件传输也会继续。持续通知会显示当前文件名、进度百分比和传输速度。应用使用前台服务和唤醒锁来防止 Android 终止传输。传输完成后，您会收到完成通知。无需特殊设置——一切自动运行。',
       'helpMagicLink': '魔法链接',
-      'helpMagicLinkDesc': '在完全不同网络上的设备之间传输文件——例如从家里传到办公室，或传给另一个城市的朋友。一台设备点击"创建房间"并获得一个 6 位 PIN 码。另一台设备点击"加入房间"并输入该 PIN 码。通过WebRTC 信令服务器完成初始握手后建立点对点直连，之后数据尽可能在设备之间直接传输。所有标准功能都可使用：文件发送、剪贴板共享和进度跟踪。',
+      'helpMagicLinkDesc':
+          '在完全不同网络上的设备之间传输文件——例如从家里传到办公室，或传给另一个城市的朋友。一台设备点击"创建房间"并获得一个 6 位 PIN 码。另一台设备点击"加入房间"并输入该 PIN 码。通过WebRTC 信令服务器完成初始握手后建立点对点直连，之后数据尽可能在设备之间直接传输。所有标准功能都可使用：文件发送、剪贴板共享和进度跟踪。',
       'webPortal': 'Web 门户',
       'helpWebPortal': 'Web 门户',
-      'helpWebPortalDesc': '从同一网络中的任何浏览器访问您的设备——另一端无需安装应用。进入设置并启用 Web 门户即可看到访问 URL（例如 http://192.168.1.50:8080）。在任何有浏览器的设备上打开此 URL：笔记本电脑、平板电脑甚至智能电视。您可以通过网页界面向设备上传文件和从设备下载文件。非常适合在不想安装应用的电脑上快速传输文件。',
+      'helpWebPortalDesc':
+          '从同一网络中的任何浏览器访问您的设备——另一端无需安装应用。进入设置并启用 Web 门户即可看到访问 URL（例如 http://192.168.1.50:8080）。在任何有浏览器的设备上打开此 URL：笔记本电脑、平板电脑甚至智能电视。您可以通过网页界面向设备上传文件和从设备下载文件。非常适合在不想安装应用的电脑上快速传输文件。',
       'helpAutoSync': '局域网自动同步',
-      'helpAutoSyncDesc': '启用后，一旦在网络上发现目标设备，同步任务就会自动开始。您无需打开应用或进行任何操作——只需连接到同一 Wi-Fi，同步即刻开始。这非常适合以下场景：每次回家时自动将手机照片备份到电脑，或每次连接到办公网络时保持工作文档同步。',
+      'helpAutoSyncDesc':
+          '启用后，一旦在网络上发现目标设备，同步任务就会自动开始。您无需打开应用或进行任何操作——只需连接到同一 Wi-Fi，同步即刻开始。这非常适合以下场景：每次回家时自动将手机照片备份到电脑，或每次连接到办公网络时保持工作文档同步。',
       'helpSyncReceiveFolder': '同步接收文件夹',
-      'helpSyncReceiveFolderDesc': '默认情况下，通过同步接收的文件保存在下载文件夹的"Sync"子文件夹中，按发送者名称和任务名称整理（例如 Downloads/Sync/手机/文档/）。您可以在设置 → 同步接收文件夹中更改此基础文件夹。每台设备的每个同步任务都有自己的子文件夹，不同同步来源的文件不会相互重叠。',
+      'helpSyncReceiveFolderDesc':
+          '默认情况下，通过同步接收的文件保存在下载文件夹的"Sync"子文件夹中，按发送者名称和任务名称整理（例如 Downloads/Sync/手机/文档/）。您可以在设置 → 同步接收文件夹中更改此基础文件夹。每台设备的每个同步任务都有自己的子文件夹，不同同步来源的文件不会相互重叠。',
       'syncSetupRequest': '同步请求',
       'syncSetupAccept': '接受',
       'syncSetupReject': '拒绝',
@@ -4080,7 +4675,8 @@ class AppLocalizations {
       'syncDirectionOneWay': '单向',
       'syncDirectionBidirectional': '双向',
       'helpSyncPairing': '同步配对',
-      'helpSyncPairingDesc': '首次启动同步时，接收设备会显示一个接受对话框，用户可以选择目标文件夹。接受后将创建配对——之后向同一设备的同步将自动接受，无需再次确认。您可以在同步屏幕上管理配对。两台设备共享相同的任务ID，实现带有文件变更检测的智能双向同步。',
+      'helpSyncPairingDesc':
+          '首次启动同步时，接收设备会显示一个接受对话框，用户可以选择目标文件夹。接受后将创建配对——之后向同一设备的同步将自动接受，无需再次确认。您可以在同步屏幕上管理配对。两台设备共享相同的任务ID，实现带有文件变更检测的智能双向同步。',
       'helpTips': '提示',
       'helpTip1': '两台设备必须在同一网络上才能自动发现。跨网络请使用魔法链接或热点。',
       'helpTip2': '如果未检测到设备，请检查防火墙设置，确保端口 42224 的 UDP 广播已被允许。',
@@ -4209,13 +4805,17 @@ class AppLocalizations {
       'includePatterns': '包含',
       'excludePatterns': '排除',
       'helpSyncDirection': '同步方向与冲突',
-      'helpSyncDirectionDesc': '每个同步任务可以设为单向或双向。单向（备份模式）仅将文件从源推送到目标——非常适合将手机备份到电脑。双向同步在两个方向上镜像更改：如果您在任一设备上编辑了文件，更改会同步到另一台。当同一文件在两台设备上都被修改时，就会发生冲突。您可以选择冲突解决方式："较新优先"自动选择最近修改的版本，"询问我"为每个冲突显示对话框，"保留两者"以后缀方式保存两个版本。',
+      'helpSyncDirectionDesc':
+          '每个同步任务可以设为单向或双向。单向（备份模式）仅将文件从源推送到目标——非常适合将手机备份到电脑。双向同步在两个方向上镜像更改：如果您在任一设备上编辑了文件，更改会同步到另一台。当同一文件在两台设备上都被修改时，就会发生冲突。您可以选择冲突解决方式："较新优先"自动选择最近修改的版本，"询问我"为每个冲突显示对话框，"保留两者"以后缀方式保存两个版本。',
       'helpSyncPhotoMode': '照片/视频模式',
-      'helpSyncPhotoModeDesc': '专为同步手机照片和视频而设计。启用后，应用自动检测相机文件夹（DCIM）。照片在目标设备上按日期整理到子文件夹中（例如 2026/01、2026/02），数千张照片也能井井有条。Apple HEIC 照片可自动转换为 JPG，兼容 Windows 和其他平台。此模式非常适合释放手机存储空间：将照片同步到电脑，然后从手机上删除。',
+      'helpSyncPhotoModeDesc':
+          '专为同步手机照片和视频而设计。启用后，应用自动检测相机文件夹（DCIM）。照片在目标设备上按日期整理到子文件夹中（例如 2026/01、2026/02），数千张照片也能井井有条。Apple HEIC 照片可自动转换为 JPG，兼容 Windows 和其他平台。此模式非常适合释放手机存储空间：将照片同步到电脑，然后从手机上删除。',
       'helpMirrorDeletions': '镜像删除',
-      'helpMirrorDeletionsDesc': '当同步任务启用"镜像删除"时，在源设备上删除文件也会在目标设备上删除该文件。这使两端保持真正同步——如果您在一台设备上清理了旧文件，所有设备上都会同步清理。请谨慎使用此选项：如果您意外删除了文件，目标设备上也会被删除。如果禁用此选项，删除操作不会被同步，即使从源设备删除，文件仍会保留在目标设备上。',
+      'helpMirrorDeletionsDesc':
+          '当同步任务启用"镜像删除"时，在源设备上删除文件也会在目标设备上删除该文件。这使两端保持真正同步——如果您在一台设备上清理了旧文件，所有设备上都会同步清理。请谨慎使用此选项：如果您意外删除了文件，目标设备上也会被删除。如果禁用此选项，删除操作不会被同步，即使从源设备删除，文件仍会保留在目标设备上。',
       'helpSyncFilters': '同步过滤器',
-      'helpSyncFiltersDesc': '使用包含和排除模式（通配符语法）精确控制哪些文件被同步。例如：在"包含"中添加"*.jpg, *.png"可仅同步图片，在"排除"中添加"*.tmp, Thumbs.db, .DS_Store"可跳过临时文件。模式匹配文件名而非完整路径。如果"包含"为空，则默认包含所有文件。如果文件同时匹配"包含"和"排除"规则，以"排除"为准。此功能适合仅同步特定文件类型或跳过不需要的大文件。',
+      'helpSyncFiltersDesc':
+          '使用包含和排除模式（通配符语法）精确控制哪些文件被同步。例如：在"包含"中添加"*.jpg, *.png"可仅同步图片，在"排除"中添加"*.tmp, Thumbs.db, .DS_Store"可跳过临时文件。模式匹配文件名而非完整路径。如果"包含"为空，则默认包含所有文件。如果文件同时匹配"包含"和"排除"规则，以"排除"为准。此功能适合仅同步特定文件类型或跳过不需要的大文件。',
       'justNow': '刚刚',
       'syncConflicts': '同步冲突',
       'syncResolveConflicts': '解决',
@@ -4315,7 +4915,8 @@ class AppLocalizations {
       'serverSyncLiveWatch': '实时监控',
       'serverSyncLiveWatchDesc': '文件修改时自动推送到服务器',
       'gdrivePathHint': '我的文档/备份',
-      'gdrivePathInfo': '无法浏览现有的 Google Drive 文件夹。请输入文件夹名称（如"我的文档/备份"），应用将自动创建。',
+      'gdrivePathInfo':
+          '无法浏览现有的 Google Drive 文件夹。请输入文件夹名称（如"我的文档/备份"），应用将自动创建。',
       'syncNoJobs': '暂无同步任务',
       'syncNoJobsDesc': '创建新的同步任务以开始',
       'syncSuccessful': '成功',
@@ -4351,9 +4952,11 @@ class AppLocalizations {
       'uploadFailed': '上传失败',
       'ok': '确定',
       'helpHotspot': '热点连接',
-      'helpHotspotDesc': '如果两台设备无法在同一Wi-Fi网络上，一台设备可以创建Wi-Fi热点，另一台连接到该热点。这将在两台设备之间创建一个直接的本地网络，无需路由器或互联网。连接到热点后，应用会自动发现另一台设备。所有功能正常工作：文件传输、剪贴板共享和文件夹同步。',
+      'helpHotspotDesc':
+          '如果两台设备无法在同一Wi-Fi网络上，一台设备可以创建Wi-Fi热点，另一台连接到该热点。这将在两台设备之间创建一个直接的本地网络，无需路由器或互联网。连接到热点后，应用会自动发现另一台设备。所有功能正常工作：文件传输、剪贴板共享和文件夹同步。',
       'helpServerSync': '服务器同步 (SFTP)',
-      'helpServerSyncDesc': '将文件同步到远程SFTP服务器，如NAS、VPS或任何支持SSH的设备。在设置中配置服务器连接（主机、端口、用户名、密码或私钥）。然后选择本地文件夹和远程路径创建同步任务。应用会比较两端并仅传输更改。支持实时监控模式，在本地文件更改时自动同步。',
+      'helpServerSyncDesc':
+          '将文件同步到远程SFTP服务器，如NAS、VPS或任何支持SSH的设备。在设置中配置服务器连接（主机、端口、用户名、密码或私钥）。然后选择本地文件夹和远程路径创建同步任务。应用会比较两端并仅传输更改。支持实时监控模式，在本地文件更改时自动同步。',
       'notifTransferStarted': '{sender} \u2192 {file}',
       'notifTransferComplete': '\u2705 {file}',
       'notifTransferFailed': '\u274c {file}',
@@ -4423,7 +5026,9 @@ class AppLocalizations {
       'devices': 'デバイス',
       'transfers': '転送',
       'settings': '設定',
+      'more': 'その他',
       'collapse': '折りたたむ',
+      'expand': '展開',
       'sync': '同期',
       'noDevices': 'デバイスが見つかりません',
       'scanning': 'デバイスを検索中…',
@@ -4438,6 +5043,16 @@ class AppLocalizations {
       'noTransfers': '転送はまだありません',
       'noTransfersDesc': '送受信したファイルがここに表示されます',
       'clearCompleted': 'クリア',
+      'activeTransfers': '進行中の転送',
+      'attentionRequired': '対応が必要',
+      'retryFailed': '転送を再試行できませんでした',
+      'transferQueue': '転送キュー',
+      'cancelQueue': 'キューをキャンセル',
+      'cancelQueueConfirm': '現在の転送をキャンセルし、待機中のファイルをすべて削除しますか？',
+      'moveUp': '上へ移動',
+      'moveDown': '下へ移動',
+      'removeFromQueue': 'キューから削除',
+      'transferControlUnavailable': '転送を操作できなくなりました',
       'sending': '送信中…',
       'receiving': '受信中…',
       'waiting': '待機中…',
@@ -4445,6 +5060,7 @@ class AppLocalizations {
       'accepted': '承認済み',
       'rejected': '拒否済み',
       'transferring': '転送中',
+      'paused': '一時停止中',
       'completed': '完了',
       'failed': '失敗',
       'cancelled': 'キャンセル済み',
@@ -4517,6 +5133,7 @@ class AppLocalizations {
       'selectFolder': 'フォルダを選択',
       'sendFileOrFolder': 'ファイルまたはフォルダを送信',
       'sendFiles': 'ファイルを送信',
+      'recentTargets': '最近の送信先',
       'folderSending': 'フォルダを送信中…',
       'fileReceived': 'ファイルを受信しました',
       'fileReceiving': 'ファイルを受信中…',
@@ -4540,6 +5157,9 @@ class AppLocalizations {
       'pairDevice': 'デバイスをペアリング',
       'scanQr': 'ペアリングするにはコードをスキャン',
       'close': '閉じる',
+      'play': '再生',
+      'openExternally': '別のアプリで開く',
+      'previewUnavailable': 'このファイルはプレビューできません。',
       'pairedWith': '{name} とペアリング済み',
       'invalidCode': '無効なQRコード',
       'scanQrTitle': 'QRコードをスキャン',
@@ -4570,38 +5190,54 @@ class AppLocalizations {
       'help': 'ヘルプ',
       'helpUsage': '使い方',
       'helpDiscovery': 'デバイス検出',
-      'helpDiscoveryDesc': '同じWi-Fiまたは有線LANに接続されたデバイスは自動的に検出されます。設定は不要で、アプリが数秒ごとに信号を送信して近くのデバイスを探します。デバイスが表示されない場合は、両方のデバイスが同じネットワーク上にあること、VPNがローカル通信をブロックしていないこと、ルーターがデバイス間通信を許可していること（ゲストネットワークではブロックされる場合があります）を確認してください。「手動追加」をタップしてIPアドレスを直接入力することもできます。',
+      'helpDiscoveryDesc':
+          '同じWi-Fiまたは有線LANに接続されたデバイスは自動的に検出されます。設定は不要で、アプリが数秒ごとに信号を送信して近くのデバイスを探します。デバイスが表示されない場合は、両方のデバイスが同じネットワーク上にあること、VPNがローカル通信をブロックしていないこと、ルーターがデバイス間通信を許可していること（ゲストネットワークではブロックされる場合があります）を確認してください。「手動追加」をタップしてIPアドレスを直接入力することもできます。',
       'helpSendFiles': 'ファイル送信',
-      'helpSendFilesDesc': '検出されたデバイスをタップして、送信するファイルやフォルダを選択します。デスクトップ（Windows、macOS、Linux）では、ファイルをデバイスカードに直接ドラッグ＆ドロップできます。複数のファイルを同時に送信可能で、キューに入れられて順番に転送されます。転送中はリアルタイムの速度と進捗が表示されます。受信側に同名のファイルがある場合の動作は「既存ファイルを上書き」設定に依存します。',
+      'helpSendFilesDesc':
+          '検出されたデバイスをタップして、送信するファイルやフォルダを選択します。デスクトップ（Windows、macOS、Linux）では、ファイルをデバイスカードに直接ドラッグ＆ドロップできます。複数のファイルを同時に送信可能で、キューに入れられて順番に転送されます。転送中はリアルタイムの速度と進捗が表示されます。受信側に同名のファイルがある場合の動作は「既存ファイルを上書き」設定に依存します。',
       'helpReceiveFiles': 'ファイル受信',
-      'helpReceiveFilesDesc': 'ファイルが送られてくると、受信または拒否を確認する通知が表示されます。受信したファイルは設定で指定したダウンロードフォルダに保存されます。このフォルダはいつでも変更できます。設定で「自動受信」を有効にすると、確認ダイアログをスキップしてすべてのファイルを自動的に受信します。受信ファイルは「転送」タブに表示され、ファイルを開いたりファイルマネージャーで表示したりできます。',
+      'helpReceiveFilesDesc':
+          'ファイルが送られてくると、受信または拒否を確認する通知が表示されます。受信したファイルは設定で指定したダウンロードフォルダに保存されます。このフォルダはいつでも変更できます。設定で「自動受信」を有効にすると、確認ダイアログをスキップしてすべてのファイルを自動的に受信します。受信ファイルは「転送」タブに表示され、ファイルを開いたりファイルマネージャーで表示したりできます。',
       'helpQrPairing': 'QRペアリング',
-      'helpQrPairingDesc': 'デバイスが自動検出されない場合（異なるサブネット、複雑なネットワーク構成など）、QRコードペアリングでワンタップ接続できます。一方のデバイスで「デバイス」タブのQRアイコンをタップしてペアリングコードを表示し、もう一方のデバイスで「QRスキャン」をタップしてカメラをコードに向けます。スキャンすると、QRコードに埋め込まれたIPアドレスを使って直接接続されます。このペアリングはアプリを再起動するまで維持されます。',
+      'helpQrPairingDesc':
+          'デバイスが自動検出されない場合（異なるサブネット、複雑なネットワーク構成など）、QRコードペアリングでワンタップ接続できます。一方のデバイスで「デバイス」タブのQRアイコンをタップしてペアリングコードを表示し、もう一方のデバイスで「QRスキャン」をタップしてカメラをコードに向けます。スキャンすると、QRコードに埋め込まれたIPアドレスを使って直接接続されます。このペアリングはアプリを再起動するまで維持されます。',
       'helpManualIp': '手動IP接続',
-      'helpManualIpDesc': 'QRスキャンが利用できない場合（カメラのないデスクトップなど）、IPアドレスを手動入力して接続できます。「デバイス」タブで「手動追加」をタップし、相手デバイスのIPアドレス（例：192.168.1.100）を入力します。アプリがデフォルトポートで接続を試みます。デバイスのIPアドレスは設定画面またはシステムのネットワーク設定で確認できます。',
+      'helpManualIpDesc':
+          'QRスキャンが利用できない場合（カメラのないデスクトップなど）、IPアドレスを手動入力して接続できます。「デバイス」タブで「手動追加」をタップし、相手デバイスのIPアドレス（例：192.168.1.100）を入力します。アプリがデフォルトポートで接続を試みます。デバイスのIPアドレスは設定画面またはシステムのネットワーク設定で確認できます。',
       'helpDragDrop': 'ドラッグ＆ドロップ',
-      'helpDragDropDesc': 'デスクトッププラットフォーム（Windows、macOS、Linux）では、ファイルマネージャーからファイルやフォルダをドラッグして、アプリのデバイスカードに直接ドロップできます。デバイスにカーソルを合わせるとドロップゾーンが表示されます。複数のファイルを一度にドロップ可能です。ファイル選択ダイアログ不要で、デスクトップから最速のファイル送信方法です。',
+      'helpDragDropDesc':
+          'デスクトッププラットフォーム（Windows、macOS、Linux）では、ファイルマネージャーからファイルやフォルダをドラッグして、アプリのデバイスカードに直接ドロップできます。デバイスにカーソルを合わせるとドロップゾーンが表示されます。複数のファイルを一度にドロップ可能です。ファイル選択ダイアログ不要で、デスクトップから最速のファイル送信方法です。',
       'helpClipboard': 'クリップボード共有',
-      'helpClipboardDesc': 'クリップボードの内容（テキストまたは画像）をデバイス間で瞬時に共有できます。デバイスカードのクリップボードアイコンをタップするか、「クリップボード」タブの「貼り付けて送信」ボタンを使用します。受信したクリップボードエントリは「クリップボード」タブに履歴として表示され、タップすればクリップボードにコピーし直せます。テキストと画像の両方に対応しており、リンク、パスワード、コードスニペット、スクリーンショットなどをスマホとPC間で素早く共有するのに最適です。',
+      'helpClipboardDesc':
+          'クリップボードの内容（テキストまたは画像）をデバイス間で瞬時に共有できます。デバイスカードのクリップボードアイコンをタップするか、「クリップボード」タブの「貼り付けて送信」ボタンを使用します。受信したクリップボードエントリは「クリップボード」タブに履歴として表示され、タップすればクリップボードにコピーし直せます。テキストと画像の両方に対応しており、リンク、パスワード、コードスニペット、スクリーンショットなどをスマホとPC間で素早く共有するのに最適です。',
       'helpSync': 'フォルダ同期',
-      'helpSyncDesc': '同期ジョブを作成して、デバイス間でフォルダを同期します。各ジョブはソースフォルダを監視し、ターゲットデバイスに変更をミラーリングします。複数の独立した同期ジョブを作成できます。例えば、ドキュメント用、写真用、プロジェクト用にそれぞれ1つずつ。新規ファイル、変更、削除がすべて自動検出され同期されます。受信側の各同期ジョブは専用サブフォルダ（Sync/<デバイス名>/<ジョブ名>/）に保存されるため、異なるジョブのファイルが混在することはありません。',
+      'helpSyncDesc':
+          '同期ジョブを作成して、デバイス間でフォルダを同期します。各ジョブはソースフォルダを監視し、ターゲットデバイスに変更をミラーリングします。複数の独立した同期ジョブを作成できます。例えば、ドキュメント用、写真用、プロジェクト用にそれぞれ1つずつ。新規ファイル、変更、削除がすべて自動検出され同期されます。受信側の各同期ジョブは専用サブフォルダ（Sync/<デバイス名>/<ジョブ名>/）に保存されるため、異なるジョブのファイルが混在することはありません。',
       'helpSyncJobs': '同期ジョブ',
-      'helpSyncJobsDesc': '各同期ジョブには独自の名前、ソースフォルダ、ターゲットデバイス、設定があります。ジョブを作成するには「新しい同期」をタップして3ステップウィザードに従います：(1) 基本 — 名前を設定し、ソースフォルダを選び、ターゲットデバイスを選択、(2) オプション — 同期方向、競合解決、同期モードを選択、(3) フィルター — globパターン（例：*.jpg、*.pdf）でファイルを包含/除外。作成されたジョブは「同期」タブにカードとして表示されます。各ジョブを個別に開始/停止、一時停止/再開、削除できます。',
+      'helpSyncJobsDesc':
+          '各同期ジョブには独自の名前、ソースフォルダ、ターゲットデバイス、設定があります。ジョブを作成するには「新しい同期」をタップして3ステップウィザードに従います：(1) 基本 — 名前を設定し、ソースフォルダを選び、ターゲットデバイスを選択、(2) オプション — 同期方向、競合解決、同期モードを選択、(3) フィルター — globパターン（例：*.jpg、*.pdf）でファイルを包含/除外。作成されたジョブは「同期」タブにカードとして表示されます。各ジョブを個別に開始/停止、一時停止/再開、削除できます。',
       'helpTvMode': 'TVモード',
-      'helpTvModeDesc': 'Android TVでは、リモコン操作に最適化されたサイドバーレイアウトに自動で切り替わります。すべてのボタンとカードは遠くからでも見やすいように拡大されます。リモコンの矢印キーで項目間を移動し、Enter/Selectで決定します。D-padフォーカスハイライトにより、どの項目が選択されているか明確に表示されます。TVでもすべての機能が利用可能で、ファイル受信、転送履歴の閲覧、同期ジョブの管理がリモコンだけで操作できます。',
+      'helpTvModeDesc':
+          'Android TVでは、リモコン操作に最適化されたサイドバーレイアウトに自動で切り替わります。すべてのボタンとカードは遠くからでも見やすいように拡大されます。リモコンの矢印キーで項目間を移動し、Enter/Selectで決定します。D-padフォーカスハイライトにより、どの項目が選択されているか明確に表示されます。TVでもすべての機能が利用可能で、ファイル受信、転送履歴の閲覧、同期ジョブの管理がリモコンだけで操作できます。',
       'helpResume': '転送の再開',
-      'helpResumeDesc': 'ファイル転送が中断された場合（ネットワーク切断、アプリ終了、デバイスのスリープなど）、接続が復旧すると中断した箇所から自動的に再開します。ファイル全体を再送信する必要はありません。大容量ファイルに特に有効で、10GBの動画が80%完了していた場合、0%からではなく80%から続行します。送信・受信の両方で機能します。',
+      'helpResumeDesc':
+          'ファイル転送が中断された場合（ネットワーク切断、アプリ終了、デバイスのスリープなど）、接続が復旧すると中断した箇所から自動的に再開します。ファイル全体を再送信する必要はありません。大容量ファイルに特に有効で、10GBの動画が80%完了していた場合、0%からではなく80%から続行します。送信・受信の両方で機能します。',
       'helpBackground': 'バックグラウンド転送',
-      'helpBackgroundDesc': 'Androidでは、他のアプリに切り替えたり画面をオフにしても、ファイル転送が継続します。常駐通知に現在のファイル名、進捗率、転送速度が表示されます。アプリはフォアグラウンドサービスとWakelockを使用してAndroidによる転送の強制終了を防ぎます。転送完了時には完了通知が届きます。特別な設定は不要で自動的に動作します。',
+      'helpBackgroundDesc':
+          'Androidでは、他のアプリに切り替えたり画面をオフにしても、ファイル転送が継続します。常駐通知に現在のファイル名、進捗率、転送速度が表示されます。アプリはフォアグラウンドサービスとWakelockを使用してAndroidによる転送の強制終了を防ぎます。転送完了時には完了通知が届きます。特別な設定は不要で自動的に動作します。',
       'helpMagicLink': 'マジックリンク',
-      'helpMagicLinkDesc': '完全に異なるネットワーク上のデバイス間でファイルを転送できます。例えば、自宅からオフィスへ、または別の都市にいる友人のデバイスへ。一方のデバイスで「ルーム作成」をタップすると6桁のPINコードが表示されます。もう一方のデバイスで「ルーム参加」をタップしてPINを入力します。WebRTC シグナリングサーバーを経由した初期ハンドシェイク後、可能な場合はデバイス間で直接P2P接続が確立されます。ファイル送信、クリップボード共有、進捗表示など、すべての標準機能が利用できます。',
+      'helpMagicLinkDesc':
+          '完全に異なるネットワーク上のデバイス間でファイルを転送できます。例えば、自宅からオフィスへ、または別の都市にいる友人のデバイスへ。一方のデバイスで「ルーム作成」をタップすると6桁のPINコードが表示されます。もう一方のデバイスで「ルーム参加」をタップしてPINを入力します。WebRTC シグナリングサーバーを経由した初期ハンドシェイク後、可能な場合はデバイス間で直接P2P接続が確立されます。ファイル送信、クリップボード共有、進捗表示など、すべての標準機能が利用できます。',
       'webPortal': 'Webポータル',
       'helpWebPortal': 'Webポータル',
-      'helpWebPortalDesc': '同じネットワーク上の任意のWebブラウザからデバイスにアクセスできます。相手側にアプリのインストールは不要です。設定でWebポータルを有効にすると、アクセスURL（例：http://192.168.1.50:8080）が表示されます。ノートPC、タブレット、スマートTVなど、ブラウザがあるデバイスでこのURLを開けます。Webインターフェースからファイルのアップロードやダウンロードが可能です。アプリをインストールしたくないPCからの一時的な転送に最適です。',
+      'helpWebPortalDesc':
+          '同じネットワーク上の任意のWebブラウザからデバイスにアクセスできます。相手側にアプリのインストールは不要です。設定でWebポータルを有効にすると、アクセスURL（例：http://192.168.1.50:8080）が表示されます。ノートPC、タブレット、スマートTVなど、ブラウザがあるデバイスでこのURLを開けます。Webインターフェースからファイルのアップロードやダウンロードが可能です。アプリをインストールしたくないPCからの一時的な転送に最適です。',
       'helpAutoSync': 'LAN自動同期',
-      'helpAutoSyncDesc': '有効にすると、ターゲットデバイスがネットワーク上で検出された時点で同期ジョブが自動的に開始されます。アプリを開いたり操作したりする必要はなく、同じWi-Fiに接続するだけで同期が始まります。帰宅時にスマホの写真をPCに自動バックアップしたり、オフィスのネットワークに接続するたびに作業文書を同期したりするのに最適です。',
+      'helpAutoSyncDesc':
+          '有効にすると、ターゲットデバイスがネットワーク上で検出された時点で同期ジョブが自動的に開始されます。アプリを開いたり操作したりする必要はなく、同じWi-Fiに接続するだけで同期が始まります。帰宅時にスマホの写真をPCに自動バックアップしたり、オフィスのネットワークに接続するたびに作業文書を同期したりするのに最適です。',
       'helpSyncReceiveFolder': '同期受信フォルダ',
-      'helpSyncReceiveFolderDesc': 'デフォルトでは、同期で受信したファイルはダウンロードフォルダ内の「Sync」サブフォルダに、送信元名とジョブ名で整理されて保存されます（例：Downloads/Sync/Phone/Documents/）。このベースフォルダは設定→同期受信フォルダで変更できます。各デバイスの各同期ジョブごとに専用サブフォルダが作られるため、異なる同期元のファイルが重複することはありません。',
+      'helpSyncReceiveFolderDesc':
+          'デフォルトでは、同期で受信したファイルはダウンロードフォルダ内の「Sync」サブフォルダに、送信元名とジョブ名で整理されて保存されます（例：Downloads/Sync/Phone/Documents/）。このベースフォルダは設定→同期受信フォルダで変更できます。各デバイスの各同期ジョブごとに専用サブフォルダが作られるため、異なる同期元のファイルが重複することはありません。',
       'syncSetupRequest': '同期リクエスト',
       'syncSetupAccept': '承認',
       'syncSetupReject': '拒否',
@@ -4613,7 +5249,8 @@ class AppLocalizations {
       'syncPairings': 'ペアリング済みデバイス',
       'syncRemovePairing': 'ペアリングを解除',
       'syncPairingRemoved': 'ペアリングを解除しました',
-      'syncPairingRemoveConfirm': '{device}との「{name}」ペアリングを解除しますか？今後の同期には再承認が必要になります。',
+      'syncPairingRemoveConfirm':
+          '{device}との「{name}」ペアリングを解除しますか？今後の同期には再承認が必要になります。',
       'syncReceivedFiles': 'ファイル受信',
       'syncRetryFailed': '失敗を再試行',
       'syncCopyErrorReport': 'エラーレポートをコピー',
@@ -4621,17 +5258,21 @@ class AppLocalizations {
       'syncDirectionOneWay': '一方向',
       'syncDirectionBidirectional': '双方向',
       'helpSyncPairing': '同期ペアリング',
-      'helpSyncPairingDesc': '初めて同期を開始すると、受信デバイスにターゲットフォルダを選択できる承認ダイアログが表示されます。承認後にペアリングが作成され、同じデバイスへの今後の同期は自動的に承認されます。ペアリングはSyncスクリーンから管理できます。両方のデバイスが同じジョブIDを共有し、ファイル変更検出による高度な双方向同期を実現します。',
+      'helpSyncPairingDesc':
+          '初めて同期を開始すると、受信デバイスにターゲットフォルダを選択できる承認ダイアログが表示されます。承認後にペアリングが作成され、同じデバイスへの今後の同期は自動的に承認されます。ペアリングはSyncスクリーンから管理できます。両方のデバイスが同じジョブIDを共有し、ファイル変更検出による高度な双方向同期を実現します。',
       'helpTips': 'ヒント',
-      'helpTip1': '自動検出には両方のデバイスが同じネットワーク上にある必要があります。異なるネットワークにはマジックリンクまたはホットスポットを使用してください。',
-      'helpTip2': 'デバイスが検出されない場合は、ファイアウォール設定を確認し、ポート42224でのUDPブロードキャストが許可されていることを確かめてください。',
+      'helpTip1':
+          '自動検出には両方のデバイスが同じネットワーク上にある必要があります。異なるネットワークにはマジックリンクまたはホットスポットを使用してください。',
+      'helpTip2':
+          'デバイスが検出されない場合は、ファイアウォール設定を確認し、ポート42224でのUDPブロードキャストが許可されていることを確かめてください。',
       'helpTip3': '大容量ファイルの転送には、有線イーサネット接続の方がWi-Fiより高速で安定しています。',
       'helpTip4': '設定の帯域幅制限を使用して、アップロード速度を制限し、低速ネットワークの飽和を防ぐことができます。',
       'helpTip5': '自動同期を有効にすると、手動操作なしでフォルダを常に最新の状態に保てます。',
       'helpTip6': 'フォルダごと送信できます。受信側ではディレクトリ構造がそのまま保持されます。',
       'helpTip7': 'クリップボード同期はテキストと画像の両方に対応しており、リンクやスクリーンショットの共有に便利です。',
       'aboutApp': 'LifeOS AnyWhere について',
-      'aboutDesc': 'クロスプラットフォームのローカルネットワークファイル共有。すべてのデバイス間でファイル、フォルダ、クリップボードを瞬時に送信。',
+      'aboutDesc':
+          'クロスプラットフォームのローカルネットワークファイル共有。すべてのデバイス間でファイル、フォルダ、クリップボードを瞬時に送信。',
       'developer': '開発者',
       'license': 'ライセンス',
       'sourceCode': 'ソースコード',
@@ -4750,13 +5391,17 @@ class AppLocalizations {
       'includePatterns': '含める',
       'excludePatterns': '除外する',
       'helpSyncDirection': '同期方向と競合',
-      'helpSyncDirectionDesc': '各同期ジョブは一方向または双方向に設定できます。一方向（バックアップ形式）はソースからターゲットへのみファイルを送信し、スマホからPCへのバックアップに最適です。双方向同期は両方向の変更をミラーリングします。どちらかのデバイスでファイルを編集すると、もう一方に同期されます。同じファイルが両方のデバイスで変更された場合、競合が発生します。競合の解決方法は選択可能で、「新しい方が優先」は最近変更されたバージョンを自動選択、「確認する」は各競合でダイアログを表示、「両方を保持」はサフィックス付きで両バージョンを保存します。',
+      'helpSyncDirectionDesc':
+          '各同期ジョブは一方向または双方向に設定できます。一方向（バックアップ形式）はソースからターゲットへのみファイルを送信し、スマホからPCへのバックアップに最適です。双方向同期は両方向の変更をミラーリングします。どちらかのデバイスでファイルを編集すると、もう一方に同期されます。同じファイルが両方のデバイスで変更された場合、競合が発生します。競合の解決方法は選択可能で、「新しい方が優先」は最近変更されたバージョンを自動選択、「確認する」は各競合でダイアログを表示、「両方を保持」はサフィックス付きで両バージョンを保存します。',
       'helpSyncPhotoMode': '写真/動画モード',
-      'helpSyncPhotoModeDesc': 'スマホの写真・動画の同期に特化した機能です。有効にすると、カメラフォルダ（DCIM）を自動検出します。写真はターゲット上で日付別サブフォルダ（例：2026/01、2026/02）に整理されるため、大量の写真がきれいに管理されます。Apple HEICフォーマットの写真はWindowsなど他のプラットフォームとの互換性のためにJPGへ自動変換できます。スマホのストレージを解放するのに最適で、写真をPCに同期してからスマホから削除できます。',
+      'helpSyncPhotoModeDesc':
+          'スマホの写真・動画の同期に特化した機能です。有効にすると、カメラフォルダ（DCIM）を自動検出します。写真はターゲット上で日付別サブフォルダ（例：2026/01、2026/02）に整理されるため、大量の写真がきれいに管理されます。Apple HEICフォーマットの写真はWindowsなど他のプラットフォームとの互換性のためにJPGへ自動変換できます。スマホのストレージを解放するのに最適で、写真をPCに同期してからスマホから削除できます。',
       'helpMirrorDeletions': 'ミラー削除',
-      'helpMirrorDeletionsDesc': '同期ジョブで「ミラー削除」を有効にすると、ソースデバイスでファイルを削除した場合、ターゲットでも削除されます。これにより両側が完全に同期された状態を維持でき、一方のデバイスで古いファイルを整理すると、すべてのデバイスで整理されます。注意：誤ってファイルを削除すると、ターゲット側でも削除されます。無効の場合、削除は伝播されず、ソースから削除してもターゲットにファイルが残ります。',
+      'helpMirrorDeletionsDesc':
+          '同期ジョブで「ミラー削除」を有効にすると、ソースデバイスでファイルを削除した場合、ターゲットでも削除されます。これにより両側が完全に同期された状態を維持でき、一方のデバイスで古いファイルを整理すると、すべてのデバイスで整理されます。注意：誤ってファイルを削除すると、ターゲット側でも削除されます。無効の場合、削除は伝播されず、ソースから削除してもターゲットにファイルが残ります。',
       'helpSyncFilters': '同期フィルター',
-      'helpSyncFiltersDesc': '包含・除外パターン（glob構文）を使用して、同期するファイルを正確に制御できます。例えば、包含に「*.jpg, *.png」を追加すると画像のみを同期し、除外に「*.tmp, Thumbs.db, .DS_Store」を追加すると一時ファイルをスキップします。パターンはフルパスではなくファイル名に適用されます。包含が空の場合、デフォルトですべてのファイルが含まれます。ファイルが包含と除外の両方に一致する場合は除外が優先されます。特定のファイルタイプのみを同期したり、不要な大きなファイルをスキップしたりするのに便利です。',
+      'helpSyncFiltersDesc':
+          '包含・除外パターン（glob構文）を使用して、同期するファイルを正確に制御できます。例えば、包含に「*.jpg, *.png」を追加すると画像のみを同期し、除外に「*.tmp, Thumbs.db, .DS_Store」を追加すると一時ファイルをスキップします。パターンはフルパスではなくファイル名に適用されます。包含が空の場合、デフォルトですべてのファイルが含まれます。ファイルが包含と除外の両方に一致する場合は除外が優先されます。特定のファイルタイプのみを同期したり、不要な大きなファイルをスキップしたりするのに便利です。',
       'justNow': 'たった今',
       'syncConflicts': '同期の競合',
       'syncResolveConflicts': '解決',
@@ -4856,7 +5501,8 @@ class AppLocalizations {
       'serverSyncLiveWatch': 'ライブ監視',
       'serverSyncLiveWatchDesc': 'ファイル変更時に自動でサーバーにプッシュ',
       'gdrivePathHint': 'マイドキュメント/バックアップ',
-      'gdrivePathInfo': '既存のGoogle Driveフォルダを参照できません。フォルダ名を入力してください（例：「マイドキュメント/バックアップ」）。アプリが自動的に作成します。',
+      'gdrivePathInfo':
+          '既存のGoogle Driveフォルダを参照できません。フォルダ名を入力してください（例：「マイドキュメント/バックアップ」）。アプリが自動的に作成します。',
       'syncNoJobs': '同期ジョブがありません',
       'syncNoJobsDesc': '新しい同期ジョブを作成してください',
       'syncSuccessful': '成功',
@@ -4892,9 +5538,11 @@ class AppLocalizations {
       'uploadFailed': 'アップロード失敗',
       'ok': 'OK',
       'helpHotspot': 'ホットスポット接続',
-      'helpHotspotDesc': '両方のデバイスが同じWi-Fiネットワークに接続できない場合、一方のデバイスでWi-Fiホットスポットを作成し、もう一方が接続できます。これによりルーターやインターネットなしで2台のデバイス間に直接ローカルネットワークが作成されます。ホットスポットに接続すると、アプリは自動的にもう一方のデバイスを検出します。すべての機能が正常に動作します：ファイル転送、クリップボード共有、フォルダ同期。',
+      'helpHotspotDesc':
+          '両方のデバイスが同じWi-Fiネットワークに接続できない場合、一方のデバイスでWi-Fiホットスポットを作成し、もう一方が接続できます。これによりルーターやインターネットなしで2台のデバイス間に直接ローカルネットワークが作成されます。ホットスポットに接続すると、アプリは自動的にもう一方のデバイスを検出します。すべての機能が正常に動作します：ファイル転送、クリップボード共有、フォルダ同期。',
       'helpServerSync': 'サーバー同期 (SFTP)',
-      'helpServerSyncDesc': 'NAS、VPS、またはSSH対応のリモートSFTPサーバーにファイルを同期します。設定でサーバー接続（ホスト、ポート、ユーザー名、パスワードまたは秘密鍵）を構成します。次に、ローカルフォルダとリモートパスを選択して同期ジョブを作成します。アプリは両側を比較し、変更のみを転送します。ローカルでファイルが変更されたときに自動同期するライブ監視モードをサポートしています。',
+      'helpServerSyncDesc':
+          'NAS、VPS、またはSSH対応のリモートSFTPサーバーにファイルを同期します。設定でサーバー接続（ホスト、ポート、ユーザー名、パスワードまたは秘密鍵）を構成します。次に、ローカルフォルダとリモートパスを選択して同期ジョブを作成します。アプリは両側を比較し、変更のみを転送します。ローカルでファイルが変更されたときに自動同期するライブ監視モードをサポートしています。',
       'notifTransferStarted': '{sender} \u2192 {file}',
       'notifTransferComplete': '\u2705 {file}',
       'notifTransferFailed': '\u274c {file}',
@@ -4964,7 +5612,9 @@ class AppLocalizations {
       'devices': 'الأجهزة',
       'transfers': 'التحويلات',
       'settings': 'الإعدادات',
+      'more': 'المزيد',
       'collapse': 'طي',
+      'expand': 'توسيع',
       'sync': 'مزامنة',
       'noDevices': 'لم يتم العثور على أجهزة',
       'scanning': 'جارٍ البحث عن أجهزة…',
@@ -4979,6 +5629,17 @@ class AppLocalizations {
       'noTransfers': 'لا توجد تحويلات بعد',
       'noTransfersDesc': 'ستظهر الملفات المرسلة والمستلمة هنا',
       'clearCompleted': 'مسح',
+      'activeTransfers': 'عمليات النقل النشطة',
+      'attentionRequired': 'تتطلب الانتباه',
+      'retryFailed': 'تعذرت إعادة محاولة النقل',
+      'transferQueue': 'قائمة انتظار النقل',
+      'cancelQueue': 'إلغاء قائمة الانتظار',
+      'cancelQueueConfirm':
+          'هل تريد إلغاء النقل الحالي وإزالة جميع الملفات المنتظرة؟',
+      'moveUp': 'نقل لأعلى',
+      'moveDown': 'نقل لأسفل',
+      'removeFromQueue': 'إزالة من قائمة الانتظار',
+      'transferControlUnavailable': 'لم يعد التحكم في النقل متاحًا',
       'sending': 'جارٍ الإرسال…',
       'receiving': 'جارٍ الاستلام…',
       'waiting': 'في الانتظار…',
@@ -4986,6 +5647,7 @@ class AppLocalizations {
       'accepted': 'مقبول',
       'rejected': 'مرفوض',
       'transferring': 'جارٍ النقل',
+      'paused': 'متوقف مؤقتًا',
       'completed': 'مكتمل',
       'failed': 'فشل',
       'cancelled': 'ملغى',
@@ -5028,7 +5690,8 @@ class AppLocalizations {
       'save': 'حفظ',
       'retry': 'إعادة المحاولة',
       'storagePermission': 'إذن التخزين مطلوب',
-      'storagePermissionDesc': 'يحتاج LifeOS AnyWhere إلى إذن التخزين لإرسال واستلام الملفات.',
+      'storagePermissionDesc':
+          'يحتاج LifeOS AnyWhere إلى إذن التخزين لإرسال واستلام الملفات.',
       'grant': 'السماح',
       'openSettings': 'فتح الإعدادات',
       'permissionDenied': 'تم رفض الإذن',
@@ -5058,6 +5721,7 @@ class AppLocalizations {
       'selectFolder': 'اختر مجلداً',
       'sendFileOrFolder': 'إرسال ملف أو مجلد',
       'sendFiles': 'إرسال ملفات',
+      'recentTargets': 'الوجهات الأخيرة',
       'folderSending': 'جارٍ إرسال المجلد…',
       'fileReceived': 'تم استلام الملف',
       'fileReceiving': 'جارٍ استلام الملف…',
@@ -5081,6 +5745,9 @@ class AppLocalizations {
       'pairDevice': 'إقران جهاز',
       'scanQr': 'امسح الرمز للإقران',
       'close': 'إغلاق',
+      'play': 'تشغيل',
+      'openExternally': 'فتح باستخدام تطبيق آخر',
+      'previewUnavailable': 'لا يمكن معاينة هذا الملف على هذا الجهاز.',
       'pairedWith': 'مقترن بـ {name}',
       'invalidCode': 'رمز QR غير صالح',
       'scanQrTitle': 'مسح رمز QR',
@@ -5111,38 +5778,54 @@ class AppLocalizations {
       'help': 'مساعدة',
       'helpUsage': 'كيفية الاستخدام',
       'helpDiscovery': 'اكتشاف الأجهزة',
-      'helpDiscoveryDesc': 'يتم اكتشاف الأجهزة المتصلة بنفس الشبكة تلقائياً عبر بث UDP. تأكد من اتصال جميع الأجهزة بنفس شبكة Wi-Fi أو شبكة LAN سلكية. إذا لم تظهر الأجهزة، تحقق من أن البث (broadcast) على المنفذ 42224 غير محظور بواسطة جدار الحماية أو إعدادات جهاز التوجيه (الراوتر).',
+      'helpDiscoveryDesc':
+          'يتم اكتشاف الأجهزة المتصلة بنفس الشبكة تلقائياً عبر بث UDP. تأكد من اتصال جميع الأجهزة بنفس شبكة Wi-Fi أو شبكة LAN سلكية. إذا لم تظهر الأجهزة، تحقق من أن البث (broadcast) على المنفذ 42224 غير محظور بواسطة جدار الحماية أو إعدادات جهاز التوجيه (الراوتر).',
       'helpSendFiles': 'إرسال الملفات',
-      'helpSendFilesDesc': 'انقر على بطاقة أي جهاز لفتح نافذة اختيار الملفات، ثم حدد ملفات أو مجلدات أو محتوى الحافظة لإرسالها. يمكنك إرسال عدة ملفات دفعة واحدة. على أنظمة سطح المكتب، يمكنك أيضاً سحب الملفات وإفلاتها مباشرةً على بطاقة الجهاز لبدء الإرسال فوراً.',
+      'helpSendFilesDesc':
+          'انقر على بطاقة أي جهاز لفتح نافذة اختيار الملفات، ثم حدد ملفات أو مجلدات أو محتوى الحافظة لإرسالها. يمكنك إرسال عدة ملفات دفعة واحدة. على أنظمة سطح المكتب، يمكنك أيضاً سحب الملفات وإفلاتها مباشرةً على بطاقة الجهاز لبدء الإرسال فوراً.',
       'helpReceiveFiles': 'استلام الملفات',
-      'helpReceiveFilesDesc': 'يتم حفظ الملفات الواردة في المجلد المحدد في الإعدادات. فعّل خيار "القبول التلقائي" لاستلام الملفات تلقائياً دون الحاجة لتأكيد كل عملية نقل يدوياً.',
+      'helpReceiveFilesDesc':
+          'يتم حفظ الملفات الواردة في المجلد المحدد في الإعدادات. فعّل خيار "القبول التلقائي" لاستلام الملفات تلقائياً دون الحاجة لتأكيد كل عملية نقل يدوياً.',
       'helpQrPairing': 'إقران QR',
-      'helpQrPairingDesc': 'إذا لم يتم العثور على الجهاز تلقائياً (مثلاً بسبب شبكات فرعية مختلفة أو شبكة معقدة)، استخدم إقران رمز QR للاتصال بلمسة واحدة. على أحد الأجهزة، انتقل إلى تبويب الأجهزة واضغط على أيقونة QR لعرض رمز الإقران. على الجهاز الآخر، اضغط "مسح QR" ووجّه الكاميرا نحو الرمز. بمجرد المسح، يتصل الجهازان مباشرةً باستخدام عنوان IP المضمّن في الرمز.',
+      'helpQrPairingDesc':
+          'إذا لم يتم العثور على الجهاز تلقائياً (مثلاً بسبب شبكات فرعية مختلفة أو شبكة معقدة)، استخدم إقران رمز QR للاتصال بلمسة واحدة. على أحد الأجهزة، انتقل إلى تبويب الأجهزة واضغط على أيقونة QR لعرض رمز الإقران. على الجهاز الآخر، اضغط "مسح QR" ووجّه الكاميرا نحو الرمز. بمجرد المسح، يتصل الجهازان مباشرةً باستخدام عنوان IP المضمّن في الرمز.',
       'helpManualIp': 'اتصال IP يدوي',
-      'helpManualIpDesc': 'إذا لم يكن مسح QR متاحاً (مثلاً على جهاز مكتبي بدون كاميرا)، يمكنك الاتصال بإدخال عنوان IP يدوياً. انتقل إلى تبويب الأجهزة، اضغط "إضافة يدوياً"، واكتب عنوان IP للجهاز الآخر (مثلاً 192.168.1.100). سيحاول التطبيق الاتصال على المنفذ الافتراضي. يمكنك معرفة عنوان IP لجهازك من شاشة الإعدادات أو من إعدادات الشبكة في نظام التشغيل.',
+      'helpManualIpDesc':
+          'إذا لم يكن مسح QR متاحاً (مثلاً على جهاز مكتبي بدون كاميرا)، يمكنك الاتصال بإدخال عنوان IP يدوياً. انتقل إلى تبويب الأجهزة، اضغط "إضافة يدوياً"، واكتب عنوان IP للجهاز الآخر (مثلاً 192.168.1.100). سيحاول التطبيق الاتصال على المنفذ الافتراضي. يمكنك معرفة عنوان IP لجهازك من شاشة الإعدادات أو من إعدادات الشبكة في نظام التشغيل.',
       'helpDragDrop': 'السحب والإفلات',
-      'helpDragDropDesc': 'على أنظمة سطح المكتب (ويندوز، ماك، لينكس)، يمكنك سحب الملفات أو المجلدات من مدير الملفات وإفلاتها مباشرةً على بطاقة الجهاز في التطبيق. يظهر مؤشر منطقة الإفلات عند التمرير فوق الجهاز. يمكنك إفلات عدة ملفات في آن واحد. هذه أسرع طريقة لإرسال الملفات من سطح المكتب — دون الحاجة لنافذة اختيار الملفات.',
+      'helpDragDropDesc':
+          'على أنظمة سطح المكتب (ويندوز، ماك، لينكس)، يمكنك سحب الملفات أو المجلدات من مدير الملفات وإفلاتها مباشرةً على بطاقة الجهاز في التطبيق. يظهر مؤشر منطقة الإفلات عند التمرير فوق الجهاز. يمكنك إفلات عدة ملفات في آن واحد. هذه أسرع طريقة لإرسال الملفات من سطح المكتب — دون الحاجة لنافذة اختيار الملفات.',
       'helpClipboard': 'مشاركة الحافظة',
-      'helpClipboardDesc': 'شارك محتوى الحافظة (نصوص أو صور) فوراً بين الأجهزة. اضغط على أيقونة الحافظة في بطاقة الجهاز أو استخدم زر "لصق وإرسال" في تبويب الحافظة. تظهر العناصر المستلمة في تبويب الحافظة مع سجل كامل. يمكنك الضغط على أي عنصر لنسخه مجدداً إلى حافظتك. يدعم النصوص والصور معاً. مثالي لمشاركة الروابط وكلمات المرور ومقاطع الكود ولقطات الشاشة بسرعة بين هاتفك وحاسوبك.',
+      'helpClipboardDesc':
+          'شارك محتوى الحافظة (نصوص أو صور) فوراً بين الأجهزة. اضغط على أيقونة الحافظة في بطاقة الجهاز أو استخدم زر "لصق وإرسال" في تبويب الحافظة. تظهر العناصر المستلمة في تبويب الحافظة مع سجل كامل. يمكنك الضغط على أي عنصر لنسخه مجدداً إلى حافظتك. يدعم النصوص والصور معاً. مثالي لمشاركة الروابط وكلمات المرور ومقاطع الكود ولقطات الشاشة بسرعة بين هاتفك وحاسوبك.',
       'helpSync': 'مزامنة المجلدات',
-      'helpSyncDesc': 'أنشئ مهام مزامنة للحفاظ على تطابق المجلدات بين أجهزتك. كل مهمة تراقب مجلداً مصدرياً وتعكس التغييرات إلى الجهاز الهدف. يمكنك إنشاء عدة مهام مستقلة — مثلاً واحدة للمستندات وأخرى للصور وثالثة للمشاريع. يتم اكتشاف التغييرات تلقائياً: الملفات الجديدة والتعديلات والحذف كلها تُزامَن. كل مهمة على جهاز الاستقبال تُحفظ في مجلد فرعي خاص (Sync/<اسم الجهاز>/<اسم المهمة>/) لتجنب اختلاط الملفات.',
+      'helpSyncDesc':
+          'أنشئ مهام مزامنة للحفاظ على تطابق المجلدات بين أجهزتك. كل مهمة تراقب مجلداً مصدرياً وتعكس التغييرات إلى الجهاز الهدف. يمكنك إنشاء عدة مهام مستقلة — مثلاً واحدة للمستندات وأخرى للصور وثالثة للمشاريع. يتم اكتشاف التغييرات تلقائياً: الملفات الجديدة والتعديلات والحذف كلها تُزامَن. كل مهمة على جهاز الاستقبال تُحفظ في مجلد فرعي خاص (Sync/<اسم الجهاز>/<اسم المهمة>/) لتجنب اختلاط الملفات.',
       'helpSyncJobs': 'مهام المزامنة',
-      'helpSyncJobsDesc': 'لكل مهمة مزامنة اسمها ومجلدها المصدري وجهازها الهدف وإعداداتها الخاصة. لإنشاء مهمة، اضغط "مزامنة جديدة" واتبع المعالج المكوّن من 3 خطوات: (1) الأساسيات — حدد اسماً واختر مجلداً مصدرياً وجهازاً هدفاً؛ (2) الخيارات — اختر اتجاه المزامنة وطريقة حل التعارضات ونوع المزامنة؛ (3) المرشحات — حدد الملفات المشمولة أو المستبعدة باستخدام أنماط glob (مثل *.jpg و*.pdf). بعد الإنشاء، تظهر المهام كبطاقات في تبويب المزامنة. يمكنك بدء/إيقاف أو إيقاف مؤقت/استئناف أو حذف كل مهمة بشكل مستقل.',
+      'helpSyncJobsDesc':
+          'لكل مهمة مزامنة اسمها ومجلدها المصدري وجهازها الهدف وإعداداتها الخاصة. لإنشاء مهمة، اضغط "مزامنة جديدة" واتبع المعالج المكوّن من 3 خطوات: (1) الأساسيات — حدد اسماً واختر مجلداً مصدرياً وجهازاً هدفاً؛ (2) الخيارات — اختر اتجاه المزامنة وطريقة حل التعارضات ونوع المزامنة؛ (3) المرشحات — حدد الملفات المشمولة أو المستبعدة باستخدام أنماط glob (مثل *.jpg و*.pdf). بعد الإنشاء، تظهر المهام كبطاقات في تبويب المزامنة. يمكنك بدء/إيقاف أو إيقاف مؤقت/استئناف أو حذف كل مهمة بشكل مستقل.',
       'helpTvMode': 'وضع التلفزيون',
-      'helpTvModeDesc': 'على Android TV، يتحول التطبيق تلقائياً إلى تخطيط شريط جانبي محسّن للتحكم عن بعد. جميع الأزرار والبطاقات مكبّرة للرؤية من مسافة بعيدة. استخدم مفاتيح الأسهم في جهاز التحكم للتنقل بين العناصر، واضغط Enter/Select للتفعيل. يُبرز مؤشر التركيز بوضوح العنصر المحدد. جميع الميزات تعمل على التلفزيون — يمكنك استلام الملفات وتصفح عمليات النقل وإدارة مهام المزامنة باستخدام جهاز التحكم فقط.',
+      'helpTvModeDesc':
+          'على Android TV، يتحول التطبيق تلقائياً إلى تخطيط شريط جانبي محسّن للتحكم عن بعد. جميع الأزرار والبطاقات مكبّرة للرؤية من مسافة بعيدة. استخدم مفاتيح الأسهم في جهاز التحكم للتنقل بين العناصر، واضغط Enter/Select للتفعيل. يُبرز مؤشر التركيز بوضوح العنصر المحدد. جميع الميزات تعمل على التلفزيون — يمكنك استلام الملفات وتصفح عمليات النقل وإدارة مهام المزامنة باستخدام جهاز التحكم فقط.',
       'helpResume': 'استئناف النقل',
-      'helpResumeDesc': 'إذا انقطع نقل الملفات — سواء بسبب انقطاع الشبكة أو إغلاق التطبيق أو دخول الجهاز في وضع السكون — يُستأنف تلقائياً من حيث توقف عند استعادة الاتصال. لا حاجة لإعادة إرسال الملف بالكامل. هذا مفيد جداً للملفات الكبيرة: فيديو بحجم 10 غيغابايت وصل إلى 80% سيُكمل من 80% بدلاً من البدء من جديد. يعمل الاستئناف لكل من الإرسال والاستقبال.',
+      'helpResumeDesc':
+          'إذا انقطع نقل الملفات — سواء بسبب انقطاع الشبكة أو إغلاق التطبيق أو دخول الجهاز في وضع السكون — يُستأنف تلقائياً من حيث توقف عند استعادة الاتصال. لا حاجة لإعادة إرسال الملف بالكامل. هذا مفيد جداً للملفات الكبيرة: فيديو بحجم 10 غيغابايت وصل إلى 80% سيُكمل من 80% بدلاً من البدء من جديد. يعمل الاستئناف لكل من الإرسال والاستقبال.',
       'helpBackground': 'النقل في الخلفية',
-      'helpBackgroundDesc': 'على أندرويد، يستمر نقل الملفات حتى عند التبديل إلى تطبيق آخر أو إطفاء الشاشة. يظهر إشعار دائم يعرض اسم الملف الحالي ونسبة التقدم وسرعة النقل. يستخدم التطبيق خدمة أمامية وقفل تنبيه لمنع أندرويد من إيقاف النقل. عند اكتمال النقل، تصلك إشعار بذلك. لا حاجة لأي إعداد — يعمل تلقائياً.',
+      'helpBackgroundDesc':
+          'على أندرويد، يستمر نقل الملفات حتى عند التبديل إلى تطبيق آخر أو إطفاء الشاشة. يظهر إشعار دائم يعرض اسم الملف الحالي ونسبة التقدم وسرعة النقل. يستخدم التطبيق خدمة أمامية وقفل تنبيه لمنع أندرويد من إيقاف النقل. عند اكتمال النقل، تصلك إشعار بذلك. لا حاجة لأي إعداد — يعمل تلقائياً.',
       'helpMagicLink': 'رابط سحري',
-      'helpMagicLinkDesc': 'انقل الملفات بين أجهزة على شبكات مختلفة تماماً — مثلاً من منزلك إلى مكتبك، أو إلى جهاز صديق في مدينة أخرى. جهاز يضغط "إنشاء غرفة" ويحصل على رمز PIN مكوّن من 6 أرقام. الجهاز الآخر يضغط "انضمام للغرفة" ويُدخل الرمز. يتم إنشاء اتصال مباشر بين الأجهزة عبر خادم إشارات WebRTC للمصافحة الأولية، ثم تتدفق البيانات مباشرة بين الجهازين عند الإمكان. جميع الميزات المعتادة تعمل: إرسال الملفات ومشاركة الحافظة وتتبع التقدم.',
+      'helpMagicLinkDesc':
+          'انقل الملفات بين أجهزة على شبكات مختلفة تماماً — مثلاً من منزلك إلى مكتبك، أو إلى جهاز صديق في مدينة أخرى. جهاز يضغط "إنشاء غرفة" ويحصل على رمز PIN مكوّن من 6 أرقام. الجهاز الآخر يضغط "انضمام للغرفة" ويُدخل الرمز. يتم إنشاء اتصال مباشر بين الأجهزة عبر خادم إشارات WebRTC للمصافحة الأولية، ثم تتدفق البيانات مباشرة بين الجهازين عند الإمكان. جميع الميزات المعتادة تعمل: إرسال الملفات ومشاركة الحافظة وتتبع التقدم.',
       'webPortal': 'بوابة الويب',
       'helpWebPortal': 'بوابة الويب',
-      'helpWebPortalDesc': 'ادخل إلى جهازك من أي متصفح ويب على نفس الشبكة — دون الحاجة لتثبيت أي تطبيق على الطرف الآخر. انتقل إلى الإعدادات وفعّل بوابة الويب لرؤية رابط الوصول (مثلاً http://192.168.1.50:8080). افتح هذا الرابط على أي جهاز يحتوي على متصفح: لابتوب أو تابلت أو حتى تلفزيون ذكي. يمكنك رفع الملفات إلى جهازك وتنزيل الملفات منه عبر واجهة الويب. مثالي للنقل السريع من حاسوب لا ترغب بتثبيت التطبيق عليه.',
+      'helpWebPortalDesc':
+          'ادخل إلى جهازك من أي متصفح ويب على نفس الشبكة — دون الحاجة لتثبيت أي تطبيق على الطرف الآخر. انتقل إلى الإعدادات وفعّل بوابة الويب لرؤية رابط الوصول (مثلاً http://192.168.1.50:8080). افتح هذا الرابط على أي جهاز يحتوي على متصفح: لابتوب أو تابلت أو حتى تلفزيون ذكي. يمكنك رفع الملفات إلى جهازك وتنزيل الملفات منه عبر واجهة الويب. مثالي للنقل السريع من حاسوب لا ترغب بتثبيت التطبيق عليه.',
       'helpAutoSync': 'مزامنة تلقائية على الشبكة',
-      'helpAutoSyncDesc': 'عند تفعيل هذا الخيار، تبدأ مهام المزامنة تلقائياً فور اكتشاف الجهاز الهدف على الشبكة. لا تحتاج لفتح التطبيق أو الضغط على أي شيء — فقط اتصل بنفس شبكة Wi-Fi وستبدأ المزامنة. مثالي لسيناريوهات مثل: نسخ صور هاتفك احتياطياً إلى حاسوبك تلقائياً في كل مرة تعود فيها إلى المنزل، أو إبقاء مستنداتك محدّثة كلما اتصلت بشبكة المكتب.',
+      'helpAutoSyncDesc':
+          'عند تفعيل هذا الخيار، تبدأ مهام المزامنة تلقائياً فور اكتشاف الجهاز الهدف على الشبكة. لا تحتاج لفتح التطبيق أو الضغط على أي شيء — فقط اتصل بنفس شبكة Wi-Fi وستبدأ المزامنة. مثالي لسيناريوهات مثل: نسخ صور هاتفك احتياطياً إلى حاسوبك تلقائياً في كل مرة تعود فيها إلى المنزل، أو إبقاء مستنداتك محدّثة كلما اتصلت بشبكة المكتب.',
       'helpSyncReceiveFolder': 'مجلد استقبال المزامنة',
-      'helpSyncReceiveFolderDesc': 'افتراضياً، تُحفظ الملفات المستلمة عبر المزامنة في مجلد "Sync" فرعي داخل مجلد التنزيلات، مرتبة حسب اسم المرسل واسم المهمة (مثلاً Downloads/Sync/Phone/Documents/). يمكنك تغيير هذا المجلد الأساسي من الإعدادات ← مجلد استقبال المزامنة. كل مهمة من كل جهاز تحصل على مجلد فرعي خاص بها، فلا تتداخل الملفات أبداً بين مصادر المزامنة المختلفة.',
+      'helpSyncReceiveFolderDesc':
+          'افتراضياً، تُحفظ الملفات المستلمة عبر المزامنة في مجلد "Sync" فرعي داخل مجلد التنزيلات، مرتبة حسب اسم المرسل واسم المهمة (مثلاً Downloads/Sync/Phone/Documents/). يمكنك تغيير هذا المجلد الأساسي من الإعدادات ← مجلد استقبال المزامنة. كل مهمة من كل جهاز تحصل على مجلد فرعي خاص بها، فلا تتداخل الملفات أبداً بين مصادر المزامنة المختلفة.',
       'syncSetupRequest': 'طلب مزامنة',
       'syncSetupAccept': 'قبول',
       'syncSetupReject': 'رفض',
@@ -5154,7 +5837,8 @@ class AppLocalizations {
       'syncPairings': 'الأجهزة المقترنة',
       'syncRemovePairing': 'إزالة الاقتران',
       'syncPairingRemoved': 'تمت إزالة الاقتران',
-      'syncPairingRemoveConfirm': 'إزالة اقتران "{name}" مع {device}؟ ستتطلب عمليات المزامنة المستقبلية قبولاً جديداً.',
+      'syncPairingRemoveConfirm':
+          'إزالة اقتران "{name}" مع {device}؟ ستتطلب عمليات المزامنة المستقبلية قبولاً جديداً.',
       'syncReceivedFiles': 'ملفات مستلمة',
       'syncRetryFailed': 'إعادة محاولة الفاشلة',
       'syncCopyErrorReport': 'نسخ تقرير الأخطاء',
@@ -5162,24 +5846,33 @@ class AppLocalizations {
       'syncDirectionOneWay': 'اتجاه واحد',
       'syncDirectionBidirectional': 'ثنائي الاتجاه',
       'helpSyncPairing': 'اقتران المزامنة',
-      'helpSyncPairingDesc': 'عند بدء المزامنة لأول مرة، يعرض الجهاز المستلم نافذة قبول حيث يمكن للمستخدم اختيار المجلد المستهدف. بمجرد القبول، يتم إنشاء اقتران — تُقبل عمليات المزامنة المستقبلية إلى نفس الجهاز تلقائياً. يمكنك إدارة الاقترانات من شاشة المزامنة. يتشارك كلا الجهازين نفس معرف المهمة، مما يتيح مزامنة ثنائية الاتجاه ذكية مع كشف تغييرات الملفات.',
+      'helpSyncPairingDesc':
+          'عند بدء المزامنة لأول مرة، يعرض الجهاز المستلم نافذة قبول حيث يمكن للمستخدم اختيار المجلد المستهدف. بمجرد القبول، يتم إنشاء اقتران — تُقبل عمليات المزامنة المستقبلية إلى نفس الجهاز تلقائياً. يمكنك إدارة الاقترانات من شاشة المزامنة. يتشارك كلا الجهازين نفس معرف المهمة، مما يتيح مزامنة ثنائية الاتجاه ذكية مع كشف تغييرات الملفات.',
       'helpTips': 'نصائح',
-      'helpTip1': 'يجب أن يكون كلا الجهازين على نفس الشبكة للاكتشاف التلقائي. استخدم الرابط السحري أو نقطة الاتصال للشبكات المختلفة.',
-      'helpTip2': 'إذا لم يتم اكتشاف الأجهزة، تحقق من إعدادات جدار الحماية وتأكد من السماح ببث UDP على المنفذ 42224.',
-      'helpTip3': 'اتصال Ethernet السلكي أسرع وأكثر استقراراً من Wi-Fi لنقل الملفات الكبيرة.',
-      'helpTip4': 'استخدم إعداد تقييد عرض النطاق في الإعدادات للحد من سرعة الرفع وتجنب إشباع الشبكة البطيئة.',
+      'helpTip1':
+          'يجب أن يكون كلا الجهازين على نفس الشبكة للاكتشاف التلقائي. استخدم الرابط السحري أو نقطة الاتصال للشبكات المختلفة.',
+      'helpTip2':
+          'إذا لم يتم اكتشاف الأجهزة، تحقق من إعدادات جدار الحماية وتأكد من السماح ببث UDP على المنفذ 42224.',
+      'helpTip3':
+          'اتصال Ethernet السلكي أسرع وأكثر استقراراً من Wi-Fi لنقل الملفات الكبيرة.',
+      'helpTip4':
+          'استخدم إعداد تقييد عرض النطاق في الإعدادات للحد من سرعة الرفع وتجنب إشباع الشبكة البطيئة.',
       'helpTip5': 'فعّل المزامنة التلقائية لتبقى مجلداتك محدّثة دون تدخل يدوي.',
-      'helpTip6': 'يمكنك إرسال مجلدات كاملة — يتم الحفاظ على بنية الدليل على جهاز الاستقبال.',
-      'helpTip7': 'مزامنة الحافظة تعمل مع النصوص والصور — رائعة لمشاركة الروابط أو لقطات الشاشة.',
+      'helpTip6':
+          'يمكنك إرسال مجلدات كاملة — يتم الحفاظ على بنية الدليل على جهاز الاستقبال.',
+      'helpTip7':
+          'مزامنة الحافظة تعمل مع النصوص والصور — رائعة لمشاركة الروابط أو لقطات الشاشة.',
       'aboutApp': 'حول LifeOS AnyWhere',
-      'aboutDesc': 'مشاركة ملفات عبر الأنظمة في الشبكة المحلية. أرسل ملفات ومجلدات ومحتوى الحافظة بين جميع أجهزتك — فوراً.',
+      'aboutDesc':
+          'مشاركة ملفات عبر الأنظمة في الشبكة المحلية. أرسل ملفات ومجلدات ومحتوى الحافظة بين جميع أجهزتك — فوراً.',
       'developer': 'المطور',
       'license': 'الترخيص',
       'sourceCode': 'الكود المصدري',
       'allRightsReserved': 'جميع الحقوق محفوظة.',
       'website': 'الموقع الإلكتروني',
       'installOnOtherDevices': 'التثبيت على أجهزة أخرى',
-      'installOnOtherDevicesDesc': 'قم بتنزيل LifeOS AnyWhere على أجهزتك الأخرى',
+      'installOnOtherDevicesDesc':
+          'قم بتنزيل LifeOS AnyWhere على أجهزتك الأخرى',
       'platformSupport': 'المنصات المدعومة',
       'platformSupportDesc': 'Android، Android TV، iOS، Windows، Linux، macOS',
       'syncProgress': '{synced} / {total} ملفات',
@@ -5246,7 +5939,8 @@ class AppLocalizations {
       'yesterday': 'أمس',
       // Magic Link (Relay)
       'magicLink': 'رابط سحري',
-      'magicLinkDesc': 'نقل الملفات بين الأجهزة على شبكات مختلفة باستخدام اتصال نظير إلى نظير',
+      'magicLinkDesc':
+          'نقل الملفات بين الأجهزة على شبكات مختلفة باستخدام اتصال نظير إلى نظير',
       'createRoom': 'إنشاء غرفة',
       'joinRoom': 'الانضمام للغرفة',
       'roomId': 'معرف الغرفة',
@@ -5263,7 +5957,8 @@ class AppLocalizations {
       'syncTargetDevice': 'الجهاز الهدف',
       'syncTargetFolder': 'مجلد الهدف (اختياري)',
       'syncDefaultFolder': 'افتراضي (تلقائي)',
-      'syncTargetFolderHint': 'اتركه فارغاً لاستخدام مجلد المزامنة الافتراضي على الجهاز الهدف.',
+      'syncTargetFolderHint':
+          'اتركه فارغاً لاستخدام مجلد المزامنة الافتراضي على الجهاز الهدف.',
       'syncSelectDevice': 'اختر جهازاً',
       'noDevicesFound': 'لم يتم العثور على أجهزة في الشبكة',
       'createSyncJob': 'إنشاء',
@@ -5291,13 +5986,17 @@ class AppLocalizations {
       'includePatterns': 'تضمين',
       'excludePatterns': 'استبعاد',
       'helpSyncDirection': 'اتجاه المزامنة والتعارضات',
-      'helpSyncDirectionDesc': 'يمكن لكل مهمة مزامنة أن تكون أحادية أو ثنائية الاتجاه. الأحادية (نمط النسخ الاحتياطي) تدفع الملفات من المصدر إلى الهدف فقط — مثالية لنسخ هاتفك احتياطياً إلى حاسوبك. الثنائية تعكس التغييرات في كلا الاتجاهين: إذا عدّلت ملفاً على أي جهاز، يُزامَن التغيير إلى الآخر. عندما يُعدَّل نفس الملف على كلا الجهازين، يحدث تعارض. يمكنك اختيار كيفية حله: "الأحدث يفوز" يختار النسخة الأحدث تعديلاً تلقائياً، "اسألني" يعرض نافذة حوار لكل تعارض، و"الاحتفاظ بكليهما" يحفظ كلتا النسختين بلاحقة مميزة.',
+      'helpSyncDirectionDesc':
+          'يمكن لكل مهمة مزامنة أن تكون أحادية أو ثنائية الاتجاه. الأحادية (نمط النسخ الاحتياطي) تدفع الملفات من المصدر إلى الهدف فقط — مثالية لنسخ هاتفك احتياطياً إلى حاسوبك. الثنائية تعكس التغييرات في كلا الاتجاهين: إذا عدّلت ملفاً على أي جهاز، يُزامَن التغيير إلى الآخر. عندما يُعدَّل نفس الملف على كلا الجهازين، يحدث تعارض. يمكنك اختيار كيفية حله: "الأحدث يفوز" يختار النسخة الأحدث تعديلاً تلقائياً، "اسألني" يعرض نافذة حوار لكل تعارض، و"الاحتفاظ بكليهما" يحفظ كلتا النسختين بلاحقة مميزة.',
       'helpSyncPhotoMode': 'وضع الصور/الفيديو',
-      'helpSyncPhotoModeDesc': 'مصمّم خصيصاً لمزامنة الصور والفيديوهات من هاتفك. عند التفعيل، يكتشف التطبيق تلقائياً مجلد الكاميرا (DCIM). تُنظَّم الصور في مجلدات فرعية حسب التاريخ على الجهاز الهدف (مثلاً 2026/01، 2026/02) لتبقى آلاف الصور مرتبة بشكل أنيق. يمكن تحويل صور Apple بصيغة HEIC تلقائياً إلى JPG للتوافق مع ويندوز والمنصات الأخرى. هذا الوضع مثالي لتحرير مساحة الهاتف: زامن صورك إلى حاسوبك، ثم احذفها من هاتفك.',
+      'helpSyncPhotoModeDesc':
+          'مصمّم خصيصاً لمزامنة الصور والفيديوهات من هاتفك. عند التفعيل، يكتشف التطبيق تلقائياً مجلد الكاميرا (DCIM). تُنظَّم الصور في مجلدات فرعية حسب التاريخ على الجهاز الهدف (مثلاً 2026/01، 2026/02) لتبقى آلاف الصور مرتبة بشكل أنيق. يمكن تحويل صور Apple بصيغة HEIC تلقائياً إلى JPG للتوافق مع ويندوز والمنصات الأخرى. هذا الوضع مثالي لتحرير مساحة الهاتف: زامن صورك إلى حاسوبك، ثم احذفها من هاتفك.',
       'helpMirrorDeletions': 'حذف متطابق',
-      'helpMirrorDeletionsDesc': 'عند تفعيل "الحذف المتطابق" في مهمة مزامنة، يؤدي حذف ملف على جهاز المصدر إلى حذفه أيضاً على الهدف. هذا يبقي كلا الجانبين متطابقين فعلاً — إذا نظّفت ملفات قديمة على جهاز واحد، تُنظَّف في كل مكان. كن حذراً مع هذا الخيار: إذا حذفت ملفاً بالخطأ، سيُحذف على الهدف أيضاً. إذا عُطِّل الخيار، لا تُنشر عمليات الحذف وتبقى الملفات على الهدف حتى بعد حذفها من المصدر.',
+      'helpMirrorDeletionsDesc':
+          'عند تفعيل "الحذف المتطابق" في مهمة مزامنة، يؤدي حذف ملف على جهاز المصدر إلى حذفه أيضاً على الهدف. هذا يبقي كلا الجانبين متطابقين فعلاً — إذا نظّفت ملفات قديمة على جهاز واحد، تُنظَّف في كل مكان. كن حذراً مع هذا الخيار: إذا حذفت ملفاً بالخطأ، سيُحذف على الهدف أيضاً. إذا عُطِّل الخيار، لا تُنشر عمليات الحذف وتبقى الملفات على الهدف حتى بعد حذفها من المصدر.',
       'helpSyncFilters': 'مرشحات المزامنة',
-      'helpSyncFiltersDesc': 'تحكّم بدقة في الملفات المُزامَنة باستخدام أنماط التضمين والاستبعاد (صيغة glob). مثلاً: أضف "*.jpg, *.png" إلى التضمين لمزامنة الصور فقط، أو أضف "*.tmp, Thumbs.db, .DS_Store" إلى الاستبعاد لتخطي الملفات المؤقتة. تُطبَّق الأنماط على أسماء الملفات وليس المسارات الكاملة. إذا كان التضمين فارغاً، تُضمَّن جميع الملفات افتراضياً. إذا طابق ملف كلا النمطين، يفوز الاستبعاد. مفيد لمزامنة أنواع محددة من الملفات أو تخطي الملفات الكبيرة التي لا تحتاجها.',
+      'helpSyncFiltersDesc':
+          'تحكّم بدقة في الملفات المُزامَنة باستخدام أنماط التضمين والاستبعاد (صيغة glob). مثلاً: أضف "*.jpg, *.png" إلى التضمين لمزامنة الصور فقط، أو أضف "*.tmp, Thumbs.db, .DS_Store" إلى الاستبعاد لتخطي الملفات المؤقتة. تُطبَّق الأنماط على أسماء الملفات وليس المسارات الكاملة. إذا كان التضمين فارغاً، تُضمَّن جميع الملفات افتراضياً. إذا طابق ملف كلا النمطين، يفوز الاستبعاد. مفيد لمزامنة أنواع محددة من الملفات أو تخطي الملفات الكبيرة التي لا تحتاجها.',
       'justNow': 'الآن',
       'syncConflicts': 'تعارضات المزامنة',
       'syncResolveConflicts': 'حل',
@@ -5312,9 +6011,11 @@ class AppLocalizations {
       'syncWaitingConflicts': 'انتظار حل التعارضات…',
       // Faz 3+4 keys
       'autoSyncOnLan': 'مزامنة تلقائية عبر الشبكة',
-      'autoSyncOnLanDesc': 'بدء المزامنة تلقائياً عند العثور على جهاز مطابق في الشبكة',
+      'autoSyncOnLanDesc':
+          'بدء المزامنة تلقائياً عند العثور على جهاز مطابق في الشبكة',
       'backgroundSync': 'مزامنة في الخلفية',
-      'backgroundSyncDesc': 'مزامنة الملفات في الخلفية عندما يكون التطبيق مغلقاً',
+      'backgroundSyncDesc':
+          'مزامنة الملفات في الخلفية عندما يكون التطبيق مغلقاً',
       'syncCameraHint': 'مجلد الكاميرا النموذجي',
       'syncAutoTriggered': 'تم تشغيل المزامنة التلقائية',
       'syncIncoming': 'مزامنة واردة',
@@ -5397,7 +6098,8 @@ class AppLocalizations {
       'serverSyncLiveWatch': 'مراقبة مباشرة',
       'serverSyncLiveWatchDesc': 'إرسال التغييرات تلقائياً إلى الخادم',
       'gdrivePathHint': 'مستنداتي/نسخة_احتياطية',
-      'gdrivePathInfo': 'لا يمكنك تصفح مجلدات Google Drive الحالية. أدخل اسم مجلد (مثال: "مستنداتي/نسخة_احتياطية")، سيقوم التطبيق بإنشائه تلقائياً.',
+      'gdrivePathInfo':
+          'لا يمكنك تصفح مجلدات Google Drive الحالية. أدخل اسم مجلد (مثال: "مستنداتي/نسخة_احتياطية")، سيقوم التطبيق بإنشائه تلقائياً.',
       'syncNoJobs': 'لا توجد مهام مزامنة',
       'syncNoJobsDesc': 'أنشئ مهمة مزامنة جديدة للبدء',
       'syncSuccessful': 'ناجح',
@@ -5433,13 +6135,16 @@ class AppLocalizations {
       'uploadFailed': 'فشل الرفع',
       'ok': 'موافق',
       'helpHotspot': 'اتصال نقطة الاتصال',
-      'helpHotspotDesc': 'إذا لم يتمكن كلا الجهازين من الاتصال بنفس شبكة Wi-Fi، يمكن لأحد الأجهزة إنشاء نقطة اتصال Wi-Fi ويتصل الآخر بها. هذا ينشئ شبكة محلية مباشرة بين الجهازين دون الحاجة إلى موجّه أو إنترنت. بمجرد الاتصال بنقطة الاتصال، يكتشف التطبيق الجهاز الآخر تلقائياً. جميع الميزات تعمل بشكل طبيعي: نقل الملفات ومشاركة الحافظة ومزامنة المجلدات.',
+      'helpHotspotDesc':
+          'إذا لم يتمكن كلا الجهازين من الاتصال بنفس شبكة Wi-Fi، يمكن لأحد الأجهزة إنشاء نقطة اتصال Wi-Fi ويتصل الآخر بها. هذا ينشئ شبكة محلية مباشرة بين الجهازين دون الحاجة إلى موجّه أو إنترنت. بمجرد الاتصال بنقطة الاتصال، يكتشف التطبيق الجهاز الآخر تلقائياً. جميع الميزات تعمل بشكل طبيعي: نقل الملفات ومشاركة الحافظة ومزامنة المجلدات.',
       'helpServerSync': 'مزامنة الخادم (SFTP)',
-      'helpServerSyncDesc': 'قم بمزامنة ملفاتك مع خادم SFTP بعيد مثل NAS أو VPS أو أي جهاز يدعم SSH. قم بتكوين اتصال الخادم (المضيف، المنفذ، اسم المستخدم، كلمة المرور أو المفتاح الخاص) في الإعدادات. ثم أنشئ مهمة مزامنة باختيار مجلد محلي ومسار بعيد. يقارن التطبيق كلا الجانبين وينقل التغييرات فقط. يدعم وضع المراقبة المباشرة للمزامنة التلقائية عند تغيير الملفات محلياً.',
+      'helpServerSyncDesc':
+          'قم بمزامنة ملفاتك مع خادم SFTP بعيد مثل NAS أو VPS أو أي جهاز يدعم SSH. قم بتكوين اتصال الخادم (المضيف، المنفذ، اسم المستخدم، كلمة المرور أو المفتاح الخاص) في الإعدادات. ثم أنشئ مهمة مزامنة باختيار مجلد محلي ومسار بعيد. يقارن التطبيق كلا الجانبين وينقل التغييرات فقط. يدعم وضع المراقبة المباشرة للمزامنة التلقائية عند تغيير الملفات محلياً.',
       'notifTransferStarted': '{sender} \u2192 {file}',
       'notifTransferComplete': '\u2705 {file}',
       'notifTransferFailed': '\u274c {file}',
-      'notifSyncReceiving': '\uD83D\uDD04 جارٍ استلام المزامنة من {sender}\u2026',
+      'notifSyncReceiving':
+          '\uD83D\uDD04 جارٍ استلام المزامنة من {sender}\u2026',
       'notifSyncComplete': '\u2705 {job}: {count} ملفات \u2192 {device}',
       'notifTransferring': 'جارٍ النقل\u2026',
       'notifTransferringCount': 'جارٍ نقل {count} ملفات\u2026',
@@ -5455,7 +6160,8 @@ class AppLocalizations {
       'upgradeToPro': 'الترقية إلى Pro',
       'iHaveACode': 'لدي رمز',
       'activateCode': 'تفعيل الرمز',
-      'activateCodeDesc': 'أدخل رمز التفعيل من شراء Pro لفتح Pro على هذا الجهاز.',
+      'activateCodeDesc':
+          'أدخل رمز التفعيل من شراء Pro لفتح Pro على هذا الجهاز.',
       'activating': 'جارٍ التفعيل…',
       'activate': 'تفعيل',
       'proActivated': 'تم تفعيل Pro بنجاح!',
@@ -5483,15 +6189,18 @@ class AppLocalizations {
       'proFeature': 'ميزة Pro',
       'proFeature_unlimitedSync': 'مهام المزامنة غير المحدودة تتطلب Pro.',
       'proFeature_serverSync': 'مزامنة الخادم (SFTP/FTP/WebDAV) تتطلب Pro.',
-      'proFeature_cloudSync': 'المزامنة السحابية (Google Drive/OneDrive) تتطلب Pro.',
+      'proFeature_cloudSync':
+          'المزامنة السحابية (Google Drive/OneDrive) تتطلب Pro.',
       'proFeature_relayTransfer': 'النقل عبر الإنترنت يتطلب Pro.',
       'proFeature_quickSendToServer': 'الإرسال السريع للخادم يتطلب Pro.',
       'proFeature_liveWatch': 'مراقبة الملفات المباشرة تتطلب Pro.',
       'proFeature_bidirectionalSync': 'المزامنة ثنائية الاتجاه تتطلب Pro.',
       'proFeature_scheduledSync': 'المزامنة المجدولة تتطلب Pro.',
-      'proFeature_unlimitedFileSize': 'الملفات التي تزيد عن 500 ميغابايت تتطلب Pro.',
+      'proFeature_unlimitedFileSize':
+          'الملفات التي تزيد عن 500 ميغابايت تتطلب Pro.',
       'shareProLan': 'مشاركة Pro عبر LAN',
-      'shareProLanConfirm': 'مشاركة رمز تفعيل Pro مع {name}؟ سيتم تفعيل Pro على جهازه.',
+      'shareProLanConfirm':
+          'مشاركة رمز تفعيل Pro مع {name}؟ سيتم تفعيل Pro على جهازه.',
       'shareProLanSuccess': 'تمت مشاركة Pro مع {name} بنجاح!',
       'shareProLanFailed': 'فشل مشاركة Pro. تأكد من أن الجهاز متصل.',
       'share': 'مشاركة',

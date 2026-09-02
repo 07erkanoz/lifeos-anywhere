@@ -5,6 +5,26 @@ import 'package:flutter/services.dart';
 import 'package:anyware/core/logger.dart';
 import 'package:anyware/features/discovery/domain/device.dart';
 
+class DirectShareTargetInfo {
+  const DirectShareTargetInfo({
+    required this.id,
+    required this.name,
+    required this.ip,
+  });
+
+  final String id;
+  final String name;
+  final String ip;
+
+  factory DirectShareTargetInfo.fromMap(Map<Object?, Object?> map) {
+    return DirectShareTargetInfo(
+      id: map['id'] as String? ?? '',
+      name: map['name'] as String? ?? '',
+      ip: map['ip'] as String? ?? '',
+    );
+  }
+}
+
 /// Manages Android Direct Share targets via platform channel.
 ///
 /// Pushes the list of recently discovered devices to the native
@@ -46,6 +66,23 @@ class DirectShareService {
       await _channel.invokeMethod('clearDirectShareTargets');
     } catch (e) {
       _log.warning('Failed to clear direct share targets', error: e);
+    }
+  }
+
+  /// Returns and clears the device explicitly selected in Android Direct Share.
+  Future<DirectShareTargetInfo?> consumeSelectedTarget() async {
+    if (!Platform.isAndroid) return null;
+
+    try {
+      final value = await _channel.invokeMethod<Map<Object?, Object?>>(
+        'consumeDirectShareTarget',
+      );
+      if (value == null) return null;
+      final target = DirectShareTargetInfo.fromMap(value);
+      return target.id.isEmpty ? null : target;
+    } catch (e) {
+      _log.warning('Failed to read selected direct share target', error: e);
+      return null;
     }
   }
 }

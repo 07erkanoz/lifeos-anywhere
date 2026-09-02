@@ -5,6 +5,7 @@ enum TransferStatus {
   accepted,
   rejected,
   transferring,
+  paused,
   completed,
   failed,
   cancelled,
@@ -19,6 +20,13 @@ class Transfer {
   final TransferStatus status;
   final double progress;
   final String? filePath;
+
+  /// Original local path for outgoing transfers.
+  ///
+  /// This is deliberately separate from [filePath], which may contain the
+  /// receiver's save path after a successful upload. Keeping the source path
+  /// lets the UI safely enqueue a failed outgoing transfer again.
+  final String? sourceFilePath;
   final String? error;
   final DateTime createdAt;
 
@@ -40,6 +48,7 @@ class Transfer {
     required this.status,
     this.progress = 0.0,
     this.filePath,
+    this.sourceFilePath,
     this.error,
     required this.createdAt,
     this.speed,
@@ -52,7 +61,9 @@ class Transfer {
       id: json['id'] as String,
       fileName: json['fileName'] as String,
       fileSize: json['fileSize'] as int,
-      senderDevice: Device.fromJson(json['senderDevice'] as Map<String, dynamic>),
+      senderDevice: Device.fromJson(
+        json['senderDevice'] as Map<String, dynamic>,
+      ),
       receiverDevice: json['receiverDevice'] != null
           ? Device.fromJson(json['receiverDevice'] as Map<String, dynamic>)
           : null,
@@ -62,6 +73,7 @@ class Transfer {
       ),
       progress: (json['progress'] as num?)?.toDouble() ?? 0.0,
       filePath: json['filePath'] as String?,
+      sourceFilePath: json['sourceFilePath'] as String?,
       error: json['error'] as String?,
       createdAt: DateTime.parse(json['createdAt'] as String),
       isSending: json['isSending'] as bool? ?? true,
@@ -78,6 +90,7 @@ class Transfer {
       'status': status.name,
       'progress': progress,
       'filePath': filePath,
+      'sourceFilePath': sourceFilePath,
       'error': error,
       'createdAt': createdAt.toIso8601String(),
       'isSending': isSending,
@@ -93,7 +106,9 @@ class Transfer {
     TransferStatus? status,
     double? progress,
     String? filePath,
+    String? sourceFilePath,
     String? error,
+    bool clearError = false,
     DateTime? createdAt,
     double? speed,
     Duration? estimatedTimeLeft,
@@ -108,7 +123,8 @@ class Transfer {
       status: status ?? this.status,
       progress: progress ?? this.progress,
       filePath: filePath ?? this.filePath,
-      error: error ?? this.error,
+      sourceFilePath: sourceFilePath ?? this.sourceFilePath,
+      error: clearError ? null : error ?? this.error,
       createdAt: createdAt ?? this.createdAt,
       speed: speed ?? this.speed,
       estimatedTimeLeft: estimatedTimeLeft ?? this.estimatedTimeLeft,
@@ -139,7 +155,8 @@ class Transfer {
   bool get isActive =>
       status == TransferStatus.pending ||
       status == TransferStatus.accepted ||
-      status == TransferStatus.transferring;
+      status == TransferStatus.transferring ||
+      status == TransferStatus.paused;
 
   /// Whether the transfer has reached a terminal state.
   bool get isFinished =>
@@ -159,6 +176,8 @@ class Transfer {
         return 'Rejected';
       case TransferStatus.transferring:
         return 'Transferring';
+      case TransferStatus.paused:
+        return 'Paused';
       case TransferStatus.completed:
         return 'Completed';
       case TransferStatus.failed:

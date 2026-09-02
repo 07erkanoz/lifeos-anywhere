@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:window_manager/window_manager.dart';
+import 'package:desktop_drop/desktop_drop.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,7 +11,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:anyware/core/background_service.dart';
 import 'package:anyware/core/constants.dart';
+import 'package:anyware/core/file_picker_helper.dart';
 import 'package:anyware/core/logger.dart';
+import 'package:anyware/core/responsive.dart';
 import 'package:anyware/core/theme.dart';
 import 'package:anyware/core/tv_detector.dart';
 import 'package:anyware/features/settings/presentation/providers.dart';
@@ -32,7 +35,11 @@ import 'package:anyware/features/sync/data/sync_service.dart';
 import 'package:anyware/features/sync/domain/sync_state.dart';
 import 'package:anyware/features/server_sync/presentation/server_sync_screen.dart';
 import 'package:anyware/features/server_sync/data/server_sync_service.dart';
+import 'package:anyware/features/sharing/presentation/share_target_picker.dart';
+import 'package:anyware/features/sharing/data/dropped_file_expander.dart';
 import 'package:anyware/features/platform/tray_service.dart';
+import 'package:anyware/widgets/app_states.dart';
+
 class App extends ConsumerWidget {
   const App({super.key});
 
@@ -67,16 +74,18 @@ class App extends ConsumerWidget {
         theme: AppTheme.light,
         darkTheme: AppTheme.dark,
         themeMode: themeMode,
-        // Clamp text scaling for consistent rendering across platforms.
+        // Bound extreme values while preserving accessibility scaling.
         builder: (context, child) {
-          return MediaQuery(
-            data: MediaQuery.of(context).copyWith(
-              textScaler: MediaQuery.of(context).textScaler.clamp(
-                    minScaleFactor: 1.0,
-                    maxScaleFactor: 1.2,
-                  ),
+          return Directionality(
+            textDirection: AppLocalizations.textDirectionFor(settings.locale),
+            child: MediaQuery(
+              data: MediaQuery.of(context).copyWith(
+                textScaler: MediaQuery.of(
+                  context,
+                ).textScaler.clamp(minScaleFactor: 1.0, maxScaleFactor: 2.0),
+              ),
+              child: child!,
             ),
-            child: child!,
           );
         },
         shortcuts: <ShortcutActivator, Intent>{
@@ -105,6 +114,10 @@ class _ToggleSidebarIntent extends Intent {
   const _ToggleSidebarIntent();
 }
 
+class _QuickShareIntent extends Intent {
+  const _QuickShareIntent();
+}
+
 class _MainShell extends ConsumerStatefulWidget {
   const _MainShell();
 
@@ -115,7 +128,11 @@ class _MainShell extends ConsumerStatefulWidget {
 class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
   int _selectedIndex = 0;
   bool _localeInitialized = false;
-  bool _sidebarCollapsed = false;
+
+  /// Null follows the responsive default; once the user presses the toggle,
+  /// their explicit choice wins even on a narrower desktop window.
+  bool? _sidebarCollapsedOverride;
+  bool _isGlobalDragging = false;
 
   /// Whether the device is an Android TV.
   bool get _isTV => Platform.isAndroid && TvDetector.isTVCached;
@@ -248,18 +265,23 @@ class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
         }),
         (ref.read(fileServerProvider).valueOrNull?.stop() ?? Future.value())
             .timeout(const Duration(seconds: 3), onTimeout: () {}),
-      ]).timeout(const Duration(seconds: 4), onTimeout: () {
-        log.warning('Service shutdown timed out after 4 s');
-        return <void>[];
-      });
+      ]).timeout(
+        const Duration(seconds: 4),
+        onTimeout: () {
+          log.warning('Service shutdown timed out after 4 s');
+          return <void>[];
+        },
+      );
     } catch (e) {
       log.error('Error during service shutdown', error: e);
     }
 
     // Flush and close the logger file sink.
     try {
-      await AppLogger.dispose()
-          .timeout(const Duration(seconds: 1), onTimeout: () {});
+      await AppLogger.dispose().timeout(
+        const Duration(seconds: 1),
+        onTimeout: () {},
+      );
     } catch (_) {}
   }
 
@@ -284,6 +306,104 @@ class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
     if (_selectedIndex != 1) {
       setState(() => _selectedIndex = 1);
     }
+  }
+
+  Future<void> _shareDroppedPaths(List<String> rawPaths, String locale) async {
+    final filePaths = await expandDroppedPaths(rawPaths);
+    if (!mounted || filePaths.isEmpty) return;
+
+    final devices = ref.read(devicesProvider).valueOrNull ?? const [];
+    final accounts = ref.read(serverSyncServiceProvider).accounts;
+    if (devices.isEmpty && accounts.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppLocalizations.get('noDevices', locale))),
+      );
+      return;
+    }
+
+    final selection = await showShareTargetPicker(
+      context: context,
+      devices: devices,
+      accounts: accounts,
+      filePaths: filePaths,
+      locale: locale,
+    );
+    if (selection == null || !mounted) return;
+
+    final selected = selection.target;
+    final selectedPaths = selection.filePaths;
+    if (selected is DeviceShareTarget) {
+      final queue = await ref.read(transferQueueProvider.future);
+      queue.enqueueAll(selected.device, selectedPaths);
+      if (mounted) _navigateToTransfers();
+    } else if (selected is AccountShareTarget) {
+      final account = selected.account;
+      final remoteDir = account.remotePath.isEmpty ? '/' : account.remotePath;
+      final service = ref.read(serverSyncServiceProvider.notifier);
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => ServerUploadProgressDialog(
+          stream: service.uploadFilesToAccount(
+            account.id,
+            selectedPaths,
+            remoteDir,
+          ),
+          totalFiles: selectedPaths.length,
+          serverName: account.name,
+          locale: locale,
+        ),
+      );
+    }
+  }
+
+  Future<void> _openQuickShare(String locale) async {
+    final result = await FilePickerHelper.pickFiles(allowMultiple: true);
+    if (!mounted || result == null) return;
+    final paths = result.files.map((file) => file.path).whereType<String>();
+    await _shareDroppedPaths(paths.toList(), locale);
+  }
+
+  Widget _buildGlobalDropSurface(String locale, Widget child) {
+    return DropTarget(
+      onDragEntered: (_) => setState(() => _isGlobalDragging = true),
+      onDragExited: (_) => setState(() => _isGlobalDragging = false),
+      onDragDone: (details) {
+        setState(() => _isGlobalDragging = false);
+        final paths = details.files.map((file) => file.path).toList();
+        if (paths.isNotEmpty) {
+          _shareDroppedPaths(paths, locale);
+        }
+      },
+      child: Stack(
+        children: [
+          Positioned.fill(child: child),
+          Positioned.fill(
+            child: IgnorePointer(
+              child: AnimatedSwitcher(
+                duration: context.motionDuration(AppMotion.standard),
+                child: _isGlobalDragging
+                    ? AppDropOverlay(
+                        key: const ValueKey('global-drop-overlay'),
+                        label: AppLocalizations.get('dropFilesHere', locale),
+                      )
+                    : const SizedBox.shrink(
+                        key: ValueKey('global-drop-overlay-hidden'),
+                      ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _toggleSidebar() {
+    final autoCollapsed =
+        MediaQuery.sizeOf(context).width < AppBreakpoints.expanded;
+    final currentlyCollapsed = _sidebarCollapsedOverride ?? autoCollapsed;
+    setState(() => _sidebarCollapsedOverride = !currentlyCollapsed);
   }
 
   @override
@@ -345,6 +465,11 @@ class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
                 _NavIntent(5),
           const SingleActivator(LogicalKeyboardKey.bracketLeft, control: true):
               const _ToggleSidebarIntent(),
+          const SingleActivator(
+            LogicalKeyboardKey.keyS,
+            control: true,
+            shift: true,
+          ): const _QuickShareIntent(),
         },
       },
       child: Actions(
@@ -368,8 +493,13 @@ class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
           ),
           _ToggleSidebarIntent: CallbackAction<_ToggleSidebarIntent>(
             onInvoke: (_) {
-              setState(
-                  () => _sidebarCollapsed = !_sidebarCollapsed);
+              _toggleSidebar();
+              return null;
+            },
+          ),
+          _QuickShareIntent: CallbackAction<_QuickShareIntent>(
+            onInvoke: (_) {
+              unawaited(_openQuickShare(locale));
               return null;
             },
           ),
@@ -386,13 +516,17 @@ class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
   // ─────────────────────────────────────────────────────────────────────────
 
   Widget _buildSidebarLayout(String locale) {
+    final autoCollapsed =
+        MediaQuery.sizeOf(context).width < AppBreakpoints.expanded;
+    final isSidebarCollapsed = _sidebarCollapsedOverride ?? autoCollapsed;
+
     // Compute badges from providers.
     final transfers = ref.watch(activeTransfersProvider);
-    final activeTransferCount =
-        transfers.where((t) => t.isActive).length;
+    final activeTransferCount = transfers.where((t) => t.isActive).length;
     final syncState = ref.watch(syncServiceProvider);
     final serverSyncState = ref.watch(serverSyncServiceProvider);
-    final activeSyncCount = syncState.jobs.where((j) => j.isActive).length +
+    final activeSyncCount =
+        syncState.jobs.where((j) => j.isActive).length +
         serverSyncState.jobs.where((j) => j.isActive).length;
 
     final badges = <int, String>{
@@ -416,27 +550,47 @@ class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
                   onIndexChanged: (i) => setState(() => _selectedIndex = i),
                   locale: locale,
                   isTv: false,
-                  isCollapsed: _sidebarCollapsed,
-                  onToggleCollapse: () =>
-                      setState(() => _sidebarCollapsed = !_sidebarCollapsed),
+                  isCollapsed: isSidebarCollapsed,
+                  onToggleCollapse: _toggleSidebar,
                   badges: badges.isNotEmpty ? badges : null,
                 ),
 
                 // Content area + status bar
                 Expanded(
-                  child: Column(
-                    children: [
-                      Expanded(
-                        child: DesktopShellScope(
-                          child: IndexedStack(
-                            index: _selectedIndex,
-                            children: _screens,
+                  child: _selectedIndex == 0
+                      ? _DesktopBackdrop(
+                          child: Column(
+                            children: [
+                              Expanded(
+                                child: DesktopShellScope(
+                                  child: _AnimatedIndexedStack(
+                                    index: _selectedIndex,
+                                    children: _screens,
+                                  ),
+                                ),
+                              ),
+                              const DesktopStatusBar(),
+                            ],
+                          ),
+                        )
+                      : _buildGlobalDropSurface(
+                          locale,
+                          _DesktopBackdrop(
+                            child: Column(
+                              children: [
+                                Expanded(
+                                  child: DesktopShellScope(
+                                    child: _AnimatedIndexedStack(
+                                      index: _selectedIndex,
+                                      children: _screens,
+                                    ),
+                                  ),
+                                ),
+                                const DesktopStatusBar(),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                      const DesktopStatusBar(),
-                    ],
-                  ),
                 ),
               ],
             ),
@@ -451,61 +605,188 @@ class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
   // ─────────────────────────────────────────────────────────────────────────
 
   Widget _buildBottomNavLayout(String locale) {
-    final List<String> navLabels;
-    final List<IconData> navIcons;
-
     if (_isTV) {
-      // TV: 3 tabs — Devices, Transfers, Settings
-      navLabels = [
+      final navLabels = [
         AppLocalizations.get('devices', locale),
         AppLocalizations.get('transfers', locale),
         AppLocalizations.get('settings', locale),
       ];
-      navIcons = [
+      final navIcons = [
         Icons.devices_rounded,
         Icons.swap_horiz_rounded,
         Icons.settings_rounded,
       ];
-    } else {
-      // Mobile: 6 tabs
-      navLabels = [
-        AppLocalizations.get('devices', locale),
-        AppLocalizations.get('transfers', locale),
-        AppLocalizations.get('clipboard', locale),
-        AppLocalizations.get('folderSync', locale),
-        AppLocalizations.get('serverSync', locale),
-        AppLocalizations.get('settings', locale),
-      ];
-      navIcons = [
-        Icons.devices_rounded,
-        Icons.swap_horiz_rounded,
-        Icons.content_paste_rounded,
-        Icons.sync_rounded,
-        Icons.cloud_sync_rounded,
-        Icons.settings_rounded,
-      ];
+
+      final extended = MediaQuery.sizeOf(context).width >= 1100;
+      return Scaffold(
+        body: SafeArea(
+          child: Row(
+            children: [
+              NavigationRail(
+                extended: extended,
+                minWidth: 88,
+                minExtendedWidth: 220,
+                groupAlignment: -0.55,
+                selectedIndex: _selectedIndex,
+                labelType: extended
+                    ? NavigationRailLabelType.none
+                    : NavigationRailLabelType.all,
+                onDestinationSelected: (index) {
+                  setState(() => _selectedIndex = index);
+                },
+                destinations: [
+                  for (int i = 0; i < navLabels.length; i++)
+                    NavigationRailDestination(
+                      icon: Icon(navIcons[i]),
+                      selectedIcon: Icon(navIcons[i]),
+                      label: Text(navLabels[i]),
+                    ),
+                ],
+              ),
+              const VerticalDivider(width: 1),
+              Expanded(
+                child: FocusTraversalGroup(
+                  policy: ReadingOrderTraversalPolicy(),
+                  child: _AnimatedIndexedStack(
+                    index: _selectedIndex,
+                    children: _screens,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
     }
 
+    final navLabels = [
+      AppLocalizations.get('devices', locale),
+      AppLocalizations.get('transfers', locale),
+      AppLocalizations.get('clipboard', locale),
+      AppLocalizations.get('more', locale),
+    ];
+    const navIcons = [
+      Icons.devices_rounded,
+      Icons.swap_horiz_rounded,
+      Icons.content_paste_rounded,
+      Icons.more_horiz_rounded,
+    ];
+
     return Scaffold(
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: _screens,
-      ),
+      body: _AnimatedIndexedStack(index: _selectedIndex, children: _screens),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex,
+        selectedIndex: _selectedIndex <= 2 ? _selectedIndex : 3,
         onDestinationSelected: (int index) {
-          setState(() => _selectedIndex = index);
+          if (index == 3) {
+            _showMoreDestinations(locale);
+          } else {
+            setState(() => _selectedIndex = index);
+          }
         },
-        labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
-        height: 56,
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        height: 64,
         destinations: [
           for (int i = 0; i < navLabels.length; i++)
-            NavigationDestination(
-              icon: Icon(navIcons[i]),
-              label: navLabels[i],
-            ),
+            NavigationDestination(icon: Icon(navIcons[i]), label: navLabels[i]),
         ],
       ),
+    );
+  }
+
+  Future<void> _showMoreDestinations(String locale) async {
+    final selected = await showModalBottomSheet<int>(
+      context: context,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (sheetContext) => Padding(
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.sync_rounded),
+              title: Text(AppLocalizations.get('folderSync', locale)),
+              selected: _selectedIndex == 3,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              onTap: () => Navigator.of(sheetContext).pop(3),
+            ),
+            ListTile(
+              leading: const Icon(Icons.cloud_sync_rounded),
+              title: Text(AppLocalizations.get('serverSync', locale)),
+              selected: _selectedIndex == 4,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              onTap: () => Navigator.of(sheetContext).pop(4),
+            ),
+            ListTile(
+              leading: const Icon(Icons.settings_rounded),
+              title: Text(AppLocalizations.get('settings', locale)),
+              selected: _selectedIndex == 5,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              onTap: () => Navigator.of(sheetContext).pop(5),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (selected != null && mounted) {
+      setState(() => _selectedIndex = selected);
+    }
+  }
+}
+
+/// Adds a subtle ambient layer so desktop pages do not read as a flat sheet.
+class _DesktopBackdrop extends StatelessWidget {
+  const _DesktopBackdrop({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ColoredBox(color: theme.scaffoldBackgroundColor, child: child);
+  }
+}
+
+/// Keeps every destination alive while softly transitioning between pages.
+class _AnimatedIndexedStack extends StatelessWidget {
+  const _AnimatedIndexedStack({required this.index, required this.children});
+
+  final int index;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final duration = context.motionDuration(AppMotion.standard);
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        for (int i = 0; i < children.length; i++)
+          AnimatedOpacity(
+            key: ValueKey(i),
+            opacity: i == index ? 1 : 0,
+            duration: duration,
+            curve: Curves.easeOutCubic,
+            child: AnimatedSlide(
+              offset: i == index ? Offset.zero : const Offset(0.015, 0),
+              duration: duration,
+              curve: Curves.easeOutCubic,
+              child: IgnorePointer(
+                ignoring: i != index,
+                child: ExcludeSemantics(
+                  excluding: i != index,
+                  child: TickerMode(enabled: i == index, child: children[i]),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
@@ -521,12 +802,15 @@ class _WindowsTitleBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? AppColors.darkSurface : AppColors.lightSidebar;
-    final iconColor = isDark ? AppColors.textSecondary : AppColors.lightTextSecondary;
+    final iconColor = isDark
+        ? AppColors.textSecondary
+        : AppColors.lightTextSecondary;
 
     return Container(
       height: 32,
       color: bgColor,
       child: Row(
+        textDirection: TextDirection.ltr,
         children: [
           // Draggable area (title)
           Expanded(

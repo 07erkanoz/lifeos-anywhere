@@ -68,6 +68,10 @@ class FileServer {
   /// the temp file size) lets us validate the offset.
   final Map<String, int> _bytesReceived = {};
 
+  /// Transfer IDs explicitly paused by their sender. This distinguishes a
+  /// deliberate pause from an unexpected short/incomplete request.
+  final Set<String> _pausedTransferIds = {};
+
   /// Deduplication: maps "fileName|senderId|fileSize" → (transferId, timestamp).
   /// Prevents duplicate transfers when the sender retries the send-request.
   final Map<String, _DedupeEntry> _recentRequests = {};
@@ -95,6 +99,9 @@ class FileServer {
 
   /// Whether the server is currently listening.
   bool get isRunning => _server != null;
+
+  /// Actual bound port. Useful when [start] is called with port `0` in tests.
+  int? get boundPort => _server?.port;
 
   /// Callback that the caller can set to decide whether to accept an incoming
   /// transfer. When `null` or when it returns `true`, transfers are accepted
@@ -141,6 +148,7 @@ class FileServer {
     await stop();
     _transfers.clear();
     _bytesReceived.clear();
+    _pausedTransferIds.clear();
     _incomingRequestController.close();
     _progressController.close();
   }
@@ -166,10 +174,13 @@ class FileServer {
       for (final id in staleIds) {
         _transfers.remove(id);
         _bytesReceived.remove(id);
+        _pausedTransferIds.remove(id);
         // Clean up orphaned temp files for completed/failed transfers.
         _deleteTempFile(_getTempPath(id));
       }
-      _log.debug('Cleaned up ${staleIds.length} finished transfers from memory.');
+      _log.debug(
+        'Cleaned up ${staleIds.length} finished transfers from memory.',
+      );
     }
 
     // Also clean up stale deduplication entries (older than 60 seconds).
@@ -187,6 +198,7 @@ class FileServer {
     router.get('/api/info', _handleInfo);
     router.post('/api/send-request', _handleSendRequest);
     router.post('/api/upload/<transferId>', _handleUpload);
+    router.post('/api/pause/<transferId>', _handlePause);
     router.get('/api/status/<transferId>', _handleStatus);
     router.post('/api/clipboard', _handleClipboard);
     router.post('/api/sync/setup-request', _handleSyncSetupRequest);
@@ -216,9 +228,16 @@ class FileServer {
   ///
   /// Parameters: relativePath, senderName, savedPath, senderDeviceId, fileSize,
   /// jobId (nullable), jobName (nullable).
-  void Function(String relativePath, String senderName, String savedPath,
-      String senderDeviceId, int fileSize,
-      String? jobId, String? jobName)? onSyncFileReceived;
+  void Function(
+    String relativePath,
+    String senderName,
+    String savedPath,
+    String senderDeviceId,
+    int fileSize,
+    String? jobId,
+    String? jobName,
+  )?
+  onSyncFileReceived;
 
   /// Callback for sync setup requests (handshake protocol).
   ///
@@ -226,7 +245,7 @@ class FileServer {
   /// check for existing pairings (auto-accept) or show a dialog to the user.
   /// Returns `{accepted: true, receiveFolder: "..."}` or `{accepted: false}`.
   Future<Map<String, dynamic>> Function(SyncSetupRequest request)?
-      onSyncSetupRequest;
+  onSyncSetupRequest;
 
   /// Callback that returns the receive folder for a given job ID.
   ///
@@ -269,12 +288,16 @@ class FileServer {
       if (type == 'text' && text.isNotEmpty) {
         try {
           await Clipboard.setData(ClipboardData(text: text));
-          _log.debug('Clipboard text set (${text.length} chars) from ${json['sender']}');
+          _log.debug(
+            'Clipboard text set (${text.length} chars) from ${json['sender']}',
+          );
         } catch (e) {
           // On some Android versions (13+) clipboard write may fail if the
           // app is in the background.  We still want to continue so the
           // history entry is created.
-          _log.warning('Clipboard.setData failed (app may be in background): $e');
+          _log.warning(
+            'Clipboard.setData failed (app may be in background): $e',
+          );
         }
       }
 
@@ -296,10 +319,7 @@ class FileServer {
       }
 
       // Notify listeners (UI clipboard history).
-      onClipboardReceived?.call({
-        ...json,
-        'imagePath': savedImagePath,
-      });
+      onClipboardReceived?.call({...json, 'imagePath': savedImagePath});
 
       return shelf.Response.ok(
         jsonEncode({'status': 'copied', 'imagePath': savedImagePath}),
@@ -336,9 +356,11 @@ class FileServer {
 
       final setupRequest = SyncSetupRequest.fromJson(json);
 
-      _log.info('Received sync setup request: '
-          'jobId=${setupRequest.jobId}, jobName=${setupRequest.jobName}, '
-          'from=${setupRequest.senderDeviceName} (${setupRequest.senderIp})');
+      _log.info(
+        'Received sync setup request: '
+        'jobId=${setupRequest.jobId}, jobName=${setupRequest.jobName}, '
+        'from=${setupRequest.senderDeviceName} (${setupRequest.senderIp})',
+      );
 
       if (onSyncSetupRequest == null) {
         _log.warning('onSyncSetupRequest callback is null — rejecting');
@@ -351,10 +373,7 @@ class FileServer {
       final result = await onSyncSetupRequest!(setupRequest);
       _log.info('Setup request result for ${setupRequest.jobId}: $result');
 
-      return shelf.Response.ok(
-        jsonEncode(result),
-        headers: _jsonHeaders,
-      );
+      return shelf.Response.ok(jsonEncode(result), headers: _jsonHeaders);
     } catch (e) {
       _log.error('Sync setup request error: $e', error: e);
       return shelf.Response.internalServerError(
@@ -379,7 +398,9 @@ class FileServer {
       // Format: multipart/form-data; boundary=----WebKitFormBoundary...
       final boundaryMatch = RegExp(r'boundary=(.+)$').firstMatch(contentType);
       if (boundaryMatch == null) {
-        return shelf.Response.badRequest(body: 'Missing boundary in content-type');
+        return shelf.Response.badRequest(
+          body: 'Missing boundary in content-type',
+        );
       }
       var boundary = boundaryMatch.group(1)!.trim();
       // Remove surrounding quotes if present.
@@ -389,7 +410,9 @@ class FileServer {
       final transformer = MimeMultipartTransformer(boundary);
       final parts = transformer.bind(request.read());
 
-      final senderName = Uri.decodeFull(request.headers['X-Device-Name'] ?? 'Unknown');
+      final senderName = Uri.decodeFull(
+        request.headers['X-Device-Name'] ?? 'Unknown',
+      );
       final relativePath = request.headers['X-Sync-Path'] != null
           ? Uri.decodeFull(request.headers['X-Sync-Path']!)
           : null;
@@ -425,8 +448,8 @@ class FileServer {
 
       // ── Upload resume support ──
       // X-Offset header indicates the sender is resuming from a partial upload.
-      final offsetHeader = request.headers['x-offset'] ??
-          request.headers['X-Offset'];
+      final offsetHeader =
+          request.headers['x-offset'] ?? request.headers['X-Offset'];
       int resumeOffset = 0;
       FileMode syncWriteMode = FileMode.write;
 
@@ -477,16 +500,18 @@ class FileServer {
       }
 
       // Verify hash if provided by sender.
-      final expectedHash = request.headers['X-Sync-Hash'] ??
-          request.headers['x-sync-hash'];
+      final expectedHash =
+          request.headers['X-Sync-Hash'] ?? request.headers['x-sync-hash'];
       if (expectedHash != null && expectedHash.isNotEmpty) {
         final savedFile = File(targetPath);
         if (savedFile.existsSync()) {
           final digest = await sha256.bind(savedFile.openRead()).last;
           final actualHash = digest.toString();
           if (actualHash != expectedHash) {
-            _log.error('Sync hash mismatch for $relativePath: '
-                'expected=$expectedHash, actual=$actualHash');
+            _log.error(
+              'Sync hash mismatch for $relativePath: '
+              'expected=$expectedHash, actual=$actualHash',
+            );
             await savedFile.delete();
             return shelf.Response.internalServerError(
               body: jsonEncode({
@@ -506,9 +531,11 @@ class FileServer {
           : 0;
       final senderDeviceId = request.headers['X-Device-Id'] ?? '';
 
-      _log.info('Synced file $relativePath from $senderName '
-          '(jobId: $jobId, jobName: $jobName, size: $savedFileSize, '
-          'path: $targetPath)');
+      _log.info(
+        'Synced file $relativePath from $senderName '
+        '(jobId: $jobId, jobName: $jobName, size: $savedFileSize, '
+        'path: $targetPath)',
+      );
 
       if (Platform.isAndroid) {
         _scanMediaFile(targetPath);
@@ -518,12 +545,19 @@ class FileServer {
       if (onSyncFileReceived != null) {
         _log.info('Firing onSyncFileReceived callback for $relativePath');
         onSyncFileReceived?.call(
-          relativePath, senderName, targetPath, senderDeviceId, savedFileSize,
-          jobId, jobName,
+          relativePath,
+          senderName,
+          targetPath,
+          senderDeviceId,
+          savedFileSize,
+          jobId,
+          jobName,
         );
       } else {
-        _log.warning('onSyncFileReceived callback is NULL — '
-            'sync UI will not update! File saved but UI unaware.');
+        _log.warning(
+          'onSyncFileReceived callback is NULL — '
+          'sync UI will not update! File saved but UI unaware.',
+        );
       }
 
       return shelf.Response.ok(
@@ -619,15 +653,11 @@ class FileServer {
 
       // Check for partial upload temp file (for upload resume).
       final tempFile = File('$targetPath.sync_tmp');
-      final int tempSize =
-          tempFile.existsSync() ? tempFile.lengthSync() : 0;
+      final int tempSize = tempFile.existsSync() ? tempFile.lengthSync() : 0;
 
       if (!file.existsSync()) {
         return shelf.Response.ok(
-          jsonEncode({
-            'exists': false,
-            if (tempSize > 0) 'tempSize': tempSize,
-          }),
+          jsonEncode({'exists': false, if (tempSize > 0) 'tempSize': tempSize}),
           headers: _jsonHeaders,
         );
       }
@@ -701,10 +731,12 @@ class FileServer {
       }
 
       // Scan in a background isolate to avoid blocking the server event loop.
-      final scanResult = await scanDirectoryInIsolate(ScanParams(
-        dirPath: scanDir,
-        hashThresholdBytes: 50 * 1024 * 1024, // 50 MB
-      ));
+      final scanResult = await scanDirectoryInIsolate(
+        ScanParams(
+          dirPath: scanDir,
+          hashThresholdBytes: 50 * 1024 * 1024, // 50 MB
+        ),
+      );
       final entries = scanResult.entries.map((e) => e.toJson()).toList();
 
       return shelf.Response.ok(
@@ -818,18 +850,14 @@ class FileServer {
           headers: {
             ...baseHeaders,
             'Content-Length': remaining.toString(),
-            'Content-Range':
-                'bytes $startByte-${stat.size - 1}/${stat.size}',
+            'Content-Range': 'bytes $startByte-${stat.size - 1}/${stat.size}',
           },
         );
       }
 
       return shelf.Response.ok(
         file.openRead(),
-        headers: {
-          ...baseHeaders,
-          'Content-Length': stat.size.toString(),
-        },
+        headers: {...baseHeaders, 'Content-Length': stat.size.toString()},
       );
     } catch (e) {
       _log.error('Sync pull error: $e', error: e);
@@ -859,8 +887,10 @@ class FileServer {
         );
       }
 
-      _log.info('Remote pairing removal received: jobId=$jobId, '
-          'from=$remoteDeviceId');
+      _log.info(
+        'Remote pairing removal received: jobId=$jobId, '
+        'from=$remoteDeviceId',
+      );
 
       onRemotePairingRemoved?.call(jobId, remoteDeviceId);
 
@@ -893,10 +923,7 @@ class FileServer {
       // ── No path → return platform root directories ──
       if (path.isEmpty) {
         final roots = await _getPlatformRoots();
-        return shelf.Response.ok(
-          jsonEncode(roots),
-          headers: _jsonHeaders,
-        );
+        return shelf.Response.ok(jsonEncode(roots), headers: _jsonHeaders);
       }
 
       // ── Security: only allow listing actual directories ──
@@ -944,15 +971,12 @@ class FileServer {
         final aDir = a['isDir'] as bool;
         final bDir = b['isDir'] as bool;
         if (aDir != bDir) return aDir ? -1 : 1;
-        return (a['name'] as String)
-            .toLowerCase()
-            .compareTo((b['name'] as String).toLowerCase());
+        return (a['name'] as String).toLowerCase().compareTo(
+          (b['name'] as String).toLowerCase(),
+        );
       });
 
-      return shelf.Response.ok(
-        jsonEncode(entries),
-        headers: _jsonHeaders,
-      );
+      return shelf.Response.ok(jsonEncode(entries), headers: _jsonHeaders);
     } catch (e) {
       _log.error('Browse error: $e', error: e);
       return shelf.Response.internalServerError(
@@ -981,17 +1005,10 @@ class FileServer {
       }
     } else if (Platform.isAndroid) {
       // Common Android storage paths.
-      const androidPaths = [
-        '/storage/emulated/0',
-        '/storage/self/primary',
-      ];
+      const androidPaths = ['/storage/emulated/0', '/storage/self/primary'];
       for (final path in androidPaths) {
         if (await Directory(path).exists()) {
-          roots.add({
-            'name': p.basename(path),
-            'path': path,
-            'isDir': true,
-          });
+          roots.add({'name': p.basename(path), 'path': path, 'isDir': true});
         }
       }
       // Check for external SD cards.
@@ -1018,8 +1035,7 @@ class FileServer {
       roots.add({'name': '/', 'path': '/', 'isDir': true});
       if (Platform.isMacOS) {
         if (await Directory('/Volumes').exists()) {
-          roots.add(
-              {'name': 'Volumes', 'path': '/Volumes', 'isDir': true});
+          roots.add({'name': 'Volumes', 'path': '/Volumes', 'isDir': true});
         }
       } else {
         if (await Directory('/mnt').exists()) {
@@ -1043,7 +1059,10 @@ class FileServer {
   /// Lightweight health check endpoint. Returns immediately with a simple OK.
   Future<shelf.Response> _handlePing(shelf.Request request) async {
     return shelf.Response.ok(
-      jsonEncode({'status': 'ok', 'timestamp': DateTime.now().toIso8601String()}),
+      jsonEncode({
+        'status': 'ok',
+        'timestamp': DateTime.now().toIso8601String(),
+      }),
       headers: _jsonHeaders,
     );
   }
@@ -1079,13 +1098,13 @@ class FileServer {
       final fileSize = json['fileSize'] as int;
       final senderId = json['senderId'] as String;
       final senderName = json['senderName'] as String;
-      final senderIp = json['senderIp'] as String? ??
+      final senderIp =
+          json['senderIp'] as String? ??
           (request.context['shelf.io.connection_info'] as HttpConnectionInfo?)
               ?.remoteAddress
               .address ??
           '';
-      final senderPort =
-          json['senderPort'] as int? ?? AppConstants.defaultPort;
+      final senderPort = json['senderPort'] as int? ?? AppConstants.defaultPort;
       final senderPlatform = json['senderPlatform'] as String? ?? '';
       final senderVersion =
           json['senderVersion'] as String? ?? AppConstants.protocolVersion;
@@ -1159,7 +1178,9 @@ class FileServer {
           accepted = await onTransferRequest!(transfer).timeout(
             const Duration(seconds: 60),
             onTimeout: () {
-              _log.warning('Transfer request timed out after 60s — auto-rejecting');
+              _log.warning(
+                'Transfer request timed out after 60s — auto-rejecting',
+              );
               return false;
             },
           );
@@ -1169,20 +1190,19 @@ class FileServer {
       }
 
       if (accepted) {
-        _transfers[transferId] =
-            transfer.copyWith(status: TransferStatus.accepted);
+        _transfers[transferId] = transfer.copyWith(
+          status: TransferStatus.accepted,
+        );
         _emitProgress(transferId);
       } else {
-        _transfers[transferId] =
-            transfer.copyWith(status: TransferStatus.rejected);
+        _transfers[transferId] = transfer.copyWith(
+          status: TransferStatus.rejected,
+        );
         _emitProgress(transferId);
       }
 
       return shelf.Response.ok(
-        jsonEncode({
-          'accepted': accepted,
-          'transferId': transferId,
-        }),
+        jsonEncode({'accepted': accepted, 'transferId': transferId}),
         headers: _jsonHeaders,
       );
     } catch (e) {
@@ -1191,6 +1211,40 @@ class FileServer {
         headers: _jsonHeaders,
       );
     }
+  }
+
+  /// POST /api/pause/:transferId
+  ///
+  /// Marks the current upload as deliberately paused before the sender aborts
+  /// its HTTP request. The partial temporary file remains resumable and the
+  /// receiver UI does not report a false transfer failure.
+  Future<shelf.Response> _handlePause(
+    shelf.Request request,
+    String transferId,
+  ) async {
+    final transfer = _transfers[transferId];
+    if (transfer == null) {
+      return shelf.Response.notFound(
+        jsonEncode({'error': 'Transfer not found'}),
+        headers: _jsonHeaders,
+      );
+    }
+
+    if (transfer.isFinished) {
+      return shelf.Response(
+        409,
+        body: jsonEncode({'error': 'Transfer is already finished'}),
+        headers: _jsonHeaders,
+      );
+    }
+
+    _pausedTransferIds.add(transferId);
+    _transfers[transferId] = transfer.copyWith(status: TransferStatus.paused);
+    _emitProgress(transferId);
+    return shelf.Response.ok(
+      jsonEncode({'status': 'paused', 'transferId': transferId}),
+      headers: _jsonHeaders,
+    );
   }
 
   /// POST /api/upload/:transferId
@@ -1220,14 +1274,17 @@ class FileServer {
       );
     }
 
-    // Mark as transferring.
-    _transfers[transferId] =
-        transfer.copyWith(status: TransferStatus.transferring);
+    // Mark as transferring. A new upload request is also the resume signal.
+    _pausedTransferIds.remove(transferId);
+    _transfers[transferId] = transfer.copyWith(
+      status: TransferStatus.transferring,
+    );
     _emitProgress(transferId);
 
     // Use a temporary file during transfer; rename on success, delete on failure.
     String? tempPath;
     String? savePath;
+    int bytesReceived = 0;
 
     try {
       // Ensure the download directory exists.
@@ -1278,7 +1335,7 @@ class FileServer {
 
       final sink = tempFile.openWrite(mode: fileMode);
 
-      int bytesReceived = resumeOffset;
+      bytesReceived = resumeOffset;
       _bytesReceived[transferId] = bytesReceived;
       final totalSize = transfer.fileSize;
 
@@ -1288,8 +1345,9 @@ class FileServer {
         bytesReceived += chunk.length;
         _bytesReceived[transferId] = bytesReceived;
 
-        final progress =
-            totalSize > 0 ? (bytesReceived / totalSize).clamp(0.0, 1.0) : 0.0;
+        final progress = totalSize > 0
+            ? (bytesReceived / totalSize).clamp(0.0, 1.0)
+            : 0.0;
         _transfers[transferId] = _transfers[transferId]!.copyWith(
           progress: progress,
           filePath: savePath,
@@ -1304,11 +1362,25 @@ class FileServer {
       // On resume, bytesReceived already includes the offset portion.
       if (totalSize > 0 && bytesReceived != totalSize) {
         // Don't delete the temp file — it can be resumed later.
+        final wasPaused = _pausedTransferIds.remove(transferId);
         _transfers[transferId] = _transfers[transferId]!.copyWith(
-          status: TransferStatus.failed,
-          error: 'Incomplete transfer: received $bytesReceived of $totalSize bytes',
+          status: wasPaused ? TransferStatus.paused : TransferStatus.failed,
+          error: wasPaused
+              ? null
+              : 'Incomplete transfer: received $bytesReceived of $totalSize bytes',
+          clearError: wasPaused,
         );
         _emitProgress(transferId);
+        if (wasPaused) {
+          return shelf.Response(
+            202,
+            body: jsonEncode({
+              'status': 'paused',
+              'bytesReceived': bytesReceived,
+            }),
+            headers: _jsonHeaders,
+          );
+        }
         return shelf.Response.internalServerError(
           body: jsonEncode({
             'error': 'Incomplete transfer',
@@ -1389,17 +1461,36 @@ class FileServer {
         headers: _jsonHeaders,
       );
     } catch (e) {
-      // Clean up incomplete temp file on failure.
-      if (tempPath != null) {
+      // Keep a non-empty partial file so an interrupted or user-paused upload
+      // can resume from the receiver's authoritative byte offset. Empty files
+      // are not useful and can be removed immediately.
+      if (tempPath != null && bytesReceived == 0) {
         await _deleteTempFile(tempPath);
+      } else if (tempPath != null) {
+        _bytesReceived[transferId] = bytesReceived;
+        _log.info(
+          'Preserving $bytesReceived bytes for resumable transfer $transferId',
+        );
       }
 
+      final wasPaused = _pausedTransferIds.remove(transferId);
       _transfers[transferId] = _transfers[transferId]!.copyWith(
-        status: TransferStatus.failed,
-        error: e.toString(),
+        status: wasPaused ? TransferStatus.paused : TransferStatus.failed,
+        error: wasPaused ? null : e.toString(),
+        clearError: wasPaused,
       );
       _emitProgress(transferId);
 
+      if (wasPaused) {
+        return shelf.Response(
+          202,
+          body: jsonEncode({
+            'status': 'paused',
+            'bytesReceived': bytesReceived,
+          }),
+          headers: _jsonHeaders,
+        );
+      }
       return shelf.Response.internalServerError(
         body: jsonEncode({'error': 'Upload failed: $e'}),
         headers: _jsonHeaders,
@@ -1436,10 +1527,7 @@ class FileServer {
       json['tempFileSize'] = 0;
     }
 
-    return shelf.Response.ok(
-      jsonEncode(json),
-      headers: _jsonHeaders,
-    );
+    return shelf.Response.ok(jsonEncode(json), headers: _jsonHeaders);
   }
 
   // Helpers -------------------------------------------------------------
@@ -1451,9 +1539,15 @@ class FileServer {
   ///    folder → use that pairing folder directly.
   /// 2. Otherwise fall back to the default layout:
   ///    `<syncReceiveFolder>/<senderName>/<jobName>/`
-  String _resolveSyncBaseDir(String senderName, String? jobId, String? jobName) {
+  String _resolveSyncBaseDir(
+    String senderName,
+    String? jobId,
+    String? jobName,
+  ) {
     // 1) Pairing-based resolution.
-    if (jobId != null && jobId.isNotEmpty && getSyncReceiveFolderForJob != null) {
+    if (jobId != null &&
+        jobId.isNotEmpty &&
+        getSyncReceiveFolderForJob != null) {
       final pairingFolder = getSyncReceiveFolderForJob!(jobId);
       if (pairingFolder != null && pairingFolder.isNotEmpty) {
         return pairingFolder;

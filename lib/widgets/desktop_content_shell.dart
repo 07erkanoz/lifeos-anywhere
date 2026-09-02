@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:anyware/core/responsive.dart';
 import 'package:anyware/core/theme.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -41,8 +42,7 @@ class DesktopContentShell extends StatelessWidget {
     this.maxWidth = 960,
     this.showHeader = true,
     this.headerPadding,
-    this.contentPadding =
-        const EdgeInsets.symmetric(horizontal: 24),
+    this.contentPadding,
   });
 
   /// Page title shown in the header.
@@ -67,39 +67,49 @@ class DesktopContentShell extends StatelessWidget {
   final EdgeInsetsGeometry? headerPadding;
 
   /// Override the default content padding.
-  final EdgeInsetsGeometry contentPadding;
+  final EdgeInsetsGeometry? contentPadding;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        if (showHeader)
-          Center(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: maxWidth),
-              child: Padding(
-                padding: headerPadding ??
-                    const EdgeInsets.fromLTRB(24, 16, 24, 0),
-                child: _DesktopPageHeader(
-                  title: title,
-                  subtitle: subtitle,
-                  actions: actions,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final horizontalPadding =
+            constraints.maxWidth < AppBreakpoints.compact
+                ? AppSpacing.md
+                : AppSpacing.lg;
+
+        return Column(
+          children: [
+            if (showHeader)
+              Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: maxWidth),
+                  child: Padding(
+                    padding: headerPadding ?? EdgeInsets.fromLTRB(
+                      horizontalPadding, AppSpacing.md, horizontalPadding, 0),
+                    child: _DesktopPageHeader(
+                      title: title,
+                      subtitle: subtitle,
+                      actions: actions,
+                    ),
+                  ),
+                ),
+              ),
+            Expanded(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: maxWidth),
+                  child: Padding(
+                    padding: contentPadding ??
+                        EdgeInsets.symmetric(horizontal: horizontalPadding),
+                    child: child,
+                  ),
                 ),
               ),
             ),
-          ),
-        Expanded(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: maxWidth),
-              child: Padding(
-                padding: contentPadding,
-                child: child,
-              ),
-            ),
-          ),
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 }
@@ -123,51 +133,77 @@ class _DesktopPageHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return SizedBox(
-      height: 52,
-      child: Row(
-        children: [
-          // Title + subtitle
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: isDark
-                        ? AppColors.textPrimary
-                        : AppColors.lightTextPrimary,
-                    letterSpacing: -0.3,
-                    height: 1.2,
-                  ),
-                ),
-                if (subtitle != null) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle!,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: isDark
-                          ? AppColors.textSecondary
-                          : AppColors.lightTextSecondary,
-                    ),
-                  ),
-                ],
-              ],
+    final titleBlock = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+            color: isDark
+                ? AppColors.textPrimary
+                : AppColors.lightTextPrimary,
+            letterSpacing: -0.3,
+            height: 1.2,
+          ),
+        ),
+        if (subtitle != null) ...[
+          const SizedBox(height: 2),
+          Text(
+            subtitle!,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 13,
+              color: isDark
+                  ? AppColors.textSecondary
+                  : AppColors.lightTextSecondary,
             ),
           ),
-          // Action buttons
-          if (actions != null && actions!.isNotEmpty)
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: actions!,
-            ),
         ],
-      ),
+      ],
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final hasActions = actions != null && actions!.isNotEmpty;
+        final actionWrap = Wrap(
+          spacing: AppSpacing.xs,
+          runSpacing: AppSpacing.xs,
+          children: actions ?? const <Widget>[],
+        );
+
+        if (hasActions && constraints.maxWidth < 640) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                titleBlock,
+                const SizedBox(height: AppSpacing.sm),
+                actionWrap,
+              ],
+            ),
+          );
+        }
+
+        return ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 52),
+          child: Row(
+            children: [
+              Expanded(child: titleBlock),
+              if (hasActions) ...[
+                const SizedBox(width: AppSpacing.md),
+                Flexible(child: actionWrap),
+              ],
+            ],
+          ),
+        );
+      },
     );
   }
 }

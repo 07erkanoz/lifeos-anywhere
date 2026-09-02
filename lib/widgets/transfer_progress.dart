@@ -7,11 +7,7 @@ class TransferProgress extends StatelessWidget {
   final Transfer transfer;
   final VoidCallback? onCancel;
 
-  const TransferProgress({
-    super.key,
-    required this.transfer,
-    this.onCancel,
-  });
+  const TransferProgress({super.key, required this.transfer, this.onCancel});
 
   @override
   Widget build(BuildContext context) {
@@ -93,7 +89,8 @@ class TransferProgress extends StatelessWidget {
             ),
 
             // Progress bar and percentage (only during transfer)
-            if (transfer.status == TransferStatus.transferring) ...[
+            if (transfer.status == TransferStatus.transferring ||
+                transfer.status == TransferStatus.paused) ...[
               const SizedBox(height: 12),
               Row(
                 children: [
@@ -149,8 +146,8 @@ class TransferProgress extends StatelessWidget {
 
   /// Builds the subtitle text showing file size and device name.
   String _subtitleText() {
-    final deviceName = transfer.receiverDevice?.name ??
-        transfer.senderDevice.name;
+    final deviceName =
+        transfer.receiverDevice?.name ?? transfer.senderDevice.name;
     return '${transfer.formattedSize} \u00b7 $deviceName';
   }
 
@@ -225,6 +222,8 @@ class TransferProgress extends StatelessWidget {
         return colorScheme.error;
       case TransferStatus.transferring:
         return colorScheme.primary;
+      case TransferStatus.paused:
+        return colorScheme.tertiary;
       case TransferStatus.completed:
         return Colors.green;
       case TransferStatus.failed:
@@ -260,6 +259,8 @@ class _StatusIcon extends StatelessWidget {
         return (Icons.block, colorScheme.error);
       case TransferStatus.transferring:
         return (Icons.sync, colorScheme.primary);
+      case TransferStatus.paused:
+        return (Icons.pause_circle, colorScheme.tertiary);
       case TransferStatus.completed:
         return (Icons.check_circle, Colors.green);
       case TransferStatus.failed:

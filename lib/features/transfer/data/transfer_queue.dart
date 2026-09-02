@@ -34,11 +34,16 @@ enum QueueStatus { queued, sending, completed, failed }
 /// // Files are sent sequentially; progress is emitted via [queueUpdates].
 /// ```
 class TransferQueue {
-  TransferQueue({required this.sender});
+  TransferQueue({required this.sender, this.autoStart = true});
 
   static final _log = AppLogger('TransferQueue');
 
   final FileSender sender;
+
+  /// Whether newly enqueued items should begin processing immediately.
+  /// Production queues keep this enabled; tests and future scheduled queues
+  /// can disable it while arranging pending items.
+  final bool autoStart;
 
   final Queue<QueueItem> _queue = Queue<QueueItem>();
   final List<QueueItem> _history = [];
@@ -74,7 +79,7 @@ class TransferQueue {
     _queue.add(item);
     _emitState();
 
-    if (!_isProcessing) {
+    if (autoStart && !_isProcessing) {
       _processNext();
     }
 
@@ -89,7 +94,9 @@ class TransferQueue {
   /// Removes a queued (not yet sending) item from the queue.
   bool remove(String itemId) {
     final length = _queue.length;
-    _queue.removeWhere((item) => item.id == itemId && item.status == QueueStatus.queued);
+    _queue.removeWhere(
+      (item) => item.id == itemId && item.status == QueueStatus.queued,
+    );
     if (_queue.length != length) {
       _emitState();
       return true;
@@ -97,9 +104,39 @@ class TransferQueue {
     return false;
   }
 
+  /// Moves a queued item by [offset] positions. The item currently being sent
+  /// is pinned to the first position and can never be reordered.
+  bool move(String itemId, int offset) {
+    if (offset == 0) return false;
+    final items = _queue.toList();
+    final from = items.indexWhere((item) => item.id == itemId);
+    if (from < 0 || items[from].status != QueueStatus.queued) return false;
+
+    final firstMovable =
+        items.isNotEmpty && items.first.status == QueueStatus.sending ? 1 : 0;
+    final to = (from + offset).clamp(firstMovable, items.length - 1).toInt();
+    if (to == from) return false;
+
+    final item = items.removeAt(from);
+    items.insert(to, item);
+    _queue
+      ..clear()
+      ..addAll(items);
+    _emitState();
+    return true;
+  }
+
   /// Clears all queued (not in-progress) items.
   void clearPending() {
     _queue.removeWhere((item) => item.status == QueueStatus.queued);
+    _emitState();
+  }
+
+  /// Cancels the current upload and removes every file still waiting.
+  void cancelAll() {
+    final hasSending = _queue.any((item) => item.status == QueueStatus.sending);
+    _queue.removeWhere((item) => item.status == QueueStatus.queued);
+    if (hasSending) sender.cancel();
     _emitState();
   }
 

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:desktop_drop/desktop_drop.dart';
@@ -9,17 +8,22 @@ import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'package:anyware/core/file_picker_helper.dart';
 import 'package:anyware/core/constants.dart';
 import 'package:anyware/core/logger.dart';
+import 'package:anyware/core/responsive.dart';
 
 import 'package:anyware/features/discovery/domain/device.dart';
 import 'package:anyware/features/sharing/data/sharing_service.dart';
 import 'package:anyware/features/discovery/presentation/providers.dart';
 import 'package:anyware/features/pairing/presentation/manual_ip_dialog.dart';
 import 'package:anyware/features/pairing/presentation/qr_options_dialog.dart';
+import 'package:anyware/features/platform/android/direct_share_service.dart';
 import 'package:anyware/features/server_sync/data/server_sync_service.dart';
 import 'package:anyware/features/server_sync/domain/sync_account.dart';
+import 'package:anyware/features/sharing/presentation/share_target_picker.dart';
+import 'package:anyware/features/sharing/data/dropped_file_expander.dart';
 import 'package:anyware/features/transfer/presentation/providers.dart';
 import 'package:anyware/features/settings/presentation/providers.dart';
 import 'package:anyware/i18n/app_localizations.dart';
+import 'package:anyware/widgets/app_states.dart';
 import 'package:anyware/widgets/desktop_content_shell.dart';
 
 /// Provider that holds file paths shared via Explorer context menu (--share).
@@ -56,6 +60,9 @@ class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
   /// [_pendingIntentPaths] so we don't re-trigger on every rebuild.
   bool _intentPickerShown = false;
 
+  /// Target selected in Android's Direct Share row, if any.
+  DirectShareTargetInfo? _pendingDirectShareTarget;
+
   @override
   void initState() {
     super.initState();
@@ -78,29 +85,21 @@ class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
       final service = ref.read(sharingServiceProvider);
 
       // Stream: media shared while the app is already in memory.
-      _intentSub =
-          service.getMediaStream().listen((List<SharedMediaFile> value) {
-        if (value.isNotEmpty && mounted) {
-          final paths = value.map((f) => f.path).toList();
-          _log.info('Share stream received ${paths.length} files');
-          setState(() {
-            _pendingIntentPaths = paths;
-            _intentPickerShown = false;
-          });
-        }
-      }, onError: (err) {
-        _log.warning('getIntentDataStream error: $err');
-      });
+      _intentSub = service.getMediaStream().listen(
+        (List<SharedMediaFile> value) {
+          if (value.isNotEmpty && mounted) {
+            _queueSharedFiles(service, value, source: 'stream');
+          }
+        },
+        onError: (err) {
+          _log.warning('getIntentDataStream error: $err');
+        },
+      );
 
       // Initial: media intent that launched / resumed the app.
       service.getInitialMedia().then((List<SharedMediaFile> value) {
         if (value.isNotEmpty && mounted) {
-          final paths = value.map((f) => f.path).toList();
-          _log.info('Share initial received ${paths.length} files');
-          setState(() {
-            _pendingIntentPaths = paths;
-            _intentPickerShown = false;
-          });
+          _queueSharedFiles(service, value, source: 'initial');
           service.reset();
         }
       });
@@ -109,18 +108,54 @@ class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
     }
   }
 
+  Future<void> _queueSharedFiles(
+    SharingService service,
+    List<SharedMediaFile> files, {
+    required String source,
+  }) async {
+    final target = await service.consumeDirectShareTarget();
+    if (!mounted) return;
+    final paths = files.map((file) => file.path).toList();
+    _log.info('Share $source received ${paths.length} files');
+    setState(() {
+      _pendingIntentPaths = paths;
+      _pendingDirectShareTarget = target;
+      _intentPickerShown = false;
+    });
+  }
+
   /// Tries to show the device picker for pending intent paths.
   /// Called from [build] when devices become available.
   void _tryShowIntentPicker(String locale) {
     if (_pendingIntentPaths == null || _intentPickerShown) return;
-    if (_currentDevices.isEmpty) return;
+    final accounts = ref.read(serverSyncServiceProvider).accounts;
+    if (_pendingDirectShareTarget != null && _currentDevices.isEmpty) return;
+    if (_currentDevices.isEmpty && accounts.isEmpty) return;
 
     _intentPickerShown = true;
     final paths = _pendingIntentPaths!;
+    final directTarget = _pendingDirectShareTarget;
     _pendingIntentPaths = null;
+    _pendingDirectShareTarget = null;
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
+      Device? selectedDevice;
+      if (directTarget != null) {
+        for (final device in _currentDevices) {
+          if (device.id == directTarget.id ||
+              (directTarget.ip.isNotEmpty && device.ip == directTarget.ip)) {
+            selectedDevice = device;
+            break;
+          }
+        }
+      }
+
+      if (selectedDevice != null) {
+        _log.info('Sending directly to ${selectedDevice.name}');
+        await _sendFilesToDevice(context, ref, selectedDevice, paths);
+        return;
+      }
       _showDevicePickerDialog(context, ref, paths, locale);
     });
   }
@@ -191,10 +226,8 @@ class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
         children: [
           // --- Local device header card ---
           localDeviceAsync.when(
-            data: (localDevice) => _LocalDeviceCard(
-              device: localDevice,
-              locale: locale,
-            ),
+            data: (localDevice) =>
+                _LocalDeviceCard(device: localDevice, locale: locale),
             loading: () => const Padding(
               padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Center(child: CircularProgressIndicator()),
@@ -203,9 +236,7 @@ class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
               padding: const EdgeInsets.all(16),
               child: Text(
                 error.toString(),
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.error,
-                ),
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             ),
           ),
@@ -228,8 +259,10 @@ class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
                       autofocus: i == 0,
                       onSendFile: () =>
                           _pickAndSendFile(context, ref, devices[i]),
-                      onFilesDropped: (paths) {
+                      onFilesDropped: (rawPaths) async {
                         _dropHandledByCard = true;
+                        final paths = await expandDroppedPaths(rawPaths);
+                        if (!context.mounted || paths.isEmpty) return;
                         _sendFilesToDevice(context, ref, devices[i], paths);
                       },
                     ),
@@ -240,34 +273,14 @@ class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
               padding: EdgeInsets.symmetric(vertical: 48),
               child: Center(child: CircularProgressIndicator()),
             ),
-            error: (error, _) => Padding(
-              padding: const EdgeInsets.all(24),
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.error_outline,
-                      size: 48,
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      error.toString(),
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    OutlinedButton.icon(
-                      onPressed: () => ref.read(refreshDiscoveryProvider)(),
-                      icon: const Icon(Icons.refresh),
-                      label: Text(AppLocalizations.get('retry', locale)),
-                    ),
-                  ],
-                ),
-              ),
+            error: (error, _) => AppEmptyState(
+              icon: Icons.wifi_off_rounded,
+              title: AppLocalizations.get('failed', locale),
+              description: error.toString(),
+              accentColor: Theme.of(context).colorScheme.error,
+              actionLabel: AppLocalizations.get('retry', locale),
+              actionIcon: Icons.refresh_rounded,
+              onAction: () => ref.read(refreshDiscoveryProvider)(),
             ),
           ),
         ],
@@ -300,22 +313,37 @@ class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
         onDragDone: (details) {
           setState(() => _isDragging = false);
 
-          // If a card-level DropTarget already handled this drop, skip.
-          if (_dropHandledByCard) {
-            _dropHandledByCard = false;
-            return;
-          }
-
-          final paths = details.files.map((f) => f.path).toList();
-          if (paths.isEmpty) return;
-
-          // Files dropped on the general area → show device picker.
-          _showDevicePickerDialog(context, ref, paths, locale);
+          final rawPaths = details.files.map((f) => f.path).toList();
+          if (rawPaths.isEmpty) return;
+          Future.microtask(() async {
+            // If a card-level DropTarget already handled this drop, skip.
+            if (_dropHandledByCard) {
+              _dropHandledByCard = false;
+              return;
+            }
+            final paths = await expandDroppedPaths(rawPaths);
+            if (!context.mounted || paths.isEmpty) return;
+            _showDevicePickerDialog(context, ref, paths, locale);
+          });
         },
         child: Stack(
           children: [
             screen,
-            if (_isDragging) _DragOverlay(locale: locale),
+            Positioned.fill(
+              child: IgnorePointer(
+                child: AnimatedSwitcher(
+                  duration: context.motionDuration(AppMotion.standard),
+                  child: _isDragging
+                      ? AppDropOverlay(
+                          key: const ValueKey('drop-overlay'),
+                          label: AppLocalizations.get('dropFilesHere', locale),
+                        )
+                      : const SizedBox.shrink(
+                          key: ValueKey('drop-overlay-hidden'),
+                        ),
+                ),
+              ),
+            ),
           ],
         ),
       );
@@ -336,10 +364,7 @@ class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
     final result = await FilePickerHelper.pickFiles(allowMultiple: true);
     if (result == null || result.files.isEmpty) return;
 
-    final paths = result.files
-        .map((f) => f.path)
-        .whereType<String>()
-        .toList();
+    final paths = result.files.map((f) => f.path).whereType<String>().toList();
     if (paths.isEmpty) return;
     if (!context.mounted) return;
     await _sendFilesToDevice(context, ref, target, paths);
@@ -357,7 +382,11 @@ class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
     } catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${AppLocalizations.get('sendFileFailed', AppLocalizations.detectLocale())}: $e')),
+        SnackBar(
+          content: Text(
+            '${AppLocalizations.get('sendFileFailed', AppLocalizations.detectLocale())}: $e',
+          ),
+        ),
       );
     }
   }
@@ -372,148 +401,41 @@ class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
     List<String> filePaths,
     String locale,
   ) async {
-    // Read devices from provider (fresher than _currentDevices cache).
     final devices = ref.read(devicesProvider).valueOrNull ?? _currentDevices;
-    // Read configured server accounts.
     final accounts = ref.read(serverSyncServiceProvider).accounts;
 
     if (devices.isEmpty && accounts.isEmpty) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(AppLocalizations.get('noDevices', locale)),
-          ),
+          SnackBar(content: Text(AppLocalizations.get('noDevices', locale))),
         );
       }
       return;
     }
 
     if (!context.mounted) return;
-
-    final fileNames = filePaths
-        .map((p) => p.split(Platform.pathSeparator).last)
-        .join(', ');
-
-    // Dialog can return either a Device or a SyncAccount.
-    final selected = await showDialog<Object>(
+    final selection = await showShareTargetPicker(
       context: context,
-      builder: (context) {
-        final theme = Theme.of(context);
-        final colorScheme = theme.colorScheme;
-        return AlertDialog(
-          title: Text(AppLocalizations.get('selectDeviceToSend', locale)),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // File name(s) preview
-                  Text(
-                    fileNames,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 16),
-                  // ── LAN Devices ──
-                  if (devices.isNotEmpty) ...[
-                    ...devices.map((device) => ListTile(
-                      leading: CircleAvatar(
-                        radius: 20,
-                        backgroundColor: colorScheme.secondaryContainer,
-                        child: Icon(
-                          _platformIconData(device.platformIcon),
-                          color: colorScheme.onSecondaryContainer,
-                          size: 20,
-                        ),
-                      ),
-                      title: Text(device.name),
-                      subtitle: Text(
-                        '${device.ip}  \u00b7  ${device.platformLabel}',
-                        style: theme.textTheme.bodySmall,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      onTap: () => Navigator.of(context).pop(device),
-                    )),
-                  ],
-                  // ── Server accounts ──
-                  if (accounts.isNotEmpty) ...[
-                    if (devices.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      Divider(color: colorScheme.outlineVariant),
-                      const SizedBox(height: 4),
-                      Padding(
-                        padding: const EdgeInsets.only(left: 4, bottom: 4),
-                        child: Text(
-                          AppLocalizations.get('servers', locale),
-                          style: theme.textTheme.labelMedium?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ),
-                    ],
-                    ...accounts.map((account) => ListTile(
-                      leading: CircleAvatar(
-                        radius: 20,
-                        backgroundColor: colorScheme.tertiaryContainer,
-                        child: Icon(
-                          _serverIconData(account.providerType),
-                          color: colorScheme.onTertiaryContainer,
-                          size: 20,
-                        ),
-                      ),
-                      title: Text(account.name),
-                      subtitle: Text(
-                        account.subtitle,
-                        style: theme.textTheme.bodySmall,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      onTap: () => Navigator.of(context).pop(account),
-                    )),
-                  ],
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text(AppLocalizations.get('cancel', locale)),
-            ),
-          ],
-        );
-      },
+      devices: devices,
+      accounts: accounts,
+      filePaths: filePaths,
+      locale: locale,
     );
 
-    if (selected == null || !context.mounted) return;
+    if (selection == null || !context.mounted) return;
 
-    if (selected is Device) {
-      await _sendFilesToDevice(context, ref, selected, filePaths);
-    } else if (selected is SyncAccount) {
-      await _sendFilesToServer(context, ref, selected, filePaths, locale);
-    }
-  }
-
-  static IconData _serverIconData(SyncProviderType type) {
-    switch (type) {
-      case SyncProviderType.sftp:
-        return Icons.dns_rounded;
-      case SyncProviderType.ftp:
-        return Icons.folder_shared_rounded;
-      case SyncProviderType.webdav:
-        return Icons.language_rounded;
-      case SyncProviderType.gdrive:
-        return Icons.cloud_rounded;
-      case SyncProviderType.onedrive:
-        return Icons.cloud_queue_rounded;
+    final selected = selection.target;
+    final queuedPaths = selection.filePaths;
+    if (selected is DeviceShareTarget) {
+      await _sendFilesToDevice(context, ref, selected.device, queuedPaths);
+    } else if (selected is AccountShareTarget) {
+      await _sendFilesToServer(
+        context,
+        ref,
+        selected.account,
+        queuedPaths,
+        locale,
+      );
     }
   }
 
@@ -536,185 +458,11 @@ class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
     await showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => _ServerUploadProgressDialog(
+      builder: (_) => ServerUploadProgressDialog(
         stream: service.uploadFilesToAccount(account.id, filePaths, remoteDir),
         totalFiles: filePaths.length,
         serverName: account.name,
         locale: locale,
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Server upload progress dialog
-// ---------------------------------------------------------------------------
-
-class _ServerUploadProgressDialog extends StatefulWidget {
-  final Stream<(int, int, String)> stream;
-  final int totalFiles;
-  final String serverName;
-  final String locale;
-
-  const _ServerUploadProgressDialog({
-    required this.stream,
-    required this.totalFiles,
-    required this.serverName,
-    required this.locale,
-  });
-
-  @override
-  State<_ServerUploadProgressDialog> createState() =>
-      _ServerUploadProgressDialogState();
-}
-
-class _ServerUploadProgressDialogState
-    extends State<_ServerUploadProgressDialog> {
-  int _completed = 0;
-  String _currentFile = '';
-  String? _error;
-  bool _done = false;
-  StreamSubscription? _sub;
-
-  @override
-  void initState() {
-    super.initState();
-    _sub = widget.stream.listen(
-      (event) {
-        final (completed, total, fileName) = event;
-        if (!mounted) return;
-        setState(() {
-          _completed = completed;
-          _currentFile = fileName;
-          if (completed >= total) _done = true;
-        });
-      },
-      onError: (e) {
-        if (!mounted) return;
-        setState(() => _error = e.toString());
-      },
-      onDone: () {
-        if (!mounted) return;
-        setState(() => _done = true);
-      },
-    );
-  }
-
-  @override
-  void dispose() {
-    _sub?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    if (_done && _error == null) {
-      // Auto-close after a brief delay.
-      Future.delayed(const Duration(milliseconds: 400), () {
-        if (mounted) Navigator.of(context).pop();
-      });
-    }
-
-    return AlertDialog(
-      title: Text(_error != null
-          ? AppLocalizations.get('uploadFailed', widget.locale)
-          : _done
-              ? AppLocalizations.get('uploadComplete', widget.locale)
-              : AppLocalizations.get('uploadingToServer', widget.locale)),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            widget.serverName,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 12),
-          if (_error != null)
-            Text(
-              _error!,
-              style: const TextStyle(color: Colors.red, fontSize: 13),
-              maxLines: 4,
-              overflow: TextOverflow.ellipsis,
-            )
-          else ...[
-            LinearProgressIndicator(
-              value: widget.totalFiles > 0
-                  ? _completed / widget.totalFiles
-                  : null,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _done
-                  ? '$_completed / ${widget.totalFiles}'
-                  : '$_completed / ${widget.totalFiles}  —  $_currentFile',
-              style: theme.textTheme.bodySmall,
-            ),
-          ],
-        ],
-      ),
-      actions: [
-        if (_error != null || _done)
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(AppLocalizations.get('ok', widget.locale)),
-          ),
-      ],
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Drag overlay shown when files are being dragged over the window
-// ---------------------------------------------------------------------------
-
-class _DragOverlay extends StatelessWidget {
-  const _DragOverlay({required this.locale});
-
-  final String locale;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Positioned.fill(
-      child: IgnorePointer(
-        child: Container(
-          decoration: BoxDecoration(
-            color: colorScheme.primary.withValues(alpha: 0.12),
-            border: Border.all(
-              color: colorScheme.primary.withValues(alpha: 0.6),
-              width: 3,
-            ),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          margin: const EdgeInsets.all(8),
-          child: Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.file_download_outlined,
-                  size: 56,
-                  color: colorScheme.primary.withValues(alpha: 0.7),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  AppLocalizations.get('dropFilesHere', locale),
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: colorScheme.primary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
       ),
     );
   }
@@ -789,10 +537,7 @@ class _DeviceDropTargetState extends State<_DeviceDropTarget> {
 // ---------------------------------------------------------------------------
 
 class _LocalDeviceCard extends StatelessWidget {
-  const _LocalDeviceCard({
-    required this.device,
-    required this.locale,
-  });
+  const _LocalDeviceCard({required this.device, required this.locale});
 
   final Device device;
   final String locale;
@@ -864,80 +609,25 @@ class _LocalDeviceCard extends StatelessWidget {
 // Empty state with scanning animation
 // ---------------------------------------------------------------------------
 
-class _EmptyDevicesView extends ConsumerStatefulWidget {
+class _EmptyDevicesView extends ConsumerWidget {
   const _EmptyDevicesView({required this.locale});
 
   final String locale;
 
   @override
-  ConsumerState<_EmptyDevicesView> createState() => _EmptyDevicesViewState();
-}
-
-class _EmptyDevicesViewState extends ConsumerState<_EmptyDevicesView>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 2),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+  Widget build(BuildContext context, WidgetRef ref) {
     final diagnostics = ref.watch(networkDiagnosticsProvider);
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 32),
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            RotationTransition(
-              turns: _controller,
-              child: Icon(
-                Icons.radar,
-                size: 64,
-                color: colorScheme.primary.withValues(alpha: 0.6),
-              ),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              AppLocalizations.get('noDevices', widget.locale),
-              style: theme.textTheme.titleMedium?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              AppLocalizations.get('scanning', widget.locale),
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
-              ),
-            ),
-            // Show diagnostic tips when issues are detected.
-            diagnostics.whenOrNull(
-              data: (diag) {
-                if (!diag.hasIssues) return null;
-                return _MobileDiagnosticTips(
-                  diagnostics: diag,
-                  locale: widget.locale,
-                );
-              },
-            ) ?? const SizedBox.shrink(),
-          ],
-        ),
+    return AppEmptyState(
+      icon: Icons.radar_rounded,
+      title: AppLocalizations.get('noDevices', locale),
+      description: AppLocalizations.get('scanning', locale),
+      busy: true,
+      details: diagnostics.whenOrNull(
+        data: (diag) {
+          if (!diag.hasIssues) return null;
+          return _MobileDiagnosticTips(diagnostics: diag, locale: locale);
+        },
       ),
     );
   }
@@ -966,10 +656,10 @@ class _MobileDiagnosticTips extends StatelessWidget {
           break;
         case NetworkIssue.virtualAdapters:
           tips.add(
-            AppLocalizations.get('diagVirtualAdapter', locale).replaceAll(
-              '{names}',
-              diagnostics.virtualAdapterNames.join(', '),
-            ),
+            AppLocalizations.get(
+              'diagVirtualAdapter',
+              locale,
+            ).replaceAll('{names}', diagnostics.virtualAdapterNames.join(', ')),
           );
           break;
       }
@@ -978,10 +668,10 @@ class _MobileDiagnosticTips extends StatelessWidget {
     tips.add(AppLocalizations.get('diagSameNetwork', locale));
     if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
       tips.add(
-        AppLocalizations.get('diagFirewall', locale).replaceAll(
-          '{port}',
-          '${AppConstants.discoveryPort}',
-        ),
+        AppLocalizations.get(
+          'diagFirewall',
+          locale,
+        ).replaceAll('{port}', '${AppConstants.discoveryPort}'),
       );
     }
     tips.add(AppLocalizations.get('diagTryManualIp', locale));
@@ -1054,7 +744,7 @@ class _DeviceCard extends StatelessWidget {
     final colorScheme = theme.colorScheme;
 
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 150),
+      duration: context.motionDuration(AppMotion.fast),
       child: Card(
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         shape: RoundedRectangleBorder(
@@ -1120,7 +810,9 @@ class _DeviceCard extends StatelessWidget {
                 if (isDropHovering)
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 6),
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: colorScheme.primary,
                       borderRadius: BorderRadius.circular(20),
