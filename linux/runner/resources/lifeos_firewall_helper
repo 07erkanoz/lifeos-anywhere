@@ -1,0 +1,103 @@
+#!/bin/sh
+set -eu
+
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+
+DISCOVERY_PORT=48740
+TRANSFER_PORT=48739
+MARKER_DIR=/var/lib/lifeos-anywhere
+MARKER_FILE="$MARKER_DIR/firewall-v1"
+PRIVATE_RANGES="10.0.0.0/8 172.16.0.0/12 192.168.0.0/16"
+
+if [ "$(id -u)" -ne 0 ]; then
+  echo "This helper must be run as root." >&2
+  exit 1
+fi
+
+ACTION=${1:-}
+BACKEND=${2:-}
+
+if [ "$ACTION" != "configure" ] && [ "$ACTION" != "remove" ]; then
+  echo "Usage: lifeos_firewall_helper configure|remove ufw|firewalld" >&2
+  exit 2
+fi
+
+configure_ufw() {
+  for source_range in $PRIVATE_RANGES; do
+    ufw allow from "$source_range" to any port "$DISCOVERY_PORT" proto udp \
+      comment "LifeOS AnyWhere discovery"
+    ufw allow from "$source_range" to any port "$TRANSFER_PORT" proto tcp \
+      comment "LifeOS AnyWhere transfer"
+  done
+}
+
+remove_ufw() {
+  for source_range in $PRIVATE_RANGES; do
+    ufw --force delete allow from "$source_range" to any port \
+      "$DISCOVERY_PORT" proto udp >/dev/null 2>&1 || true
+    ufw --force delete allow from "$source_range" to any port \
+      "$TRANSFER_PORT" proto tcp >/dev/null 2>&1 || true
+  done
+}
+
+firewalld_rule() {
+  operation=$1
+  source_range=$2
+  port=$3
+  protocol=$4
+  zone=$5
+  rule="rule family=ipv4 source address=$source_range port port=$port protocol=$protocol accept"
+  firewall-cmd --quiet --permanent --zone="$zone" \
+    "$operation-rich-rule=$rule"
+}
+
+configure_firewalld() {
+  zone=$(firewall-cmd --get-default-zone)
+  for source_range in $PRIVATE_RANGES; do
+    firewalld_rule --add "$source_range" "$DISCOVERY_PORT" udp "$zone"
+    firewalld_rule --add "$source_range" "$TRANSFER_PORT" tcp "$zone"
+  done
+  firewall-cmd --quiet --reload
+}
+
+remove_firewalld() {
+  zone=$(firewall-cmd --get-default-zone)
+  for source_range in $PRIVATE_RANGES; do
+    firewalld_rule --remove "$source_range" "$DISCOVERY_PORT" udp "$zone" || true
+    firewalld_rule --remove "$source_range" "$TRANSFER_PORT" tcp "$zone" || true
+  done
+  firewall-cmd --quiet --reload || true
+}
+
+case "$BACKEND" in
+  ufw)
+    command -v ufw >/dev/null 2>&1 || exit 3
+    if [ "$ACTION" = "configure" ]; then
+      configure_ufw
+    else
+      remove_ufw
+    fi
+    ;;
+  firewalld)
+    command -v firewall-cmd >/dev/null 2>&1 || exit 3
+    if [ "$ACTION" = "configure" ]; then
+      configure_firewalld
+    else
+      remove_firewalld
+    fi
+    ;;
+  *)
+    echo "Unsupported firewall backend: $BACKEND" >&2
+    exit 3
+    ;;
+esac
+
+if [ "$ACTION" = "configure" ]; then
+  mkdir -p "$MARKER_DIR"
+  printf '%s\n' "$BACKEND" >"$MARKER_FILE"
+  chmod 644 "$MARKER_FILE"
+else
+  rm -f "$MARKER_FILE"
+  rmdir "$MARKER_DIR" >/dev/null 2>&1 || true
+fi

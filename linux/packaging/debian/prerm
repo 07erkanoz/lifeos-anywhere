@@ -1,0 +1,15 @@
+#!/bin/sh
+set -e
+
+# Keep firewall access during upgrades. Remove only when the application is
+# actually uninstalled or deconfigured.
+case "${1:-}" in
+  remove|deconfigure)
+    if [ -x /opt/lifeos-anywhere/lifeos_firewall_helper ]; then
+      /opt/lifeos-anywhere/lifeos_firewall_helper remove ufw >/dev/null 2>&1 || true
+      /opt/lifeos-anywhere/lifeos_firewall_helper remove firewalld >/dev/null 2>&1 || true
+    fi
+    ;;
+esac
+
+exit 0

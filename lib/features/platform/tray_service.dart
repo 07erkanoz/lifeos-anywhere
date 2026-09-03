@@ -65,15 +65,9 @@ class AppTrayService with TrayListener {
       // Build context menu with localized labels.
       final menu = Menu(
         items: [
-          MenuItem(
-            key: 'show',
-            label: AppLocalizations.get('trayShow', lang),
-          ),
+          MenuItem(key: 'show', label: AppLocalizations.get('trayShow', lang)),
           MenuItem.separator(),
-          MenuItem(
-            key: 'exit',
-            label: AppLocalizations.get('trayExit', lang),
-          ),
+          MenuItem(key: 'exit', label: AppLocalizations.get('trayExit', lang)),
         ],
       );
       await trayManager.setContextMenu(menu);
@@ -171,8 +165,8 @@ class AppTrayService with TrayListener {
   ///
   /// **Linux**: `tray_manager` always prepends `<exe_dir>/data/flutter_assets/`
   /// to the icon path on non-sandbox Linux. Therefore we return a **relative
-  /// asset path** (e.g., `assets/icons/logo.png`) so the final resolved path
-  /// becomes `<exe_dir>/data/flutter_assets/assets/icons/logo.png` — which is
+  /// asset path** (e.g., `assets/icons/tray_icon.png`) so the final resolved path
+  /// becomes `<exe_dir>/data/flutter_assets/assets/icons/tray_icon.png` — which is
   /// where Flutter bundles the asset.
   ///
   /// **macOS**: Uses `rootBundle.load()` so the path should be a Flutter asset.
@@ -192,10 +186,15 @@ class AppTrayService with TrayListener {
     // First check if the logo exists as a bundled Flutter asset.
     final exeDir = p.dirname(Platform.resolvedExecutable);
     final bundledAsset = p.join(
-      exeDir, 'data', 'flutter_assets', 'assets', 'icons', 'logo.png',
+      exeDir,
+      'data',
+      'flutter_assets',
+      'assets',
+      'icons',
+      'tray_icon.png',
     );
     if (File(bundledAsset).existsSync()) {
-      return 'assets/icons/logo.png';
+      return 'assets/icons/tray_icon.png';
     }
 
     // Fallback: check if logo.png is next to the binary (e.g., .deb package).
@@ -205,6 +204,6 @@ class AppTrayService with TrayListener {
     if (File(logoPng).existsSync()) return logoPng;
 
     // Last resort: relative asset path (works in debug if asset is registered).
-    return 'assets/icons/logo.png';
+    return 'assets/icons/tray_icon.png';
   }
 }

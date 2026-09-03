@@ -76,6 +76,9 @@ jobs:
           # Copy the entire bundle
           cp -r "${BUNDLE_DIR}/." "${PKG_DIR}/opt/${PKG_NAME}/"
 
+          # Remove the one-time firewall rules when the package is uninstalled.
+          cp linux/packaging/debian/prerm "${PKG_DIR}/DEBIAN/prerm"
+
           # Copy logo for system tray icon
           cp logo.png "${PKG_DIR}/opt/${PKG_NAME}/logo.png"
 
@@ -119,7 +122,9 @@ jobs:
 
           # Set correct permissions
           chmod 755 "${PKG_DIR}/DEBIAN"
+          chmod 755 "${PKG_DIR}/DEBIAN/prerm"
           chmod 755 "${PKG_DIR}/opt/${PKG_NAME}/lifeos_anywhere"
+          chmod 755 "${PKG_DIR}/opt/${PKG_NAME}/lifeos_firewall_helper"
           find "${PKG_DIR}/opt/${PKG_NAME}/lib" -name "*.so*" -exec chmod 644 {} \;
 
           # Build the .deb package

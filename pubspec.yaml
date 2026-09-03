@@ -95,7 +95,7 @@ flutter_launcher_icons:
     generate: true
     icon_size: 256
   image_path: "logo.png"
-  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_background: "#18181B"
   adaptive_icon_foreground: "logo_foreground.png"
   remove_alpha_ios: true
 
@@ -114,6 +114,7 @@ flutter:
   uses-material-design: true
 
   assets:
+    - assets/branding/
     - assets/icons/
     - assets/fonts/
 

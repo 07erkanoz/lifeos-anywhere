@@ -38,6 +38,8 @@ import 'package:anyware/features/server_sync/data/server_sync_service.dart';
 import 'package:anyware/features/sharing/presentation/share_target_picker.dart';
 import 'package:anyware/features/sharing/data/dropped_file_expander.dart';
 import 'package:anyware/features/platform/tray_service.dart';
+import 'package:anyware/features/platform/linux/linux_firewall_service.dart';
+import 'package:anyware/features/settings/data/settings_repository.dart';
 import 'package:anyware/widgets/app_states.dart';
 
 class App extends ConsumerWidget {
@@ -179,7 +181,115 @@ class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
     windowManager.addListener(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initLocaleIfNeeded();
+      if (Platform.isLinux) {
+        unawaited(_checkLinuxFirewall());
+      }
     });
+  }
+
+  Future<void> _checkLinuxFirewall() async {
+    final service = LinuxFirewallService(ref.read(sharedPreferencesProvider));
+    final check = await service.inspect();
+    if (!mounted) return;
+
+    if (check.state == LinuxFirewallState.unavailable) {
+      AppLogger(
+        'LinuxFirewall',
+      ).warning('Active firewall detected but pkexec/helper is unavailable.');
+      return;
+    }
+    if (check.state != LinuxFirewallState.needsAuthorization) return;
+
+    final locale = ref.read(settingsProvider).locale;
+    final approved = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        final theme = Theme.of(dialogContext);
+        return AlertDialog(
+          icon: Icon(
+            Icons.shield_outlined,
+            color: theme.colorScheme.primary,
+            size: 36,
+          ),
+          title: Text(
+            AppLocalizations.get('linuxFirewallTitle', locale),
+            textAlign: TextAlign.center,
+          ),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 440),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(AppLocalizations.get('linuxFirewallDescription', locale)),
+                const SizedBox(height: 14),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.lan_outlined,
+                          color: theme.colorScheme.primary,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            AppLocalizations.get('linuxFirewallScope', locale),
+                            style: theme.textTheme.bodySmall,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(AppLocalizations.get('notNow', locale)),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              icon: const Icon(Icons.lock_open_rounded),
+              label: Text(AppLocalizations.get('linuxFirewallAllow', locale)),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (approved != true) {
+      await service.deferPrompt();
+      return;
+    }
+
+    final result = await service.configure(check);
+    if (!mounted) return;
+
+    final messageKey = result.success
+        ? 'linuxFirewallSuccess'
+        : 'linuxFirewallFailed';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(AppLocalizations.get(messageKey, locale))),
+    );
+
+    if (result.success) {
+      await ref.read(refreshDiscoveryProvider)();
+    } else if (result.details.isNotEmpty) {
+      AppLogger(
+        'LinuxFirewall',
+      ).warning('Firewall setup failed: ${result.details}');
+    }
   }
 
   @override

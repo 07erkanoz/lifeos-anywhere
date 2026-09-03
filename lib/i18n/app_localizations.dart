@@ -141,6 +141,16 @@ class AppLocalizations {
       'openSettings': 'Open Settings',
       'permissionDenied': 'Permission denied',
       'permissionGranted': 'Permission granted',
+      'linuxFirewallTitle': 'Allow local network access',
+      'linuxFirewallDescription':
+          'LifeOS AnyWhere needs permission to receive device discovery and file transfer connections on this Linux computer. Your system will ask for administrator approval once.',
+      'linuxFirewallScope':
+          'Only private local networks are allowed. Internet access to these ports remains blocked.',
+      'linuxFirewallAllow': 'Allow local network',
+      'linuxFirewallSuccess': 'Local network access is ready.',
+      'linuxFirewallFailed':
+          'Local network access could not be configured. You can try again later.',
+      'notNow': 'Not now',
       // Folder path (TV)
       'enterPath': 'Enter folder path',
       'folderPathHint': '/storage/emulated/0/Download',
@@ -798,6 +808,16 @@ class AppLocalizations {
       'openSettings': 'Ayarları Aç',
       'permissionDenied': 'İzin reddedildi',
       'permissionGranted': 'İzin verildi',
+      'linuxFirewallTitle': 'Yerel ağ erişimine izin ver',
+      'linuxFirewallDescription':
+          'LifeOS AnyWhere bu Linux bilgisayarda cihaz keşfi ve dosya aktarımı bağlantılarını alabilmek için izne ihtiyaç duyuyor. Sisteminiz yalnızca bir kez yönetici onayı isteyecek.',
+      'linuxFirewallScope':
+          'Yalnızca özel yerel ağlara izin verilir. Bu portlara internet üzerinden erişim kapalı kalır.',
+      'linuxFirewallAllow': 'Yerel ağa izin ver',
+      'linuxFirewallSuccess': 'Yerel ağ erişimi hazır.',
+      'linuxFirewallFailed':
+          'Yerel ağ erişimi yapılandırılamadı. Daha sonra tekrar deneyebilirsiniz.',
+      'notNow': 'Şimdi değil',
       'enterPath': 'Klasör yolunu girin',
       'folderPathHint': '/storage/emulated/0/Download',
       'invalidPath': 'Klasör mevcut değil',
