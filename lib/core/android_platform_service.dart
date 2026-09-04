@@ -8,8 +8,8 @@ final _log = AppLogger('AndroidPlatform');
 
 /// Provides access to Android-specific platform features via MethodChannel.
 ///
-/// - MulticastLock: keeps WiFi chipset listening for UDP multicast when screen off.
-/// - Battery optimization: requests exemption from Doze mode.
+/// - MulticastLock: keeps the Wi-Fi chipset listening for UDP multicast while
+///   the app is visible.
 class AndroidPlatformService {
   AndroidPlatformService._();
   static final AndroidPlatformService instance = AndroidPlatformService._();
@@ -50,34 +50,6 @@ class AndroidPlatformService {
       _log.info('MulticastLock released');
     } catch (e) {
       _log.warning('Failed to release MulticastLock: $e');
-    }
-  }
-
-  /// Checks if the app is exempt from battery optimization.
-  Future<bool> isBatteryOptimizationExempt() async {
-    if (!Platform.isAndroid) return true;
-    try {
-      final result =
-          await _channel.invokeMethod<bool>('isBatteryOptimizationExempt');
-      return result ?? false;
-    } catch (e) {
-      _log.warning('Failed to check battery optimization status: $e');
-      return false;
-    }
-  }
-
-  /// Requests battery optimization exemption from the user.
-  ///
-  /// Returns `true` if already exempt, `false` if the dialog was shown.
-  Future<bool> requestBatteryOptimizationExemption() async {
-    if (!Platform.isAndroid) return true;
-    try {
-      final result = await _channel
-          .invokeMethod<bool>('requestBatteryOptimizationExemption');
-      return result ?? false;
-    } catch (e) {
-      _log.warning('Failed to request battery optimization exemption: $e');
-      return false;
     }
   }
 }

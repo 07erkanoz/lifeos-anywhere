@@ -10,10 +10,16 @@ import 'package:anyware/core/android_platform_service.dart';
 import 'package:anyware/features/platform/android/direct_share_service.dart';
 import 'package:anyware/features/settings/data/settings_repository.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:network_info_plus/network_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
+
+bool get _androidDiscoveryAllowed {
+  if (!Platform.isAndroid) return true;
+  return WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+}
 
 /// Provides the [Device] representing the current machine.
 ///
@@ -80,7 +86,8 @@ Future<String> _getBestLocalIp() async {
     for (final iface in interfaces) {
       final name = iface.name.toLowerCase();
       // Skip known virtual adapters (Windows + Linux).
-      final isVirtual = name.contains('vmware') ||
+      final isVirtual =
+          name.contains('vmware') ||
           name.contains('hyper-v') ||
           name.contains('vethernet') ||
           name.contains('virtualbox') ||
@@ -114,7 +121,8 @@ Future<String> _getBestLocalIp() async {
     // No ideal match — try any non-virtual, non-loopback.
     for (final iface in interfaces) {
       final name = iface.name.toLowerCase();
-      final isVirtual = name.contains('vmware') ||
+      final isVirtual =
+          name.contains('vmware') ||
           name.contains('hyper-v') ||
           name.contains('vethernet') ||
           name.contains('virtualbox') ||
@@ -154,105 +162,135 @@ final discoveryServiceProvider = FutureProvider<DiscoveryService>((ref) async {
 
   // Await start so the socket is bound and multicast is joined before
   // anyone tries to read the stream.
-  try {
-    await service.start();
-  } catch (e) {
-    AppLogger('DiscoveryProvider').error('Failed to start discovery service', error: e);
+  if (_androidDiscoveryAllowed) {
+    try {
+      await service.start();
+    } catch (e) {
+      AppLogger(
+        'DiscoveryProvider',
+      ).error('Failed to start discovery service', error: e);
+    }
   }
 
   // Monitor network connectivity changes and restart discovery automatically.
   StreamSubscription<List<ConnectivityResult>>? connectivitySub;
   try {
-    connectivitySub = Connectivity().onConnectivityChanged.listen(
-      (results) async {
-        try {
-          final hasNetwork = results.any(
-            (r) =>
-                r == ConnectivityResult.wifi ||
-                r == ConnectivityResult.ethernet ||
-                r == ConnectivityResult.mobile,
+    connectivitySub = Connectivity().onConnectivityChanged.listen((
+      results,
+    ) async {
+      try {
+        final hasNetwork = results.any(
+          (r) =>
+              r == ConnectivityResult.wifi ||
+              r == ConnectivityResult.ethernet ||
+              r == ConnectivityResult.mobile,
+        );
+
+        if (hasNetwork && service.isRunning && _androidDiscoveryAllowed) {
+          // Only restart if IP actually changed — connectivity_plus fires
+          // very frequently on Android and restarting clears all devices.
+          final newIp = await _getBestLocalIp();
+          if (newIp.isEmpty || newIp == service.localDevice.ip) return;
+
+          AppLogger('DiscoveryProvider').info(
+            'IP changed: ${service.localDevice.ip} → $newIp, restarting...',
           );
+          service.localDevice = service.localDevice.copyWith(ip: newIp);
+          service.clearDevices();
+          service.stop();
 
-          if (hasNetwork && service.isRunning) {
-            // Only restart if IP actually changed — connectivity_plus fires
-            // very frequently on Android and restarting clears all devices.
-            final newIp = await _getBestLocalIp();
-            if (newIp.isEmpty || newIp == service.localDevice.ip) return;
-
-            AppLogger('DiscoveryProvider').info(
-                'IP changed: ${service.localDevice.ip} → $newIp, restarting...');
-            service.localDevice = service.localDevice.copyWith(ip: newIp);
-            service.clearDevices();
-            service.stop();
-
-            // Re-acquire multicast lock — switching networks can invalidate it.
-            if (Platform.isAndroid) {
-              await AndroidPlatformService.instance.releaseMulticastLock();
-              await AndroidPlatformService.instance.acquireMulticastLock();
-            }
-
-            await Future<void>.delayed(const Duration(seconds: 1));
-            await service.start();
-            AppLogger('DiscoveryProvider').info('Discovery restarted successfully.');
-          } else if (hasNetwork && !service.isRunning) {
-            // Network came back after being lost — start discovery.
-            AppLogger('DiscoveryProvider').info('Network restored, starting discovery...');
-
-            final newIp = await _getBestLocalIp();
-            if (newIp.isNotEmpty) {
-              service.localDevice = service.localDevice.copyWith(ip: newIp);
-            }
-
-            // Re-acquire multicast lock after network restore.
-            if (Platform.isAndroid) {
-              await AndroidPlatformService.instance.releaseMulticastLock();
-              await AndroidPlatformService.instance.acquireMulticastLock();
-            }
-
-            await service.start();
-            AppLogger('DiscoveryProvider').info('Discovery started after network restore.');
-          } else if (!hasNetwork) {
-            AppLogger('DiscoveryProvider').warning('Network lost, stopping discovery.');
-            service.stop();
-            // Clear the device list immediately so UI shows no devices.
-            service.clearDevices();
+          // Re-acquire multicast lock — switching networks can invalidate it.
+          if (Platform.isAndroid) {
+            await AndroidPlatformService.instance.releaseMulticastLock();
+            await AndroidPlatformService.instance.acquireMulticastLock();
           }
-        } catch (e) {
-          AppLogger('DiscoveryProvider').error('Network change handling error', error: e);
+
+          await Future<void>.delayed(const Duration(seconds: 1));
+          if (!_androidDiscoveryAllowed) return;
+          await service.start();
+          AppLogger(
+            'DiscoveryProvider',
+          ).info('Discovery restarted successfully.');
+        } else if (hasNetwork &&
+            !service.isRunning &&
+            _androidDiscoveryAllowed) {
+          // Network came back after being lost — start discovery.
+          AppLogger(
+            'DiscoveryProvider',
+          ).info('Network restored, starting discovery...');
+
+          final newIp = await _getBestLocalIp();
+          if (newIp.isNotEmpty) {
+            service.localDevice = service.localDevice.copyWith(ip: newIp);
+          }
+
+          // Re-acquire multicast lock after network restore.
+          if (Platform.isAndroid) {
+            await AndroidPlatformService.instance.releaseMulticastLock();
+            await AndroidPlatformService.instance.acquireMulticastLock();
+          }
+
+          if (!_androidDiscoveryAllowed) return;
+          await service.start();
+          AppLogger(
+            'DiscoveryProvider',
+          ).info('Discovery started after network restore.');
+        } else if (!hasNetwork) {
+          AppLogger(
+            'DiscoveryProvider',
+          ).warning('Network lost, stopping discovery.');
+          service.stop();
+          // Clear the device list immediately so UI shows no devices.
+          service.clearDevices();
         }
-      },
-    );
+      } catch (e) {
+        AppLogger(
+          'DiscoveryProvider',
+        ).error('Network change handling error', error: e);
+      }
+    });
   } catch (e) {
-    AppLogger('DiscoveryProvider').error('Could not monitor connectivity', error: e);
+    AppLogger(
+      'DiscoveryProvider',
+    ).error('Could not monitor connectivity', error: e);
   }
 
-  // Periodic IP change detection — connectivity_plus misses WiFi→WiFi switches
-  // (e.g. work WiFi → home WiFi). Poll every 10 s and restart if IP changed.
+  // Periodic IP change detection — connectivity_plus misses WiFi→WiFi switches.
+  // Android uses a slower poll because interface enumeration wakes the device.
   Timer? ipPollTimer;
-  ipPollTimer = Timer.periodic(const Duration(seconds: 10), (_) async {
-    if (!service.isRunning) return;
-    try {
-      final currentIp = await _getBestLocalIp();
-      if (currentIp.isNotEmpty && currentIp != service.localDevice.ip) {
-        AppLogger('DiscoveryProvider')
-            .info('IP changed: ${service.localDevice.ip} → $currentIp');
-        service.localDevice = service.localDevice.copyWith(ip: currentIp);
-        service.clearDevices();
-        service.stop();
+  ipPollTimer = Timer.periodic(
+    Duration(
+      seconds: Platform.isAndroid ? AppConstants.androidIpPollSeconds : 10,
+    ),
+    (_) async {
+      if (!service.isRunning || !_androidDiscoveryAllowed) return;
+      try {
+        final currentIp = await _getBestLocalIp();
+        if (currentIp.isNotEmpty && currentIp != service.localDevice.ip) {
+          AppLogger(
+            'DiscoveryProvider',
+          ).info('IP changed: ${service.localDevice.ip} → $currentIp');
+          service.localDevice = service.localDevice.copyWith(ip: currentIp);
+          service.clearDevices();
+          service.stop();
 
-        if (Platform.isAndroid) {
-          await AndroidPlatformService.instance.releaseMulticastLock();
-          await AndroidPlatformService.instance.acquireMulticastLock();
+          if (Platform.isAndroid) {
+            await AndroidPlatformService.instance.releaseMulticastLock();
+            await AndroidPlatformService.instance.acquireMulticastLock();
+          }
+
+          await Future<void>.delayed(const Duration(seconds: 1));
+          if (!_androidDiscoveryAllowed) return;
+          await service.start();
+          AppLogger(
+            'DiscoveryProvider',
+          ).info('Discovery restarted after IP change.');
         }
-
-        await Future<void>.delayed(const Duration(seconds: 1));
-        await service.start();
-        AppLogger('DiscoveryProvider').info('Discovery restarted after IP change.');
+      } catch (e) {
+        AppLogger('DiscoveryProvider').warning('IP poll check failed: $e');
       }
-    } catch (e) {
-      AppLogger('DiscoveryProvider').warning('IP poll check failed: $e');
-    }
-  });
+    },
+  );
 
   ref.onDispose(() {
     ipPollTimer?.cancel();
@@ -344,7 +382,9 @@ class NetworkDiagnostics {
 
 /// Runs lightweight network diagnostics to detect issues that might prevent
 /// device discovery from working.
-final networkDiagnosticsProvider = FutureProvider<NetworkDiagnostics>((ref) async {
+final networkDiagnosticsProvider = FutureProvider<NetworkDiagnostics>((
+  ref,
+) async {
   final issues = <NetworkIssue>[];
   final virtualNames = <String>[];
 
@@ -370,7 +410,8 @@ final networkDiagnosticsProvider = FutureProvider<NetworkDiagnostics>((ref) asyn
       );
       for (final iface in interfaces) {
         final name = iface.name.toLowerCase();
-        final isVirtual = name.contains('vmware') ||
+        final isVirtual =
+            name.contains('vmware') ||
             name.contains('hyper-v') ||
             name.contains('vethernet') ||
             name.contains('virtualbox') ||
@@ -393,10 +434,7 @@ final networkDiagnosticsProvider = FutureProvider<NetworkDiagnostics>((ref) asyn
     } catch (_) {}
   }
 
-  return NetworkDiagnostics(
-    issues: issues,
-    virtualAdapterNames: virtualNames,
-  );
+  return NetworkDiagnostics(issues: issues, virtualAdapterNames: virtualNames);
 });
 
 // ---------------------------------------------------------------------------

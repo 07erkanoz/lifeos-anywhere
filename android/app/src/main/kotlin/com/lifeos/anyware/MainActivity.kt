@@ -14,7 +14,6 @@ import android.net.NetworkRequest
 import android.net.wifi.WifiManager
 import android.net.wifi.WifiNetworkSpecifier
 import android.os.Build
-import android.os.PowerManager
 import android.provider.Settings
 import android.webkit.MimeTypeMap
 import androidx.core.content.FileProvider
@@ -395,30 +394,6 @@ class MainActivity : FlutterActivity() {
                             result.success(true)
                         } catch (e: Exception) {
                             result.error("MULTICAST_ERROR", "Failed to release multicast lock: ${e.message}", null)
-                        }
-                    }
-                    "isBatteryOptimizationExempt" -> {
-                        try {
-                            val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
-                            result.success(pm.isIgnoringBatteryOptimizations(packageName))
-                        } catch (e: Exception) {
-                            result.error("BATTERY_OPT_ERROR", "Check failed: ${e.message}", null)
-                        }
-                    }
-                    "requestBatteryOptimizationExemption" -> {
-                        try {
-                            val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
-                            if (!pm.isIgnoringBatteryOptimizations(packageName)) {
-                                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                                    data = Uri.parse("package:$packageName")
-                                }
-                                startActivity(intent)
-                                result.success(false)
-                            } else {
-                                result.success(true)
-                            }
-                        } catch (e: Exception) {
-                            result.error("BATTERY_OPT_ERROR", "Failed to request battery exemption: ${e.message}", null)
                         }
                     }
                     else -> result.notImplemented()

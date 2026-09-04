@@ -1,27 +1,25 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
-import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'package:anyware/core/logger.dart';
 
 final _log = AppLogger('BackgroundService');
 
-/// Manages an **always-on** Android foreground service and cross-platform
-/// wakelock so that the OS never kills the app while it is open.
+/// Keeps Android awake only while a transfer or folder watcher is active.
 ///
-/// The service is started once at app launch via [startPersistentService] and
-/// is **never** stopped. Transfer / sync activity only *updates* the
-/// notification text; when idle the notification shows a "Ready" message.
+/// Idle foreground services and permanent CPU/Wi-Fi locks cause severe battery
+/// drain. The service is therefore started on demand and stopped as soon as
+/// there is no active transfer or sync watcher.
 ///
-/// Notification priority: Transfer > Sync > Idle ("Ready").
+/// Notification priority: Transfer > Sync.
 ///
 /// All user-visible strings are passed in by the caller so that notifications
 /// respect the selected locale.
 ///
 /// Usage:
 ///   await BackgroundTransferService.instance.init();
-///   await BackgroundTransferService.instance.startPersistentService(title: '...', text: '...');
 ///   BackgroundTransferService.instance.onTransferStarted(title: '...', text: '...');
 ///   BackgroundTransferService.instance.updateProgress(title: '...', text: '...');
 ///   BackgroundTransferService.instance.onTransferFinished();
@@ -40,12 +38,8 @@ class BackgroundTransferService {
 
   bool _initialized = false;
 
-  /// Whether the persistent (always-on) service is active.
-  bool _persistentActive = false;
-
-  /// Cached persistent notification strings (idle "ready" state).
-  String _persistentNotifTitle = 'LifeOS AnyWhere';
-  String _persistentNotifText = 'Ready';
+  bool _serviceActive = false;
+  Future<void>? _serviceStartFuture;
 
   /// Cached sync notification strings so that `_updateSyncNotification` can
   /// re-use the last provided localised text without requiring `ref`.
@@ -84,70 +78,25 @@ class BackgroundTransferService {
       ),
     );
 
+    // Clean up the previous always-on implementation after an app upgrade or
+    // hot restart. No active transfer can survive a fresh Flutter startup.
+    try {
+      if (await FlutterForegroundTask.isRunningService) {
+        await FlutterForegroundTask.stopService();
+      }
+    } catch (e) {
+      _log.warning('Could not stop stale foreground service: $e');
+    }
+
     _log.info('Foreground task configured');
   }
 
   // ────────────────────────────────────────────────────────────────────────
-  // Persistent (always-on) service
-  // ────────────────────────────────────────────────────────────────────────
-
-  /// Starts the persistent foreground service at app launch.
-  /// The service will **never** be stopped while the app is open.
-  ///
-  /// [title] and [text] are the idle "ready" notification strings.
-  Future<void> startPersistentService({
-    required String title,
-    required String text,
-  }) async {
-    if (_persistentActive) return;
-
-    _persistentNotifTitle = title;
-    _persistentNotifText = text;
-
-    // Enable wakelock on all platforms.
-    try {
-      await WakelockPlus.enable();
-      _log.debug('Wakelock enabled (persistent)');
-    } catch (e) {
-      _log.warning('Failed to enable wakelock: $e');
-    }
-
-    if (Platform.isAndroid) {
-      try {
-        await FlutterForegroundTask.startService(
-          notificationTitle: title,
-          notificationText: text,
-          callback: _foregroundTaskCallback,
-        );
-        _log.info('Persistent foreground service started');
-      } catch (e) {
-        _log.warning('Failed to start persistent foreground service: $e');
-      }
-    }
-
-    _persistentActive = true;
-  }
-
-  /// Updates the persistent (idle) notification strings. Call when the locale
-  /// changes so the notification text stays current.
-  void updatePersistentNotifStrings({
-    required String title,
-    required String text,
-  }) {
-    _persistentNotifTitle = title;
-    _persistentNotifText = text;
-    // If currently in idle state, refresh the notification now.
-    if (_activeCount == 0 && !_syncActive && Platform.isAndroid) {
-      _showIdleNotification();
-    }
-  }
-
-  // ────────────────────────────────────────────────────────────────────────
-  // Transfer lifecycle — only updates the notification, never start/stop
+  // Transfer lifecycle
   // ────────────────────────────────────────────────────────────────────────
 
   /// Call when a new transfer starts. Updates the notification to show
-  /// transfer info. The persistent service is already running.
+  /// transfer info and starts the foreground service on demand.
   ///
   /// [title] and [text] are localised notification strings provided by the caller.
   Future<void> onTransferStarted({
@@ -158,14 +107,7 @@ class BackgroundTransferService {
     _log.debug('Transfer started (active: $_activeCount)');
 
     if (Platform.isAndroid) {
-      try {
-        await FlutterForegroundTask.updateService(
-          notificationTitle: title,
-          notificationText: text,
-        );
-      } catch (e) {
-        _log.warning('Failed to update notification for transfer: $e');
-      }
+      await _ensureService(title: title, text: text);
     }
   }
 
@@ -177,11 +119,9 @@ class BackgroundTransferService {
 
     if (_activeCount == 0 && Platform.isAndroid) {
       if (_syncActive) {
-        // Sync still active — show sync notification.
         _updateSyncNotification();
       } else {
-        // Back to idle — show "Ready" notification.
-        _showIdleNotification();
+        await _stopServiceIfIdle();
       }
     }
     // If _activeCount > 0, caller will call updateProgress next.
@@ -197,6 +137,10 @@ class BackgroundTransferService {
     if (!Platform.isAndroid) return;
 
     try {
+      if (!_serviceActive && _serviceStartFuture != null) {
+        await _serviceStartFuture;
+      }
+      if (!_serviceActive) return;
       await FlutterForegroundTask.updateService(
         notificationTitle: title,
         notificationText: text,
@@ -225,8 +169,7 @@ class BackgroundTransferService {
     _log.debug('Sync watch started (watching: $_syncWatchCount)');
 
     if (_activeCount == 0 && Platform.isAndroid) {
-      // No transfer active — show sync notification.
-      _updateSyncNotification();
+      await _ensureService(title: title, text: text);
     }
     // If transfer active, it takes priority — notification unchanged.
   }
@@ -239,8 +182,7 @@ class BackgroundTransferService {
     _log.debug('Sync watch stopped (watching: $_syncWatchCount)');
 
     if (_syncWatchCount == 0 && _activeCount == 0 && Platform.isAndroid) {
-      // Nothing active — revert to idle notification.
-      _showIdleNotification();
+      await _stopServiceIfIdle();
     } else if (Platform.isAndroid && _activeCount == 0) {
       // Still some sync watchers — update sync notification.
       _updateSyncNotification();
@@ -250,10 +192,7 @@ class BackgroundTransferService {
 
   /// Updates the sync notification title/text. Call this when the locale
   /// changes while sync is active so the notification text stays current.
-  void updateSyncNotifStrings({
-    required String title,
-    required String text,
-  }) {
+  void updateSyncNotifStrings({required String title, required String text}) {
     _syncNotifTitle = title;
     _syncNotifText = text;
     if (_syncActive && _activeCount == 0 && Platform.isAndroid) {
@@ -266,7 +205,7 @@ class BackgroundTransferService {
   // ────────────────────────────────────────────────────────────────────────
 
   void _updateSyncNotification() {
-    if (!Platform.isAndroid) return;
+    if (!Platform.isAndroid || !_serviceActive) return;
     try {
       if (_activeCount > 0) {
         // Transfer takes priority in notification.
@@ -279,15 +218,94 @@ class BackgroundTransferService {
     } catch (_) {}
   }
 
-  /// Reverts the notification to the idle "Ready" state.
-  void _showIdleNotification() {
+  Future<void> _ensureService({
+    required String title,
+    required String text,
+  }) async {
     if (!Platform.isAndroid) return;
-    try {
-      FlutterForegroundTask.updateService(
-        notificationTitle: _persistentNotifTitle,
-        notificationText: _persistentNotifText,
+
+    if (_serviceActive) {
+      await FlutterForegroundTask.updateService(
+        notificationTitle: title,
+        notificationText: text,
       );
-    } catch (_) {}
+      return;
+    }
+
+    final pending = _serviceStartFuture;
+    if (pending != null) {
+      await pending;
+      if (_serviceActive) {
+        await FlutterForegroundTask.updateService(
+          notificationTitle: title,
+          notificationText: text,
+        );
+      }
+      return;
+    }
+
+    final start = _startService(title: title, text: text);
+    _serviceStartFuture = start;
+    try {
+      await start;
+    } finally {
+      _serviceStartFuture = null;
+    }
+  }
+
+  Future<void> _startService({
+    required String title,
+    required String text,
+  }) async {
+    try {
+      if (await FlutterForegroundTask.isRunningService) {
+        _serviceActive = true;
+        await FlutterForegroundTask.updateService(
+          notificationTitle: title,
+          notificationText: text,
+        );
+        return;
+      }
+
+      await FlutterForegroundTask.startService(
+        notificationTitle: title,
+        notificationText: text,
+        callback: _foregroundTaskCallback,
+      );
+      _serviceActive = await FlutterForegroundTask.isRunningService;
+      if (_serviceActive) {
+        _log.info('Foreground service started for active work');
+      } else {
+        _log.warning('Foreground service did not enter running state');
+      }
+    } catch (e) {
+      _serviceActive = false;
+      _log.warning('Failed to start foreground service: $e');
+    }
+  }
+
+  Future<void> _stopServiceIfIdle() async {
+    if (!Platform.isAndroid || _activeCount > 0 || _syncActive) return;
+    final pending = _serviceStartFuture;
+    if (pending != null) await pending;
+    if (!_serviceActive && !await FlutterForegroundTask.isRunningService) {
+      return;
+    }
+    try {
+      await FlutterForegroundTask.stopService();
+      _log.info('Foreground service stopped while idle');
+    } catch (e) {
+      _log.warning('Failed to stop idle foreground service: $e');
+    } finally {
+      _serviceActive = false;
+    }
+  }
+
+  Future<void> shutdown() async {
+    _activeCount = 0;
+    _syncWatchCount = 0;
+    _syncActive = false;
+    await _stopServiceIfIdle();
   }
 }
 

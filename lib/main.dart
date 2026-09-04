@@ -10,7 +10,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'package:anyware/app.dart';
-import 'package:anyware/core/android_platform_service.dart';
 import 'package:anyware/core/background_service.dart';
 import 'package:anyware/core/constants.dart';
 import 'package:anyware/core/tv_detector.dart';
@@ -97,29 +96,9 @@ Future<void> main(List<String> args) async {
     }
   }
 
-  // Initialize background transfer service (foreground service + wakelock).
+  // Configure Android foreground transfer support. The service itself starts
+  // only while a transfer or folder watcher is active.
   await BackgroundTransferService.instance.init();
-
-  // Start persistent foreground service on Android so the OS never kills us.
-  if (Platform.isAndroid) {
-    await BackgroundTransferService.instance.startPersistentService(
-      title: 'LifeOS AnyWhere',
-      text: 'Ready — discovery active',
-    );
-    await AndroidPlatformService.instance.acquireMulticastLock();
-
-    // Request battery optimization exemption once (first launch only).
-    // Some OEM skins always return false from isIgnoringBatteryOptimizations
-    // even after the user grants it, so we use a prefs flag instead.
-    final batteryAsked = prefs.getBool('batteryOptAsked') ?? false;
-    if (!batteryAsked) {
-      Future<void>.delayed(const Duration(seconds: 3), () async {
-        await AndroidPlatformService.instance
-            .requestBatteryOptimizationExemption();
-        await prefs.setBool('batteryOptAsked', true);
-      });
-    }
-  }
 
   // File path from --share argument (Explorer context menu).
   String? pendingSharePath;
@@ -177,11 +156,11 @@ Future<void> main(List<String> args) async {
       pendingSharePath = args[shareIndex + 1];
     }
 
-    // Initialize Windows toast notifications.
+    // Initialize native desktop notifications.
     try {
-      await WindowsNotificationService.instance.init();
+      await DesktopNotificationService.instance.init();
     } catch (e) {
-      _log.error('WindowsNotificationService.init failed', error: e);
+      _log.error('DesktopNotificationService.init failed', error: e);
     }
   }
 
@@ -210,12 +189,16 @@ Future<void> main(List<String> args) async {
         _log.error('AppTrayService.init failed', error: e);
       }
     }
+
+    try {
+      await DesktopNotificationService.instance.init();
+    } catch (e) {
+      _log.error('DesktopNotificationService.init failed', error: e);
+    }
   }
 
   _container = ProviderContainer(
-    overrides: [
-      sharedPreferencesProvider.overrideWithValue(prefs),
-    ],
+    overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
   );
 
   // Set pending share path if launched with --share.
@@ -223,12 +206,7 @@ Future<void> main(List<String> args) async {
     _container.read(pendingShareProvider.notifier).state = [pendingSharePath];
   }
 
-  runApp(
-    UncontrolledProviderScope(
-      container: _container,
-      child: const App(),
-    ),
-  );
+  runApp(UncontrolledProviderScope(container: _container, child: const App()));
 }
 
 /// Requests storage permission on Android TV.
@@ -318,8 +296,10 @@ Future<bool> _checkSingleInstance(List<String> args) async {
     // Port already in use — another instance is running.
     // Forward our args to the running instance.
     try {
-      final socket =
-          await Socket.connect(InternetAddress.loopbackIPv4, AppConstants.singleInstancePort);
+      final socket = await Socket.connect(
+        InternetAddress.loopbackIPv4,
+        AppConstants.singleInstancePort,
+      );
 
       // Check if we have a --share argument to forward.
       final shareIndex = args.indexOf('--share');
@@ -352,11 +332,14 @@ void _handleInstanceMessage(String message) {
     if (filePath.isNotEmpty) {
       _pendingSharePaths.add(filePath);
       _shareDebounce?.cancel();
-      _shareDebounce = Timer(const Duration(milliseconds: AppConstants.shareDebounceMs), () {
-        final paths = List<String>.from(_pendingSharePaths);
-        _pendingSharePaths.clear();
-        _container.read(pendingShareProvider.notifier).state = paths;
-      });
+      _shareDebounce = Timer(
+        const Duration(milliseconds: AppConstants.shareDebounceMs),
+        () {
+          final paths = List<String>.from(_pendingSharePaths);
+          _pendingSharePaths.clear();
+          _container.read(pendingShareProvider.notifier).state = paths;
+        },
+      );
     }
   }
 }

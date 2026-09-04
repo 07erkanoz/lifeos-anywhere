@@ -3,7 +3,8 @@ class AppConstants {
   static const String appVersion = '1.0.0';
   static const String protocolVersion = '1.0';
   static const String websiteUrl = 'https://lifeos.com.tr';
-  static const String githubUrl = 'https://github.com/07erkanoz/lifeos-anywhere';
+  static const String githubUrl =
+      'https://github.com/07erkanoz/lifeos-anywhere';
 
   // Network ports
   static const int defaultPort = 48739;
@@ -13,6 +14,9 @@ class AppConstants {
 
   // Discovery timing
   static const int discoveryIntervalSeconds = 3;
+  static const int androidDiscoveryIntervalSeconds = 10;
+  static const int multicastRejoinSeconds = 120;
+  static const int androidIpPollSeconds = 30;
   static const int deviceTimeoutSeconds = 30;
   static const int deviceOnlineThresholdSeconds = 15;
   static const int healthCheckSilenceSeconds = 60;

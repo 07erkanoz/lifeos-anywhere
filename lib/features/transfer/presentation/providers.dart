@@ -22,6 +22,8 @@ import 'package:anyware/i18n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 final _log = AppLogger('TransferProviders');
+bool get _isDesktopPlatform =>
+    Platform.isWindows || Platform.isLinux || Platform.isMacOS;
 
 // ---------------------------------------------------------------------------
 // FileServer
@@ -71,6 +73,23 @@ final fileServerProvider = FutureProvider.autoDispose<FileServer>((ref) async {
           : ClipboardContentType.text,
     );
     ref.read(clipboardHistoryProvider.notifier).addEntry(entry);
+    ref.read(clipboardReceivedEventProvider.notifier).state = entry;
+    ref.read(clipboardUnreadCountProvider.notifier).state++;
+
+    if (_isDesktopPlatform) {
+      final locale = ref.read(settingsProvider).locale;
+      final body = AppLocalizations.get(
+        'clipboardReceivedFrom',
+        locale,
+      ).replaceAll('{sender}', entry.senderName);
+      DesktopNotificationService.instance.notify(
+        title: 'LifeOS AnyWhere',
+        body: body,
+        onClick: () {
+          ref.read(clipboardOpenRequestProvider.notifier).state++;
+        },
+      );
+    }
   };
 
   // Wire sync file receive events to sync service (no per-file notification).
@@ -136,13 +155,13 @@ final fileServerProvider = FutureProvider.autoDispose<FileServer>((ref) async {
   // Wire summary notification callback for completed sync batches.
   ref.read(syncServiceProvider.notifier).onSyncBatchCompleted =
       (String jobName, int fileCount, String deviceName) {
-        if (Platform.isWindows) {
+        if (_isDesktopPlatform) {
           final locale = ref.read(settingsProvider).locale;
           final body = AppLocalizations.get('notifSyncComplete', locale)
               .replaceAll('{job}', jobName)
               .replaceAll('{count}', fileCount.toString())
               .replaceAll('{device}', deviceName);
-          WindowsNotificationService.instance.notify(
+          DesktopNotificationService.instance.notify(
             title: 'LifeOS AnyWhere',
             body: body,
           );
@@ -153,13 +172,13 @@ final fileServerProvider = FutureProvider.autoDispose<FileServer>((ref) async {
   ref
       .read(syncServiceProvider.notifier)
       .onSyncReceivingStarted = (String senderName) {
-    if (Platform.isWindows) {
+    if (_isDesktopPlatform) {
       final locale = ref.read(settingsProvider).locale;
       final body = AppLocalizations.get(
         'notifSyncReceiving',
         locale,
       ).replaceAll('{sender}', senderName);
-      WindowsNotificationService.instance.notify(
+      DesktopNotificationService.instance.notify(
         title: 'LifeOS AnyWhere',
         body: body,
       );
@@ -514,14 +533,14 @@ class ActiveTransfersNotifier extends StateNotifier<List<Transfer>> {
     }
 
     // Fire Windows notifications (batched for completions).
-    if (Platform.isWindows) {
+    if (_isDesktopPlatform) {
       _fireNotification(transfer, prevStatus);
     }
   }
 
   void _fireNotification(Transfer transfer, TransferStatus? prevStatus) {
     final locale = getLocale();
-    final notif = WindowsNotificationService.instance;
+    final notif = DesktopNotificationService.instance;
     const title = 'LifeOS AnyWhere';
 
     // ── Transfer started: one notification per device ──
@@ -588,7 +607,7 @@ class ActiveTransfersNotifier extends StateNotifier<List<Transfer>> {
     if (batch == null || batch.completedCount == 0) return;
 
     final locale = getLocale();
-    final notif = WindowsNotificationService.instance;
+    final notif = DesktopNotificationService.instance;
     const title = 'LifeOS AnyWhere';
 
     if (batch.completedCount == 1) {

@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:anyware/core/background_service.dart';
+import 'package:anyware/core/android_platform_service.dart';
 import 'package:anyware/core/constants.dart';
 import 'package:anyware/core/file_picker_helper.dart';
 import 'package:anyware/core/logger.dart';
@@ -29,6 +30,7 @@ import 'package:anyware/widgets/tv_sidebar.dart';
 import 'package:anyware/widgets/desktop_content_shell.dart';
 import 'package:anyware/widgets/desktop_status_bar.dart';
 import 'package:anyware/features/clipboard/presentation/clipboard_screen.dart';
+import 'package:anyware/features/clipboard/data/clipboard_service.dart';
 import 'package:anyware/features/sync/presentation/sync_screen.dart';
 import 'package:anyware/features/sync/presentation/sync_setup_dialog.dart';
 import 'package:anyware/features/sync/data/sync_service.dart';
@@ -127,7 +129,8 @@ class _MainShell extends ConsumerStatefulWidget {
   ConsumerState<_MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
+class _MainShellState extends ConsumerState<_MainShell>
+    with WindowListener, WidgetsBindingObserver {
   int _selectedIndex = 0;
   bool _localeInitialized = false;
 
@@ -135,6 +138,7 @@ class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
   /// their explicit choice wins even on a narrower desktop window.
   bool? _sidebarCollapsedOverride;
   bool _isGlobalDragging = false;
+  bool _androidNetworkShouldRun = false;
 
   /// Whether the device is an Android TV.
   bool get _isTV => Platform.isAndroid && TvDetector.isTVCached;
@@ -179,12 +183,52 @@ class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
   void initState() {
     super.initState();
     windowManager.addListener(this);
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initLocaleIfNeeded();
+      if (Platform.isAndroid) {
+        unawaited(_resumeAndroidNetwork());
+      }
       if (Platform.isLinux) {
         unawaited(_checkLinuxFirewall());
       }
     });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!Platform.isAndroid) return;
+    switch (state) {
+      case AppLifecycleState.resumed:
+        unawaited(_resumeAndroidNetwork());
+        return;
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+        _pauseAndroidNetwork();
+        return;
+    }
+  }
+
+  Future<void> _resumeAndroidNetwork() async {
+    _androidNetworkShouldRun = true;
+    await AndroidPlatformService.instance.acquireMulticastLock();
+    try {
+      final service = await ref.read(discoveryServiceProvider.future);
+      if (!_androidNetworkShouldRun) {
+        service.stop();
+        await AndroidPlatformService.instance.releaseMulticastLock();
+        return;
+      }
+      if (!service.isRunning) await service.start();
+    } catch (_) {}
+  }
+
+  void _pauseAndroidNetwork() {
+    _androidNetworkShouldRun = false;
+    ref.read(discoveryServiceProvider).valueOrNull?.stop();
+    unawaited(AndroidPlatformService.instance.releaseMulticastLock());
   }
 
   Future<void> _checkLinuxFirewall() async {
@@ -398,6 +442,11 @@ class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
   @override
   void dispose() {
     windowManager.removeListener(this);
+    WidgetsBinding.instance.removeObserver(this);
+    if (Platform.isAndroid) {
+      _pauseAndroidNetwork();
+      unawaited(BackgroundTransferService.instance.shutdown());
+    }
     super.dispose();
   }
 
@@ -413,8 +462,20 @@ class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
   }
 
   void _navigateToTransfers() {
-    if (_selectedIndex != 1) {
-      setState(() => _selectedIndex = 1);
+    _selectIndex(1);
+  }
+
+  void _navigateToClipboard() {
+    if (_isTV) return;
+    _selectIndex(2);
+  }
+
+  void _selectIndex(int index) {
+    if (_selectedIndex != index) {
+      setState(() => _selectedIndex = index);
+    }
+    if (!_isTV && index == 2) {
+      ref.read(clipboardUnreadCountProvider.notifier).state = 0;
     }
   }
 
@@ -521,6 +582,37 @@ class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
     final settings = ref.watch(settingsProvider);
     final locale = settings.locale;
 
+    ref.listen<ClipboardEntry?>(clipboardReceivedEventProvider, (prev, next) {
+      if (next == null || identical(prev, next)) return;
+      if (_selectedIndex == 2 && !_isTV) {
+        ref.read(clipboardUnreadCountProvider.notifier).state = 0;
+      }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final message = AppLocalizations.get(
+          'clipboardReceivedFrom',
+          locale,
+        ).replaceAll('{sender}', next.senderName);
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(message),
+              action: _isTV
+                  ? null
+                  : SnackBarAction(
+                      label: AppLocalizations.get('openClipboard', locale),
+                      onPressed: _navigateToClipboard,
+                    ),
+            ),
+          );
+      });
+    });
+
+    ref.listen<int>(clipboardOpenRequestProvider, (prev, next) {
+      if (next > (prev ?? 0)) _navigateToClipboard();
+    });
+
     // Auto-switch to Transfer screen when a new incoming transfer arrives.
     ref.listen<List<Transfer>>(activeTransfersProvider, (prev, next) {
       final prevIds = prev?.map((t) => t.id).toSet() ?? {};
@@ -542,14 +634,6 @@ class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
         );
       }
     });
-
-    // Update persistent notification text when the locale changes (Android).
-    if (Platform.isAndroid) {
-      BackgroundTransferService.instance.updatePersistentNotifStrings(
-        title: AppLocalizations.get('notifPersistentTitle', locale),
-        text: AppLocalizations.get('notifPersistentText', locale),
-      );
-    }
 
     final screenCount = _screens.length;
 
@@ -596,7 +680,7 @@ class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
           _NavIntent: CallbackAction<_NavIntent>(
             onInvoke: (intent) {
               if (intent.index < screenCount) {
-                setState(() => _selectedIndex = intent.index);
+                _selectIndex(intent.index);
               }
               return null;
             },
@@ -638,9 +722,11 @@ class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
     final activeSyncCount =
         syncState.jobs.where((j) => j.isActive).length +
         serverSyncState.jobs.where((j) => j.isActive).length;
+    final unreadClipboardCount = ref.watch(clipboardUnreadCountProvider);
 
     final badges = <int, String>{
       if (activeTransferCount > 0) 1: '$activeTransferCount',
+      if (unreadClipboardCount > 0) 2: '$unreadClipboardCount',
       if (activeSyncCount > 0) 3: '$activeSyncCount',
     };
 
@@ -657,7 +743,7 @@ class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
                 // Left sidebar
                 TvSidebar(
                   selectedIndex: _selectedIndex,
-                  onIndexChanged: (i) => setState(() => _selectedIndex = i),
+                  onIndexChanged: _selectIndex,
                   locale: locale,
                   isTv: false,
                   isCollapsed: isSidebarCollapsed,
@@ -742,7 +828,7 @@ class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
                     ? NavigationRailLabelType.none
                     : NavigationRailLabelType.all,
                 onDestinationSelected: (index) {
-                  setState(() => _selectedIndex = index);
+                  _selectIndex(index);
                 },
                 destinations: [
                   for (int i = 0; i < navLabels.length; i++)
@@ -781,6 +867,7 @@ class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
       Icons.content_paste_rounded,
       Icons.more_horiz_rounded,
     ];
+    final unreadClipboardCount = ref.watch(clipboardUnreadCountProvider);
 
     return Scaffold(
       body: _AnimatedIndexedStack(index: _selectedIndex, children: _screens),
@@ -790,14 +877,22 @@ class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
           if (index == 3) {
             _showMoreDestinations(locale);
           } else {
-            setState(() => _selectedIndex = index);
+            _selectIndex(index);
           }
         },
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         height: 64,
         destinations: [
           for (int i = 0; i < navLabels.length; i++)
-            NavigationDestination(icon: Icon(navIcons[i]), label: navLabels[i]),
+            NavigationDestination(
+              icon: i == 2 && unreadClipboardCount > 0
+                  ? Badge(
+                      label: Text('$unreadClipboardCount'),
+                      child: Icon(navIcons[i]),
+                    )
+                  : Icon(navIcons[i]),
+              label: navLabels[i],
+            ),
         ],
       ),
     );
@@ -846,7 +941,7 @@ class _MainShellState extends ConsumerState<_MainShell> with WindowListener {
     );
 
     if (selected != null && mounted) {
-      setState(() => _selectedIndex = selected);
+      _selectIndex(selected);
     }
   }
 }

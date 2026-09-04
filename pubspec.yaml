@@ -1,7 +1,7 @@
 name: anyware
 description: "LifeOS AnyWhere - Cross-platform local network file sharing"
 publish_to: 'none'
-version: 1.0.0+4
+version: 1.0.0+2005
 
 environment:
   sdk: ^3.11.0

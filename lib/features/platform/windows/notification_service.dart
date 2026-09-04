@@ -4,23 +4,25 @@ import 'package:anyware/core/logger.dart';
 import 'package:local_notifier/local_notifier.dart';
 import 'package:window_manager/window_manager.dart';
 
-/// Manages Windows toast notifications for file transfer events.
+/// Manages native desktop notifications on Windows, Linux, and macOS.
 ///
-/// Only functional on Windows. On other platforms all methods are no-ops.
 /// Callers are responsible for providing localised strings.
-class WindowsNotificationService {
-  WindowsNotificationService._();
+class DesktopNotificationService {
+  DesktopNotificationService._();
 
   static final _log = AppLogger('Notification');
 
-  static final WindowsNotificationService instance =
-      WindowsNotificationService._();
+  static final DesktopNotificationService instance =
+      DesktopNotificationService._();
+
+  bool get _isDesktop =>
+      Platform.isWindows || Platform.isLinux || Platform.isMacOS;
 
   bool _initialized = false;
 
   /// Initializes the local notifier. Call once during app startup.
   Future<void> init() async {
-    if (!Platform.isWindows) return;
+    if (!_isDesktop) return;
     if (_initialized) return;
 
     try {
@@ -37,23 +39,29 @@ class WindowsNotificationService {
   /// Shows a toast notification with the given [title] and [body].
   ///
   /// Callers are responsible for providing localised strings.
-  void notify({required String title, required String body}) {
-    _show(title: title, body: body);
+  void notify({
+    required String title,
+    required String body,
+    void Function()? onClick,
+  }) {
+    _show(title: title, body: body, onClick: onClick);
   }
 
-  void _show({required String title, required String body}) {
-    if (!Platform.isWindows || !_initialized) return;
+  void _show({
+    required String title,
+    required String body,
+    void Function()? onClick,
+  }) {
+    if (!_isDesktop || !_initialized) return;
 
     try {
-      final notification = LocalNotification(
-        title: title,
-        body: body,
-      );
+      final notification = LocalNotification(title: title, body: body);
 
       // When user clicks the notification, bring the window to front.
       notification.onClick = () {
         windowManager.show();
         windowManager.focus();
+        onClick?.call();
       };
 
       notification.show();

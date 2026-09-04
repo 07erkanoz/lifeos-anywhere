@@ -85,7 +85,9 @@ class DiscoveryService {
   Future<void> start() async {
     if (_socket != null) return;
 
-    _log.info('Starting... (device: ${localDevice.name}, id: ${localDevice.id})');
+    _log.info(
+      'Starting... (device: ${localDevice.name}, id: ${localDevice.id})',
+    );
 
     // Resolve local IP so we can update localDevice and filter our own packets.
     final localIp = await _getLocalIp();
@@ -94,15 +96,17 @@ class DiscoveryService {
       localDevice = localDevice.copyWith(ip: localIp);
     }
 
-    final multicastAddress =
-        InternetAddress(AppConstants.multicastGroup, type: InternetAddressType.IPv4);
+    final multicastAddress = InternetAddress(
+      AppConstants.multicastGroup,
+      type: InternetAddressType.IPv4,
+    );
 
     // Windows & Android/iOS: bind to anyIPv4 so we receive all packet types.
     // Linux/macOS: bind to multicast address (required by kernel for multicast).
     final bindAddress =
         (Platform.isWindows || Platform.isAndroid || Platform.isIOS)
-            ? InternetAddress.anyIPv4
-            : multicastAddress;
+        ? InternetAddress.anyIPv4
+        : multicastAddress;
 
     // On Windows, binding to a specific UDP port can fail with errno 10013
     // (WSAEACCES) if the Windows Firewall hasn't granted inbound access yet.
@@ -130,7 +134,9 @@ class DiscoveryService {
           // Wait a bit for the firewall rule to take effect.
           await Future<void>.delayed(const Duration(seconds: 2));
         } else {
-          _log.error('ALL bind attempts failed. Discovery will not receive packets.');
+          _log.error(
+            'ALL bind attempts failed. Discovery will not receive packets.',
+          );
           rethrow;
         }
       }
@@ -145,7 +151,9 @@ class DiscoveryService {
     // discovery works regardless of which adapter is connected to the LAN.
     await _joinMulticastOnAllInterfaces(multicastAddress, localIp);
 
-    _log.info('Multicast joined. Listening on port $boundPort, broadcasting to ${AppConstants.discoveryPort}.');
+    _log.info(
+      'Multicast joined. Listening on port $boundPort, broadcasting to ${AppConstants.discoveryPort}.',
+    );
 
     // On Windows with virtual adapters (Hyper-V, WSL), the main socket bound
     // to anyIPv4 may send multicast/broadcast through the wrong interface
@@ -161,7 +169,9 @@ class DiscoveryService {
         );
         _sendSocket!.broadcastEnabled = true;
         _sendSocket!.multicastLoopback = true;
-        _log.info('Dedicated send socket bound to $localIp (ensures correct interface).');
+        _log.info(
+          'Dedicated send socket bound to $localIp (ensures correct interface).',
+        );
       } catch (e) {
         _log.warning('Could not create dedicated send socket: $e');
         // Fall back to main socket for sending.
@@ -194,7 +204,11 @@ class DiscoveryService {
     // Broadcast our own info periodically.
     _broadcast();
     _broadcastTimer = Timer.periodic(
-      Duration(seconds: AppConstants.discoveryIntervalSeconds),
+      Duration(
+        seconds: Platform.isAndroid
+            ? AppConstants.androidDiscoveryIntervalSeconds
+            : AppConstants.discoveryIntervalSeconds,
+      ),
       (_) => _broadcast(),
     );
 
@@ -204,11 +218,12 @@ class DiscoveryService {
       (_) => _cleanupStaleDevices(),
     );
 
-    // Periodically re-join multicast group every 30 seconds.
+    // Periodically re-join multicast group. A two-minute interval is enough to
+    // recover dropped memberships without repeatedly waking mobile radios.
     // Some OS/router combos silently drop the IGMP membership, and Wi-Fi
     // power save can cause the chipset to leave the multicast group.
     _rejoinTimer = Timer.periodic(
-      const Duration(seconds: 30),
+      const Duration(seconds: AppConstants.multicastRejoinSeconds),
       (_) => _rejoinMulticast(),
     );
 
@@ -349,8 +364,10 @@ class DiscoveryService {
     if (_socket == null) return;
 
     _log.debug('Periodic multicast re-join...');
-    final multicastAddress =
-        InternetAddress(AppConstants.multicastGroup, type: InternetAddressType.IPv4);
+    final multicastAddress = InternetAddress(
+      AppConstants.multicastGroup,
+      type: InternetAddressType.IPv4,
+    );
 
     try {
       await _joinMulticastOnAllInterfaces(multicastAddress, localDevice.ip);
@@ -484,7 +501,9 @@ class DiscoveryService {
       );
 
       if (_consecutiveBroadcastFailures >= _maxConsecutiveFailures) {
-        _log.error('Too many consecutive broadcast failures — socket is dead, restarting.');
+        _log.error(
+          'Too many consecutive broadcast failures — socket is dead, restarting.',
+        );
         _consecutiveBroadcastFailures = 0;
         _scheduleRestart();
       }
@@ -540,7 +559,9 @@ class DiscoveryService {
       // Always emit so UI stays in sync (lastSeen, name, ip changes, etc.).
       _emitDevices();
     } catch (e) {
-      _log.debug('Malformed discovery packet from ${datagram.address.address}: $e');
+      _log.debug(
+        'Malformed discovery packet from ${datagram.address.address}: $e',
+      );
     }
   }
 

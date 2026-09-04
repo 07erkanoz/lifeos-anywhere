@@ -45,7 +45,8 @@ class ClipboardEntry {
     imagePath: json['imagePath'] as String?,
     senderName: json['senderName'] as String? ?? 'Unknown',
     senderDeviceId: json['senderDeviceId'] as String? ?? '',
-    timestamp: DateTime.tryParse(json['timestamp'] as String? ?? '') ?? DateTime.now(),
+    timestamp:
+        DateTime.tryParse(json['timestamp'] as String? ?? '') ?? DateTime.now(),
     type: ClipboardContentType.values.firstWhere(
       (e) => e.name == (json['type'] as String? ?? 'text'),
       orElse: () => ClipboardContentType.text,
@@ -60,12 +61,24 @@ final clipboardServiceProvider = Provider((ref) => ClipboardService());
 
 /// Provider for clipboard history (persisted via SharedPreferences).
 final clipboardHistoryProvider =
-    StateNotifierProvider<ClipboardHistoryNotifier, List<ClipboardEntry>>(
-  (ref) {
-    final prefs = ref.watch(sharedPreferencesProvider);
-    return ClipboardHistoryNotifier(prefs);
-  },
+    StateNotifierProvider<ClipboardHistoryNotifier, List<ClipboardEntry>>((
+      ref,
+    ) {
+      final prefs = ref.watch(sharedPreferencesProvider);
+      return ClipboardHistoryNotifier(prefs);
+    });
+
+/// Latest clipboard item received from another device. This is an ephemeral
+/// UI event; the durable copy lives in [clipboardHistoryProvider].
+final clipboardReceivedEventProvider = StateProvider<ClipboardEntry?>(
+  (ref) => null,
 );
+
+/// Number of received clipboard items not yet opened by the user.
+final clipboardUnreadCountProvider = StateProvider<int>((ref) => 0);
+
+/// Incremented when a desktop notification asks the app to open Clipboard.
+final clipboardOpenRequestProvider = StateProvider<int>((ref) => 0);
 
 /// Manages clipboard history with persistence (last 50 entries).
 class ClipboardHistoryNotifier extends StateNotifier<List<ClipboardEntry>> {
@@ -90,34 +103,42 @@ class ClipboardHistoryNotifier extends StateNotifier<List<ClipboardEntry>> {
     }
   }
 
-  void _save() {
+  Future<void> _save() async {
     final json = jsonEncode(state.map((e) => e.toJson()).toList());
-    _prefs.setString(_historyKey, json);
+    await _prefs.setString(_historyKey, json);
   }
 
   void addEntry(ClipboardEntry entry) {
-    // Avoid duplicates (same text within last 2 seconds).
+    // Avoid accidental double-send entries from the same device.
     if (state.isNotEmpty) {
       final last = state.first;
-      if (last.text == entry.text &&
-          entry.timestamp.difference(last.timestamp).inSeconds < 2) {
+      final sameContent = entry.type == ClipboardContentType.text
+          ? last.type == entry.type && last.text == entry.text
+          : last.type == entry.type && last.imagePath == entry.imagePath;
+      final secondsApart = entry.timestamp
+          .difference(last.timestamp)
+          .inSeconds
+          .abs();
+      if (sameContent &&
+          last.senderDeviceId == entry.senderDeviceId &&
+          secondsApart < 10) {
         return;
       }
     }
 
     state = [entry, ...state].take(_maxHistory).toList();
-    _save();
+    unawaited(_save());
   }
 
   void clear() {
     state = [];
-    _save();
+    unawaited(_save());
   }
 
   void removeAt(int index) {
     if (index >= 0 && index < state.length) {
       state = [...state]..removeAt(index);
-      _save();
+      unawaited(_save());
     }
   }
 }
@@ -146,17 +167,19 @@ class ClipboardService {
     );
 
     try {
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'text': text,
-          'sender': senderName,
-          'senderDeviceId': senderDeviceId,
-          'type': 'text',
-          'timestamp': DateTime.now().toIso8601String(),
-        }),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .post(
+            url,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'text': text,
+              'sender': senderName,
+              'senderDeviceId': senderDeviceId,
+              'type': 'text',
+              'timestamp': DateTime.now().toIso8601String(),
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode != 200) {
         throw Exception('Failed to send clipboard: ${response.statusCode}');
@@ -184,21 +207,25 @@ class ClipboardService {
     final base64Image = base64Encode(bytes);
 
     try {
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'text': '',
-          'imageBase64': base64Image,
-          'sender': senderName,
-          'senderDeviceId': senderDeviceId,
-          'type': 'image',
-          'timestamp': DateTime.now().toIso8601String(),
-        }),
-      ).timeout(const Duration(seconds: 30));
+      final response = await http
+          .post(
+            url,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'text': '',
+              'imageBase64': base64Image,
+              'sender': senderName,
+              'senderDeviceId': senderDeviceId,
+              'type': 'image',
+              'timestamp': DateTime.now().toIso8601String(),
+            }),
+          )
+          .timeout(const Duration(seconds: 30));
 
       if (response.statusCode != 200) {
-        throw Exception('Failed to send image clipboard: ${response.statusCode}');
+        throw Exception(
+          'Failed to send image clipboard: ${response.statusCode}',
+        );
       }
     } catch (e) {
       throw Exception('Image clipboard transfer error: $e');
