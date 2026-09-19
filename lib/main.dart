@@ -114,11 +114,7 @@ Future<void> main(List<String> args) async {
 
     await windowManager.ensureInitialized();
 
-    // Sidebar + content area comfortably fit at this size.
-    const windowSize = Size(720, 680);
-    await windowManager.setSize(windowSize);
-    await windowManager.setMinimumSize(const Size(560, 560));
-    await windowManager.center();
+    await windowManager.setMinimumSize(const Size(576, 601));
     await windowManager.setTitle('LifeOS AnyWhere');
     await windowManager.setPreventClose(true);
 
@@ -128,6 +124,17 @@ Future<void> main(List<String> args) async {
       TitleBarStyle.hidden,
       windowButtonVisibility: false,
     );
+
+    // Size the window only after the titlebar style is applied. Hiding the
+    // caption makes Windows recalculate the frame, which shifts a size set
+    // beforehand — that is why the same build used to open at different sizes.
+    //
+    // setSize takes the OUTER rect on Windows: 16x9 goes to the resize frame
+    // and another 32px to the titlebar the app draws itself, leaving the
+    // 834x674 of usable content the dashboard needs to fit without scrolling.
+    const windowSize = Size(850, 715);
+    await windowManager.setSize(windowSize);
+    await windowManager.center();
 
     // Set the taskbar icon explicitly. With TitleBarStyle.hidden, the default
     // window class icon may not propagate to the taskbar on some systems.
@@ -168,7 +175,10 @@ Future<void> main(List<String> args) async {
   if (Platform.isLinux || Platform.isMacOS) {
     await windowManager.ensureInitialized();
 
-    const windowSize = Size(720, 680);
+    // The same 834x674 of usable content Windows gets above. There is no
+    // custom titlebar here — the window manager draws its own outside the
+    // content area — so the size goes in unadjusted.
+    const windowSize = Size(834, 674);
     await windowManager.setSize(windowSize);
     await windowManager.setMinimumSize(const Size(560, 560));
     await windowManager.center();

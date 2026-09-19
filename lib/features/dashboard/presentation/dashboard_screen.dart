@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:async';
 
 import 'package:desktop_drop/desktop_drop.dart';
+import 'package:anyware/core/app_visibility.dart';
 import 'package:anyware/core/file_picker_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -1265,97 +1266,146 @@ class _ScanningDeviceVisual extends StatefulWidget {
   State<_ScanningDeviceVisual> createState() => _ScanningDeviceVisualState();
 }
 
-class _ScanningDeviceVisualState extends State<_ScanningDeviceVisual>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
+class _ScanningDeviceVisualState extends State<_ScanningDeviceVisual> {
+  /// Pulse progress in [0, 1), driven by a timer instead of a vsync ticker.
+  ///
+  /// An [AnimationController] advances once per display refresh, which on a
+  /// high-refresh laptop panel means 200 frames a second for a slow decorative
+  /// pulse. Stepping it at ~30 fps looks the same and leaves Flutter roughly a
+  /// sixth as many frames to build and rasterize.
+  final ValueNotifier<double> _progress = ValueNotifier<double>(_restingValue);
+
+  Timer? _timer;
+  Duration _elapsed = Duration.zero;
+
+  /// Static frame shown whenever the pulse is not running.
+  static const double _restingValue = 0.35;
+  static const Duration _period = Duration(milliseconds: 1800);
+  static const Duration _step = Duration(milliseconds: 33);
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1800),
-    );
+    appUiVisible.addListener(_syncAnimation);
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _syncAnimation();
+  }
+
+  /// Runs the pulse only while it can actually be seen.
+  ///
+  /// The window can be minimized or hidden to the tray while the process keeps
+  /// running, and Flutter keeps producing frames in that state, so leaving the
+  /// animation going burns CPU for a surface nobody is looking at.
+  void _syncAnimation() {
+    if (!mounted) return;
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
-    if (reduceMotion) {
-      _controller.stop();
-      _controller.value = 0.35;
-    } else if (!_controller.isAnimating) {
-      _controller.repeat();
+    // Every screen stays mounted in the shell's stack and only the selected
+    // one has tickers enabled. A ticker-driven animation would be muted here
+    // automatically; a timer has to check TickerMode itself, otherwise the
+    // pulse keeps running while the user is on another tab.
+    final onActiveScreen = TickerMode.valuesOf(context).enabled;
+    final shouldRun = appUiVisible.value && !reduceMotion && onActiveScreen;
+
+    if (shouldRun) {
+      _timer ??= Timer.periodic(_step, _tick);
+    } else {
+      _timer?.cancel();
+      _timer = null;
+      _elapsed = Duration.zero;
+      _progress.value = _restingValue;
     }
+  }
+
+  void _tick(Timer _) {
+    _elapsed += _step;
+    _progress.value =
+        (_elapsed.inMilliseconds % _period.inMilliseconds) /
+        _period.inMilliseconds;
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    appUiVisible.removeListener(_syncAnimation);
+    _timer?.cancel();
+    _progress.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final size = widget.compact ? 68.0 : 104.0;
-    return SizedBox(
-      width: size,
-      height: size,
-      child: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, child) {
-          final value = Curves.easeOut.transform(_controller.value);
-          return Stack(
-            alignment: Alignment.center,
-            children: [
-              Transform.scale(
-                scale: 0.72 + (value * 0.38),
-                child: Opacity(
-                  opacity: (1 - value).clamp(0.0, 1.0),
+
+    // The inner disc never changes with the animation, so it is built once and
+    // handed to AnimatedBuilder as `child` instead of being rebuilt — along
+    // with its gradient and blurred shadow — on every frame.
+    final core = Container(
+      width: size * 0.68,
+      height: size * 0.68,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(
+          colors: [
+            widget.color.withValues(alpha: 0.24),
+            widget.color.withValues(alpha: 0.08),
+          ],
+        ),
+        border: Border.all(color: widget.color.withValues(alpha: 0.24)),
+        boxShadow: [
+          BoxShadow(
+            color: widget.color.withValues(alpha: 0.18),
+            blurRadius: 18,
+          ),
+        ],
+      ),
+      child: Icon(
+        Icons.devices_other_rounded,
+        size: size * 0.32,
+        color: widget.color,
+      ),
+    );
+
+    // RepaintBoundary keeps the pulse on its own layer. Without it every frame
+    // marks the whole dashboard dirty and re-rasterizes the cards, gradients,
+    // shadows and text around it.
+    return RepaintBoundary(
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: AnimatedBuilder(
+          animation: _progress,
+          child: core,
+          builder: (context, child) {
+            final value = Curves.easeOut.transform(_progress.value);
+            return Stack(
+              alignment: Alignment.center,
+              children: [
+                Transform.scale(
+                  scale: 0.72 + (value * 0.38),
+                  // Fading the border colour directly avoids the offscreen
+                  // saveLayer that an Opacity widget forces every frame.
                   child: Container(
                     width: size,
                     height: size,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: widget.color.withValues(alpha: 0.42),
+                        color: widget.color.withValues(
+                          alpha: 0.42 * (1 - value).clamp(0.0, 1.0),
+                        ),
                         width: 2,
                       ),
                     ),
                   ),
                 ),
-              ),
-              Container(
-                width: size * 0.68,
-                height: size * 0.68,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      widget.color.withValues(alpha: 0.24),
-                      widget.color.withValues(alpha: 0.08),
-                    ],
-                  ),
-                  border: Border.all(
-                    color: widget.color.withValues(alpha: 0.24),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: widget.color.withValues(alpha: 0.18),
-                      blurRadius: 18,
-                    ),
-                  ],
-                ),
-                child: Icon(
-                  Icons.devices_other_rounded,
-                  size: size * 0.32,
-                  color: widget.color,
-                ),
-              ),
-            ],
-          );
-        },
+                child!,
+              ],
+            );
+          },
+        ),
       ),
     );
   }

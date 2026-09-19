@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:anyware/core/app_visibility.dart';
 import 'package:anyware/core/background_service.dart';
 import 'package:anyware/core/android_platform_service.dart';
 import 'package:anyware/core/constants.dart';
@@ -139,6 +140,7 @@ class _MainShellState extends ConsumerState<_MainShell>
   bool? _sidebarCollapsedOverride;
   bool _isGlobalDragging = false;
   bool _androidNetworkShouldRun = false;
+  Timer? _visibilityPoll;
 
   /// Whether the device is an Android TV.
   bool get _isTV => Platform.isAndroid && TvDetector.isTVCached;
@@ -184,6 +186,7 @@ class _MainShellState extends ConsumerState<_MainShell>
     super.initState();
     windowManager.addListener(this);
     WidgetsBinding.instance.addObserver(this);
+    if (_useSidebar) _startVisibilityPoll();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initLocaleIfNeeded();
       if (Platform.isAndroid) {
@@ -195,21 +198,85 @@ class _MainShellState extends ConsumerState<_MainShell>
     });
   }
 
+  /// Records whether the UI is on screen, so continuous animations can pause
+  /// while it is not. Logged because the signals differ per platform and the
+  /// cost of getting it wrong is a laptop running the GPU flat out in the tray.
+  void _setUiVisible(bool visible, String source) {
+    if (appUiVisible.value == visible) return;
+    appUiVisible.value = visible;
+    AppLogger('Window').info('UI visible = $visible (via $source)');
+  }
+
+  /// Polls the real window state on desktop.
+  ///
+  /// The minimize/restore/focus events do not fire reliably across window
+  /// managers, and Flutter keeps producing frames for a minimized window, so
+  /// the events alone can leave the flag stuck — either burning CPU while
+  /// minimized, or freezing animations after the window comes back. A two
+  /// second poll costs nothing measurable and makes the flag self-correcting;
+  /// the events above still give an instant response wherever they do fire.
+  void _startVisibilityPoll() {
+    _visibilityPoll = Timer.periodic(const Duration(seconds: 2), (_) async {
+      try {
+        final visible = await windowManager.isVisible();
+        final minimized = await windowManager.isMinimized();
+        _setUiVisible(visible && !minimized, 'poll');
+      } catch (_) {}
+    });
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (!Platform.isAndroid) return;
     switch (state) {
       case AppLifecycleState.resumed:
-        unawaited(_resumeAndroidNetwork());
+        _setUiVisible(true, 'lifecycle.resumed');
+        if (Platform.isAndroid) unawaited(_resumeAndroidNetwork());
         return;
-      case AppLifecycleState.inactive:
       case AppLifecycleState.hidden:
       case AppLifecycleState.paused:
       case AppLifecycleState.detached:
-        _pauseAndroidNetwork();
+        _setUiVisible(false, 'lifecycle.$state');
+        if (Platform.isAndroid) _pauseAndroidNetwork();
+        return;
+      case AppLifecycleState.inactive:
+        // Desktop reports `inactive` when the window merely loses focus, so it
+        // must not count as hidden there. On Android it precedes a real pause.
+        if (Platform.isAndroid) _pauseAndroidNetwork();
         return;
     }
   }
+
+  // Window events cover the desktop cases the lifecycle observer can miss —
+  // notably hiding to the system tray, where the process keeps running and
+  // Flutter keeps producing frames for a window nobody can see.
+
+  @override
+  void onWindowEvent(String eventName) {
+    // Resize and move fire continuously while the user drags; logging those
+    // would cost more than it tells us.
+    const noisy = {'resize', 'resized', 'move', 'moved'};
+    if (noisy.contains(eventName)) return;
+    AppLogger('Window').info('Window event: $eventName');
+
+    // WindowListener has no typed callback for show/hide, but window_manager
+    // does emit them — and they cover every path that hides to or restores
+    // from the tray, wherever show()/hide() is called from.
+    switch (eventName) {
+      case 'show':
+        _setUiVisible(true, 'window.show');
+      case 'hide':
+        _setUiVisible(false, 'window.hide');
+    }
+  }
+
+  @override
+  void onWindowMinimize() => _setUiVisible(false, 'window.minimize');
+
+  @override
+  void onWindowRestore() => _setUiVisible(true, 'window.restore');
+
+  @override
+  void onWindowFocus() => _setUiVisible(true, 'window.focus');
 
   Future<void> _resumeAndroidNetwork() async {
     _androidNetworkShouldRun = true;
@@ -349,6 +416,8 @@ class _MainShellState extends ConsumerState<_MainShell>
     // "Exit"), just hide the window and keep running.
     if (settings.minimizeToTray && !isTrayExit) {
       await windowManager.hide();
+      // window_manager emits no event for hide, so mark it here.
+      _setUiVisible(false, 'tray.hide');
       return;
     }
 
@@ -441,6 +510,7 @@ class _MainShellState extends ConsumerState<_MainShell>
 
   @override
   void dispose() {
+    _visibilityPoll?.cancel();
     windowManager.removeListener(this);
     WidgetsBinding.instance.removeObserver(this);
     if (Platform.isAndroid) {
