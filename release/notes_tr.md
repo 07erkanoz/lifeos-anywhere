@@ -1,0 +1,4 @@
+- LifeOS AnyWhere artık lifeos.com.tr/anywhere adresinden indirilebiliyor.
+- Windows için kurulum programı, Linux için kurulum betikli paket ve imzalı Android paketi var.
+- Masaüstünde pil tüketimi azaldı; pencere içeriğine göre boyutlanıyor.
+- Pano uyarıları iyileştirildi; Android'de pil kullanımı azaldı.

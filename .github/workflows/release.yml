@@ -1,0 +1,252 @@
+# Builds LifeOS AnyWhere for Windows, Linux and Android. A v tag publishes it: a
+# GitHub release with the three packages, and the same packages on
+# lifeos.com.tr/anywhere (tool/release/send_to_site.sh). Run by hand, it only
+# builds, and the packages stay as the run's artifacts.
+name: Derle ve yayımla
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: '3.47.7'
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.read.outputs.version }}
+      build: ${{ steps.read.outputs.build }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - id: read
+        run: |
+          version="$(sed -nE 's/^version:[[:space:]]*([0-9]+\.[0-9]+\.[0-9]+)\+([0-9]+).*/\1/p' pubspec.yaml)"
+          build="$(sed -nE 's/^version:[[:space:]]*[0-9.]+\+([0-9]+).*/\1/p' pubspec.yaml)"
+          test -n "$version" && test -n "$build"
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            case "$GITHUB_REF_NAME" in
+              "v$version"|"v$version-$build") ;;
+              *) echo "::error::Etiket $GITHUB_REF_NAME, pubspec.yaml'daki v$version ile uyuşmuyor."; exit 1 ;;
+            esac
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "build=$build" >> "$GITHUB_OUTPUT"
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter test
+
+  windows:
+    needs: [version, test]
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Bulut hizmetlerinin anahtarları
+        shell: bash
+        env:
+          GDRIVE_CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
+          GDRIVE_CLIENT_SECRET: ${{ secrets.GDRIVE_CLIENT_SECRET }}
+          GDRIVE_ANDROID_CLIENT_ID: ${{ secrets.GDRIVE_ANDROID_CLIENT_ID }}
+          MS_CLIENT_ID: ${{ secrets.MS_CLIENT_ID }}
+          MS_CLIENT_SECRET: ${{ secrets.MS_CLIENT_SECRET }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          REVENUECAT_API_KEY: ${{ secrets.REVENUECAT_API_KEY }}
+          TURN_USERNAME: ${{ secrets.TURN_USERNAME }}
+          TURN_CREDENTIAL: ${{ secrets.TURN_CREDENTIAL }}
+        run: |
+          for k in GDRIVE_CLIENT_ID GDRIVE_CLIENT_SECRET GDRIVE_ANDROID_CLIENT_ID MS_CLIENT_ID \
+            MS_CLIENT_SECRET SUPABASE_URL SUPABASE_ANON_KEY REVENUECAT_API_KEY TURN_USERNAME TURN_CREDENTIAL; do
+            printf '%s=%s\n' "$k" "${!k}"
+          done > .env
+      - run: flutter pub get
+      - run: flutter build windows --release --build-name=${{ needs.version.outputs.version }} --build-number=${{ needs.version.outputs.build }} --dart-define-from-file=.env
+      - name: Kurulum programını oluştur
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup -y --no-progress
+          }
+          & $iscc "/DAppVersion=${{ needs.version.outputs.version }}" installer\windows\setup.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: build/installer/LifeOS-AnyWhere-*-Windows-x64-Setup.exe
+          if-no-files-found: error
+
+  linux:
+    needs: [version, test]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Linux derleme araçları
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev \
+            liblzma-dev imagemagick libglib2.0-dev libdbus-1-dev libnotify-dev libayatana-appindicator3-dev libsecret-1-dev
+      - name: Bulut hizmetlerinin anahtarları
+        shell: bash
+        env:
+          GDRIVE_CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
+          GDRIVE_CLIENT_SECRET: ${{ secrets.GDRIVE_CLIENT_SECRET }}
+          GDRIVE_ANDROID_CLIENT_ID: ${{ secrets.GDRIVE_ANDROID_CLIENT_ID }}
+          MS_CLIENT_ID: ${{ secrets.MS_CLIENT_ID }}
+          MS_CLIENT_SECRET: ${{ secrets.MS_CLIENT_SECRET }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          REVENUECAT_API_KEY: ${{ secrets.REVENUECAT_API_KEY }}
+          TURN_USERNAME: ${{ secrets.TURN_USERNAME }}
+          TURN_CREDENTIAL: ${{ secrets.TURN_CREDENTIAL }}
+        run: |
+          for k in GDRIVE_CLIENT_ID GDRIVE_CLIENT_SECRET GDRIVE_ANDROID_CLIENT_ID MS_CLIENT_ID \
+            MS_CLIENT_SECRET SUPABASE_URL SUPABASE_ANON_KEY REVENUECAT_API_KEY TURN_USERNAME TURN_CREDENTIAL; do
+            printf '%s=%s\n' "$k" "${!k}"
+          done > .env
+      - run: flutter pub get
+      - run: flutter build linux --release --build-name=${{ needs.version.outputs.version }} --build-number=${{ needs.version.outputs.build }} --dart-define-from-file=.env
+      - name: Linux paketini oluştur
+        run: bash packaging/linux/make-release.sh
+      - name: Paketten kurulumu dene
+        run: |
+          work="$RUNNER_TEMP/kur"
+          mkdir -p "$work"
+          tar -C "$work" -xzf artifacts/LifeOS-AnyWhere-*-Linux-x64.tar.gz
+          . packaging/linux/uygulama.conf
+          XDG_DATA_HOME="$work/data" sh "$work/$PREFIX/kur.sh"
+          test -x "$work/data/$SLUG/$BINARY"
+          grep -q "$work/data/$SLUG/$BINARY" "$work/data/applications/$APP_ID.desktop"
+          test -s "$work/data/icons/hicolor/512x512/apps/$APP_ID.png"
+          XDG_DATA_HOME="$work/data" sh "$work/data/$SLUG/kur.sh" --kaldir
+          test ! -e "$work/data/$SLUG"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: artifacts/LifeOS-AnyWhere-*-Linux-x64.tar.gz
+          if-no-files-found: error
+
+  android:
+    needs: [version, test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-java@v6.0.1
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Bulut hizmetlerinin anahtarları
+        shell: bash
+        env:
+          GDRIVE_CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
+          GDRIVE_CLIENT_SECRET: ${{ secrets.GDRIVE_CLIENT_SECRET }}
+          GDRIVE_ANDROID_CLIENT_ID: ${{ secrets.GDRIVE_ANDROID_CLIENT_ID }}
+          MS_CLIENT_ID: ${{ secrets.MS_CLIENT_ID }}
+          MS_CLIENT_SECRET: ${{ secrets.MS_CLIENT_SECRET }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          REVENUECAT_API_KEY: ${{ secrets.REVENUECAT_API_KEY }}
+          TURN_USERNAME: ${{ secrets.TURN_USERNAME }}
+          TURN_CREDENTIAL: ${{ secrets.TURN_CREDENTIAL }}
+        run: |
+          for k in GDRIVE_CLIENT_ID GDRIVE_CLIENT_SECRET GDRIVE_ANDROID_CLIENT_ID MS_CLIENT_ID \
+            MS_CLIENT_SECRET SUPABASE_URL SUPABASE_ANON_KEY REVENUECAT_API_KEY TURN_USERNAME TURN_CREDENTIAL; do
+            printf '%s=%s\n' "$k" "${!k}"
+          done > .env
+      - name: İmza anahtarı
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          test -n "$ANDROID_KEYSTORE_BASE64" || { echo "::error::ANDROID_KEYSTORE_BASE64 yok."; exit 1; }
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/upload-keystore.jks
+          printf 'storePassword=%s\nkeyPassword=%s\nkeyAlias=%s\nstoreFile=../upload-keystore.jks\n' \
+            "$KEYSTORE_PASSWORD" "$KEY_PASSWORD" "$KEY_ALIAS" > android/key.properties
+      - run: flutter pub get
+      - run: flutter build apk --release --build-name=${{ needs.version.outputs.version }} --build-number=${{ needs.version.outputs.build }} --dart-define-from-file=.env
+      # A package signed with the debug key could not update the one people
+      # have: it must be the release key's.
+      - name: İmzayı denetle
+        run: |
+          apksigner="$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)"
+          "$apksigner" verify --print-certs build/app/outputs/flutter-apk/app-release.apk > signer.txt
+          cat signer.txt
+          if grep -q "CN=Android Debug" signer.txt; then
+            echo "::error::APK hata ayıklama anahtarıyla imzalanmış."
+            exit 1
+          fi
+          mkdir -p artifacts
+          cp build/app/outputs/flutter-apk/app-release.apk "artifacts/LifeOS-AnyWhere-${{ needs.version.outputs.version }}-Android.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: artifacts/LifeOS-AnyWhere-*-Android.apk
+          if-no-files-found: error
+
+  publish:
+    if: github.ref_type == 'tag'
+    needs: [version, windows, linux, android]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: version.json
+        env:
+          MIN_SUPPORTED: ''
+        run: |
+          bash tool/release/version_json.sh anywhere LifeOS-AnyWhere "${{ needs.version.outputs.version }}" "${{ needs.version.outputs.build }}" dist > "$RUNNER_TEMP/version.json"
+          mv "$RUNNER_TEMP/version.json" dist/version.json
+          cat dist/version.json
+      - name: GitHub sürümü
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          notes="$RUNNER_TEMP/notes.md"
+          cat release/notes_tr.md > "$notes" 2>/dev/null || true
+          gh release create "$GITHUB_REF_NAME" --title "LifeOS AnyWhere ${{ needs.version.outputs.version }}" \
+            --notes-file "$notes" dist/LifeOS-AnyWhere-*
+      - name: lifeos.com.tr'ye gönder
+        env:
+          DEPLOY_KEY: ${{ secrets.LIFEOS_DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.LIFEOS_DEPLOY_KNOWN_HOSTS }}
+        run: bash tool/release/send_to_site.sh dist anywhere

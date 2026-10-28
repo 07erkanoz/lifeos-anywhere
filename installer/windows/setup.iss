@@ -1,10 +1,15 @@
 ; LifeOS AnyWhere - Inno Setup Script
-; Generates a single setup.exe installer for Windows
+; The release workflow compiles it with the version from pubspec.yaml:
+;   iscc /DAppVersion=1.2.3 installer\windows\setup.iss
+; and gets build\installer\LifeOS-AnyWhere-<version>-Windows-x64-Setup.exe.
 
 #define MyAppName "LifeOS AnyWhere"
-#define MyAppVersion "1.0.0"
+#ifndef AppVersion
+  #define AppVersion "0.0.0"
+#endif
+#define MyAppVersion AppVersion
 #define MyAppPublisher "LifeOS"
-#define MyAppURL "https://lifeos.com.tr"
+#define MyAppURL "https://lifeos.com.tr/anywhere"
 #define MyAppExeName "lifeos_anywhere_v2.exe"
 
 [Setup]
@@ -20,7 +25,7 @@ DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 ; Output settings
 OutputDir=..\..\build\installer
-OutputBaseFilename=LifeOS-AnyWhere-Setup-{#MyAppVersion}
+OutputBaseFilename=LifeOS-AnyWhere-{#MyAppVersion}-Windows-x64-Setup
 ; Compression
 Compression=lzma2/ultra64
 SolidCompression=yes
@@ -38,8 +43,8 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 
 [Languages]
-Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "turkish"; MessagesFile: "compiler:Languages\Turkish.isl"
+Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "german"; MessagesFile: "compiler:Languages\German.isl"
 Name: "french"; MessagesFile: "compiler:Languages\French.isl"
 Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"
