@@ -1,4 +1,1 @@
-- LifeOS AnyWhere can now be downloaded from lifeos.com.tr/anywhere.
-- There is a Windows installer, a Linux package with an install script and a signed Android package.
-- Less battery drain on desktop; the window sizes itself to its content.
-- Clipboard alerts are improved; Android uses less battery.
+- The Linux package starts on Arch and LifeOS without extra libraries.

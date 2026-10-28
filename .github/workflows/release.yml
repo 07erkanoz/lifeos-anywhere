@@ -131,7 +131,17 @@ jobs:
             printf '%s=%s\n' "$k" "${!k}"
           done > .env
       - run: flutter pub get
+      # Only the libraries a file uses: Ubuntu's appindicator pulls in
+      # libayatana-indicator and -ido, which the tray plugin never calls and
+      # newer Arch (and so LifeOS) no longer installs with it.
       - run: flutter build linux --release --build-name=${{ needs.version.outputs.version }} --build-number=${{ needs.version.outputs.build }} --dart-define-from-file=.env
+        env:
+          LDFLAGS: -Wl,--as-needed
+      - name: Tepsi eklentisi yalnız appindicator'a bağlı
+        run: |
+          plugin=build/linux/x64/release/bundle/lib/libtray_manager_plugin.so
+          readelf -d "$plugin" | grep NEEDED
+          ! readelf -d "$plugin" | grep -qE 'libayatana-(indicator|ido)'
       - name: Linux paketini oluştur
         run: bash packaging/linux/make-release.sh
       - name: Paketten kurulumu dene
