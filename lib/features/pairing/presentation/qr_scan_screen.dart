@@ -15,6 +15,7 @@ import 'package:vibration/vibration.dart';
 import 'package:anyware/core/theme.dart';
 import 'package:anyware/features/discovery/domain/device.dart';
 import 'package:anyware/features/discovery/presentation/providers.dart';
+import 'package:anyware/features/pairing/presentation/providers.dart';
 import 'package:anyware/i18n/app_localizations.dart';
 
 final _log = AppLogger('QrScan');
@@ -104,6 +105,21 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> {
             ref.read(discoveryServiceProvider).valueOrNull;
         if (discoveryService != null) {
           discoveryService.addManualDevice(device);
+
+          // The QR carries a one-time pairing code: pair now, no prompt on
+          // the other device (its user showed us the code).
+          final pairCode = json['pairCode'] as String?;
+          final local = discoveryService.localDevice;
+          if (pairCode != null && pairCode.isNotEmpty) {
+            await ref.read(pairingClientProvider).requestPairing(
+                  ip: device.ip,
+                  port: device.port,
+                  localId: local.id,
+                  localName: local.name,
+                  localPlatform: local.platform,
+                  pairCode: pairCode,
+                );
+          }
 
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(

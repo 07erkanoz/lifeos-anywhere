@@ -9,6 +9,10 @@ class Device {
   final String version;
   final DateTime lastSeen;
 
+  /// Optional protocol features this device supports (e.g. `pairing-token`).
+  /// Only ever added to the JSON — old (1.0.x) parsers ignore unknown keys.
+  final List<String> capabilities;
+
   const Device({
     required this.id,
     required this.name,
@@ -17,6 +21,7 @@ class Device {
     required this.platform,
     required this.version,
     required this.lastSeen,
+    this.capabilities = const [],
   });
 
   factory Device.create({
@@ -46,6 +51,11 @@ class Device {
       platform: json['platform'] as String,
       version: json['version'] as String,
       lastSeen: DateTime.parse(json['lastSeen'] as String),
+      capabilities:
+          (json['capabilities'] as List<dynamic>?)
+              ?.whereType<String>()
+              .toList() ??
+          const [],
     );
   }
 
@@ -58,6 +68,7 @@ class Device {
       'platform': platform,
       'version': version,
       'lastSeen': lastSeen.toIso8601String(),
+      if (capabilities.isNotEmpty) 'capabilities': capabilities,
     };
   }
 
@@ -69,6 +80,7 @@ class Device {
     String? platform,
     String? version,
     DateTime? lastSeen,
+    List<String>? capabilities,
   }) {
     return Device(
       id: id ?? this.id,
@@ -78,6 +90,7 @@ class Device {
       platform: platform ?? this.platform,
       version: version ?? this.version,
       lastSeen: lastSeen ?? this.lastSeen,
+      capabilities: capabilities ?? this.capabilities,
     );
   }
 
@@ -117,6 +130,9 @@ class Device {
     }
   }
 
+  /// Whether this device can store a pairing token (protocol 1.1+).
+  bool get supportsPairingToken => capabilities.contains('pairing-token');
+
   /// Whether this device has been seen recently (within timeout).
   ///
   /// Uses 15 seconds (5x the 3-second broadcast interval) to prevent
@@ -136,5 +152,6 @@ class Device {
   int get hashCode => id.hashCode;
 
   @override
-  String toString() => 'Device(id: $id, name: $name, ip: $ip, platform: $platform)';
+  String toString() =>
+      'Device(id: $id, name: $name, ip: $ip, platform: $platform)';
 }

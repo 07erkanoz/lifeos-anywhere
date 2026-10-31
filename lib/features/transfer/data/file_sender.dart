@@ -6,6 +6,8 @@ import 'package:crypto/crypto.dart';
 
 import 'package:anyware/core/logger.dart';
 import 'package:anyware/features/discovery/domain/device.dart';
+import 'package:anyware/features/pairing/data/pairing_client.dart';
+import 'package:anyware/features/pairing/data/trust_store.dart';
 import 'package:anyware/features/transfer/domain/transfer.dart';
 import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
@@ -15,12 +17,17 @@ import 'package:uuid/uuid.dart';
 /// Includes HTTP timeouts, automatic retry with exponential backoff,
 /// and chunked streaming for large file transfer resilience.
 class FileSender {
-  FileSender({required this.localDevice});
+  FileSender({required this.localDevice, this.trustStore});
 
   static final _log = AppLogger('FileSender');
 
   /// The device info representing this machine (the sender).
   final Device localDevice;
+
+  /// Paired devices: supplies the token for the receiver and stores the one
+  /// a receiver issues on first pairing. `null` behaves like an old (1.0.x)
+  /// sender without token support.
+  final TrustStore? trustStore;
 
   /// Maximum upload speed in KB/s. 0 = unlimited.
   int maxUploadSpeedKBps = 0;
@@ -198,7 +205,14 @@ class FileSender {
 
     String reqResponse;
     try {
-      reqResponse = await _postWithRetry(requestUri, requestBody);
+      // The receiver may show a one-time pairing prompt (up to 60 s) when it
+      // does not know us yet, so allow longer than for a plain request.
+      reqResponse = await _postWithRetry(
+        requestUri,
+        requestBody,
+        headers: trustStore?.authHeaders(target.id) ?? const {},
+        timeout: const Duration(seconds: 90),
+      );
     } catch (e) {
       transfer = transfer.copyWith(
         status: TransferStatus.failed,
@@ -210,6 +224,7 @@ class FileSender {
 
     final reqJson = jsonDecode(reqResponse) as Map<String, dynamic>;
     final accepted = reqJson['accepted'] as bool? ?? false;
+    await PairingClient.rememberIssuedToken(trustStore, target, reqJson);
     final transferId = reqJson['transferId'] as String? ?? localId;
 
     // Replace the local placeholder ID with the server-assigned transferId.
@@ -741,10 +756,15 @@ class FileSender {
   }
 
   /// POST with automatic retry and exponential backoff.
-  Future<String> _postWithRetry(Uri uri, String body) async {
+  Future<String> _postWithRetry(
+    Uri uri,
+    String body, {
+    Map<String, String> headers = const {},
+    Duration timeout = const Duration(seconds: 30),
+  }) async {
     for (int attempt = 1; attempt <= _maxRetries; attempt++) {
       try {
-        return await _post(uri, body).timeout(const Duration(seconds: 30));
+        return await _post(uri, body, headers).timeout(timeout);
       } catch (e) {
         if (attempt == _maxRetries) rethrow;
         final delay = _baseRetryDelay * (1 << (attempt - 1));
@@ -758,9 +778,14 @@ class FileSender {
   }
 
   /// Convenience POST that returns the response body as a [String].
-  Future<String> _post(Uri uri, String body) async {
+  Future<String> _post(
+    Uri uri,
+    String body, [
+    Map<String, String> headers = const {},
+  ]) async {
     final request = await _httpClient.postUrl(uri);
     request.headers.contentType = ContentType.json;
+    headers.forEach(request.headers.set);
     request.write(body);
     final response = await request.close();
     return response.transform(utf8.decoder).join();

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -8,6 +9,7 @@ import 'package:anyware/core/constants.dart';
 import 'package:anyware/core/theme.dart';
 import 'package:anyware/features/discovery/domain/device.dart';
 import 'package:anyware/features/discovery/presentation/providers.dart';
+import 'package:anyware/features/pairing/presentation/providers.dart';
 import 'package:anyware/i18n/app_localizations.dart';
 
 /// Dialog that lets the user manually enter an IP address to connect
@@ -89,6 +91,21 @@ class _ManualIpDialogState extends ConsumerState<ManualIpDialog> {
           ref.read(discoveryServiceProvider).valueOrNull;
       if (discoveryService != null) {
         discoveryService.addManualDevice(device);
+
+        // Ask the device to pair right away; its user approves once and
+        // the two devices trust each other from then on.
+        final local = discoveryService.localDevice;
+        unawaited(
+          ref
+              .read(pairingClientProvider)
+              .requestPairing(
+                ip: ip,
+                port: port,
+                localId: local.id,
+                localName: local.name,
+                localPlatform: local.platform,
+              ),
+        );
       }
 
       if (mounted) {

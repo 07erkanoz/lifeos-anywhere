@@ -51,6 +51,7 @@ final localDeviceProvider = FutureProvider<Device>((ref) async {
     platform: platform,
     version: AppConstants.protocolVersion,
     lastSeen: DateTime.now(),
+    capabilities: const ['pairing-token'],
   );
 });
 

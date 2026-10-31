@@ -10,6 +10,8 @@ import 'package:anyware/core/logger.dart';
 
 import 'package:anyware/core/constants.dart';
 import 'package:anyware/features/discovery/domain/device.dart';
+import 'package:anyware/features/pairing/data/trust_store.dart';
+import 'package:anyware/features/pairing/domain/pairing_request.dart';
 import 'package:anyware/features/transfer/domain/transfer.dart';
 import 'package:path/path.dart' as p;
 import 'package:shelf/shelf.dart' as shelf;
@@ -31,9 +33,16 @@ import 'package:anyware/features/portal/data/portal_routes.dart';
 ///
 /// Files are saved in chunked fashion so that large payloads never need to be
 /// held entirely in memory.
+///
+/// Authorization: a device is approved once (pairing) and trusted from then
+/// on. Paired devices send the shared secret in [kPairTokenHeader]; old 1.0.x
+/// peers that cannot store a token are trusted by device id + IP. Unknown
+/// devices get a one-time pairing prompt ([onPairingRequest]). `/api/info`
+/// and `/api/ping` stay open for discovery.
 class FileServer {
   FileServer({
     required this.localDevice,
+    required this.trustStore,
     required this.downloadPath,
     this.overwriteFiles = false,
     this.syncReceiveFolder = '',
@@ -43,6 +52,9 @@ class FileServer {
 
   /// Info about the device running this server.
   final Device localDevice;
+
+  /// Paired devices, used to authorize incoming requests.
+  final TrustStore trustStore;
 
   /// The directory where incoming files are saved.
   String downloadPath;
@@ -103,10 +115,22 @@ class FileServer {
   /// Actual bound port. Useful when [start] is called with port `0` in tests.
   int? get boundPort => _server?.port;
 
-  /// Callback that the caller can set to decide whether to accept an incoming
-  /// transfer. When `null` or when it returns `true`, transfers are accepted
-  /// automatically.
-  Future<bool> Function(Transfer transfer)? onTransferRequest;
+  /// Asks the user whether an unknown device may pair with this one. When
+  /// `null`, unknown devices are always rejected.
+  Future<PairingDecision> Function(PairingRequest request)? onPairingRequest;
+
+  /// One prompt per device at a time; repeated requests join it.
+  final Map<String, Future<PairingDecision>> _pendingPairings = {};
+
+  /// Devices the user just rejected are not asked again for a while.
+  final Map<String, DateTime> _recentRejections = {};
+
+  /// Accept/reject outcome of each send-request, so a retried request waits
+  /// for the same answer instead of slipping through while it is pending.
+  final Map<String, Completer<bool>> _decisions = {};
+
+  static const Duration _rejectionCooldown = Duration(minutes: 2);
+  static const int _maxConcurrentPrompts = 3;
 
   // Lifecycle -----------------------------------------------------------
 
@@ -117,6 +141,7 @@ class FileServer {
     final router = _buildRouter();
     final handler = const shelf.Pipeline()
         .addMiddleware(shelf.logRequests())
+        .addMiddleware(_authMiddleware)
         .addHandler(router.call);
 
     _server = await shelf_io.serve(
@@ -149,6 +174,7 @@ class FileServer {
     _transfers.clear();
     _bytesReceived.clear();
     _pausedTransferIds.clear();
+    _decisions.clear();
     _incomingRequestController.close();
     _progressController.close();
   }
@@ -173,6 +199,7 @@ class FileServer {
     if (staleIds.isNotEmpty) {
       for (final id in staleIds) {
         _transfers.remove(id);
+        _decisions.remove(id);
         _bytesReceived.remove(id);
         _pausedTransferIds.remove(id);
         // Clean up orphaned temp files for completed/failed transfers.
@@ -187,6 +214,9 @@ class FileServer {
     _recentRequests.removeWhere(
       (_, entry) => now.difference(entry.timestamp).inSeconds > 60,
     );
+    _recentRejections.removeWhere(
+      (_, at) => now.difference(at) > _rejectionCooldown,
+    );
   }
 
   // Routing -------------------------------------------------------------
@@ -196,6 +226,7 @@ class FileServer {
 
     router.get('/api/ping', _handlePing);
     router.get('/api/info', _handleInfo);
+    router.post('/api/pair', _handlePair);
     router.post('/api/send-request', _handleSendRequest);
     router.post('/api/upload/<transferId>', _handleUpload);
     router.post('/api/pause/<transferId>', _handlePause);
@@ -219,6 +250,263 @@ class FileServer {
     );
 
     return router;
+  }
+
+  // Authorization ---------------------------------------------------------
+
+  /// Endpoints that only paired devices may use. `/api/send-request`,
+  /// `/api/clipboard` and `/api/sync/setup-request` check trust themselves
+  /// (they can start a pairing prompt); upload/pause/status are bound to a
+  /// transfer id that only an accepted send-request hands out.
+  static bool _requiresPairedDevice(String path) =>
+      path == 'api/browse' ||
+      (path.startsWith('api/sync/') && path != 'api/sync/setup-request');
+
+  static const String _portalCookie = 'aw_portal';
+
+  shelf.Handler _authMiddleware(shelf.Handler inner) {
+    return (shelf.Request request) async {
+      final path = request.url.path;
+
+      if (path == 'portal' || path.startsWith('portal/')) {
+        return _guardPortal(request, inner);
+      }
+
+      if (_requiresPairedDevice(path) && _authenticate(request) == null) {
+        _log.warning(
+          'Rejected unpaired ${request.method} /$path '
+          'from ${_remoteIp(request)}',
+        );
+        return shelf.Response(
+          401,
+          body: jsonEncode({'error': 'pairing_required'}),
+          headers: _jsonHeaders,
+        );
+      }
+      return inner(request);
+    };
+  }
+
+  /// The Web Portal is opened from a browser, which cannot pair. It needs the
+  /// portal key shown on this device (`/portal?k=...`); the key is then kept
+  /// in an HttpOnly cookie for the portal's own API calls.
+  Future<shelf.Response> _guardPortal(
+    shelf.Request request,
+    shelf.Handler inner,
+  ) async {
+    final urlKey = request.url.queryParameters['k'];
+    if (request.url.path == 'portal' && trustStore.checkPortalKey(urlKey)) {
+      final response = await inner(request);
+      return response.change(
+        headers: {
+          'Set-Cookie':
+              '$_portalCookie=$urlKey; Path=/portal; HttpOnly; SameSite=Strict',
+        },
+      );
+    }
+    if (trustStore.checkPortalKey(_readCookie(request, _portalCookie))) {
+      return inner(request);
+    }
+    return shelf.Response(
+      401,
+      body:
+          '<!doctype html><meta charset="utf-8"><title>LifeOS AnyWhere</title>'
+          '<p style="font-family:sans-serif">Bu bağlantı geçersiz. Portalı '
+          'cihazdaki QR koddan ya da Ayarlar\'daki adresten açın.</p>',
+      headers: {'Content-Type': 'text/html; charset=utf-8'},
+    );
+  }
+
+  static String? _readCookie(shelf.Request request, String name) {
+    final header = request.headers['cookie'];
+    if (header == null) return null;
+    for (final part in header.split(';')) {
+      final i = part.indexOf('=');
+      if (i > 0 && part.substring(0, i).trim() == name) {
+        return part.substring(i + 1).trim();
+      }
+    }
+    return null;
+  }
+
+  static String _remoteIp(shelf.Request request) {
+    final info =
+        request.context['shelf.io.connection_info'] as HttpConnectionInfo?;
+    return info?.remoteAddress.address ?? '';
+  }
+
+  /// Whether the sender runs protocol 1.1+ and can keep a pairing token.
+  static bool _isTokenCapable(shelf.Request request) =>
+      request.headers[kProtocolHeader] != null;
+
+  /// Returns the paired device that sent [request], or `null`.
+  ///
+  /// A request with a token must match a stored token. A request without
+  /// one is trusted only when its source IP belongs to a legacy (old
+  /// 1.0.x) pairing — weaker, as an IP can be taken over on the LAN.
+  TrustedDevice? _authenticate(shelf.Request request) {
+    final ip = _remoteIp(request);
+    final token = request.headers[kPairTokenHeader];
+    if (token != null && token.isNotEmpty) {
+      final device = trustStore.byToken(token);
+      if (device != null) trustStore.touch(device.id, ip: ip);
+      return device;
+    }
+    return trustStore.legacyByIp(ip);
+  }
+
+  /// Like [_authenticate], but the paired device must also be the one the
+  /// request claims to come from.
+  TrustedDevice? _authenticateAs(shelf.Request request, String deviceId) {
+    final device = _authenticate(request);
+    return device != null && device.id == deviceId ? device : null;
+  }
+
+  /// Gives a legacy pairing a real token once that device has been updated
+  /// to protocol 1.1+. Returns the new token, or `null`.
+  Future<String?> _upgradeLegacy(
+    TrustedDevice device,
+    shelf.Request request,
+  ) async {
+    if (!device.isLegacy || !_isTokenCapable(request)) return null;
+    final token = trustStore.newToken();
+    await trustStore.trust(
+      id: device.id,
+      name: device.name,
+      platform: device.platform,
+      token: token,
+      ip: _remoteIp(request),
+    );
+    return token;
+  }
+
+  /// Shows (at most) one pairing prompt per device and records the trust on
+  /// approval. Concurrent requests from the same device share the prompt.
+  Future<PairingDecision> _askPairing(PairingRequest request) {
+    final id = request.deviceId;
+    if (id.isEmpty || id == localDevice.id) {
+      return Future.value(PairingDecision.reject);
+    }
+    final pending = _pendingPairings[id];
+    if (pending != null) return pending;
+
+    final rejectedAt = _recentRejections[id];
+    if (rejectedAt != null &&
+        DateTime.now().difference(rejectedAt) < _rejectionCooldown) {
+      return Future.value(PairingDecision.reject);
+    }
+    final ask = onPairingRequest;
+    if (ask == null || _pendingPairings.length >= _maxConcurrentPrompts) {
+      return Future.value(PairingDecision.reject);
+    }
+
+    final future = () async {
+      var decision = PairingDecision.reject;
+      try {
+        decision = await ask(request).timeout(
+          const Duration(seconds: AppConstants.transferRequestTimeoutSeconds),
+          onTimeout: () => PairingDecision.reject,
+        );
+      } catch (e) {
+        _log.warning('Pairing prompt failed: $e');
+      }
+      if (decision == PairingDecision.trust) {
+        await trustStore.trust(
+          id: id,
+          name: request.deviceName,
+          platform: request.platform,
+          // Old peers cannot keep a token: trust by device id + IP.
+          token: request.tokenCapable ? trustStore.newToken() : null,
+          ip: request.ip,
+        );
+        _log.info(
+          'Paired with ${request.deviceName} ($id, ${request.ip})'
+          '${request.tokenCapable ? '' : ' — legacy, by IP'}',
+        );
+      } else if (decision == PairingDecision.reject) {
+        _recentRejections[id] = DateTime.now();
+      }
+      return decision;
+    }();
+    _pendingPairings[id] = future;
+    future.whenComplete(() => _pendingPairings.remove(id));
+    return future;
+  }
+
+  /// POST /api/pair
+  ///
+  /// Body: `{id, name, platform, pairCode?}`. Pairs the calling device:
+  /// at once when `pairCode` comes from this device's QR code, otherwise
+  /// after the user approves the prompt. Response:
+  /// `{paired: true, token, device}` or `{paired: false}`.
+  Future<shelf.Response> _handlePair(shelf.Request request) async {
+    try {
+      final json =
+          jsonDecode(await request.readAsString()) as Map<String, dynamic>;
+      final id = json['id'] as String? ?? '';
+      final name = json['name'] as String? ?? '';
+      final platform = json['platform'] as String? ?? '';
+      final ip = _remoteIp(request);
+      if (id.isEmpty || id == localDevice.id) {
+        return shelf.Response.badRequest(
+          body: jsonEncode({'error': 'Invalid device id'}),
+          headers: _jsonHeaders,
+        );
+      }
+
+      String? token;
+      final existing = _authenticateAs(request, id);
+      if (existing != null && !existing.isLegacy) {
+        token = existing.token;
+      } else if (existing != null) {
+        token = await _upgradeLegacy(existing, request);
+      } else if (trustStore.consumePairCode(json['pairCode'] as String?)) {
+        // The user showed this device's QR code to the caller: no prompt.
+        token = trustStore.newToken();
+        await trustStore.trust(
+          id: id,
+          name: name,
+          platform: platform,
+          token: token,
+          ip: ip,
+        );
+        _log.info('Paired with $name ($id) via QR code');
+      } else {
+        final decision = await _askPairing(
+          PairingRequest(
+            deviceId: id,
+            deviceName: name,
+            platform: platform,
+            ip: ip,
+            reason: PairingReason.pair,
+            tokenCapable: true,
+          ),
+        );
+        if (decision == PairingDecision.trust) {
+          token = trustStore.tokenFor(id);
+        }
+      }
+
+      if (token == null) {
+        return shelf.Response.ok(
+          jsonEncode({'paired': false}),
+          headers: _jsonHeaders,
+        );
+      }
+      return shelf.Response.ok(
+        jsonEncode({
+          'paired': true,
+          'token': token,
+          'device': localDevice.toJson(),
+        }),
+        headers: _jsonHeaders,
+      );
+    } catch (e) {
+      return shelf.Response.badRequest(
+        body: jsonEncode({'error': 'Invalid request: $e'}),
+        headers: _jsonHeaders,
+      );
+    }
   }
 
   /// Callback for clipboard receive events so the UI can update history.
@@ -266,10 +554,33 @@ class FileServer {
   ///   - `type` (String) — 'text' or 'image'
   ///
   /// Writes the received text to the system clipboard and notifies listeners.
+  /// Only paired devices may do this; an unknown sender is rejected (never
+  /// written silently) and a one-time pairing prompt is shown instead.
   Future<shelf.Response> _handleClipboard(shelf.Request request) async {
     try {
       final body = await request.readAsString();
       final json = jsonDecode(body) as Map<String, dynamic>;
+
+      final senderDeviceId = json['senderDeviceId'] as String? ?? '';
+      if (_authenticateAs(request, senderDeviceId) == null) {
+        unawaited(
+          _askPairing(
+            PairingRequest(
+              deviceId: senderDeviceId,
+              deviceName: json['sender'] as String? ?? '',
+              platform: json['senderPlatform'] as String? ?? '',
+              ip: _remoteIp(request),
+              reason: PairingReason.clipboard,
+              tokenCapable: _isTokenCapable(request),
+            ),
+          ),
+        );
+        return shelf.Response.forbidden(
+          jsonEncode({'error': 'pairing_required'}),
+          headers: _jsonHeaders,
+        );
+      }
+
       final text = json['text'] as String? ?? '';
       final type = json['type'] as String? ?? 'text';
       final imageBase64 = json['imageBase64'] as String?;
@@ -356,6 +667,35 @@ class FileServer {
 
       final setupRequest = SyncSetupRequest.fromJson(json);
 
+      // The sync handshake is a first contact too: unknown devices must be
+      // paired before any folder can be synced.
+      String? issuedToken;
+      final peer = _authenticateAs(request, setupRequest.senderDeviceId);
+      if (peer == null) {
+        final decision = await _askPairing(
+          PairingRequest(
+            deviceId: setupRequest.senderDeviceId,
+            deviceName: setupRequest.senderDeviceName,
+            platform: json['senderPlatform'] as String? ?? '',
+            ip: _remoteIp(request),
+            reason: PairingReason.sync,
+            tokenCapable: _isTokenCapable(request),
+            detail: setupRequest.jobName,
+          ),
+        );
+        if (decision != PairingDecision.trust) {
+          return shelf.Response.ok(
+            jsonEncode({'accepted': false, 'reason': 'pairing_rejected'}),
+            headers: _jsonHeaders,
+          );
+        }
+        if (_isTokenCapable(request)) {
+          issuedToken = trustStore.tokenFor(setupRequest.senderDeviceId);
+        }
+      } else {
+        issuedToken = await _upgradeLegacy(peer, request);
+      }
+
       _log.info(
         'Received sync setup request: '
         'jobId=${setupRequest.jobId}, jobName=${setupRequest.jobName}, '
@@ -365,7 +705,11 @@ class FileServer {
       if (onSyncSetupRequest == null) {
         _log.warning('onSyncSetupRequest callback is null — rejecting');
         return shelf.Response.ok(
-          jsonEncode({'accepted': false, 'reason': 'No handler configured'}),
+          jsonEncode({
+            'accepted': false,
+            'reason': 'No handler configured',
+            'pairingToken': ?issuedToken,
+          }),
           headers: _jsonHeaders,
         );
       }
@@ -373,7 +717,10 @@ class FileServer {
       final result = await onSyncSetupRequest!(setupRequest);
       _log.info('Setup request result for ${setupRequest.jobId}: $result');
 
-      return shelf.Response.ok(jsonEncode(result), headers: _jsonHeaders);
+      return shelf.Response.ok(
+        jsonEncode({...result, 'pairingToken': ?issuedToken}),
+        headers: _jsonHeaders,
+      );
     } catch (e) {
       _log.error('Sync setup request error: $e', error: e);
       return shelf.Response.internalServerError(
@@ -1123,9 +1470,18 @@ class FileServer {
             'Duplicate send-request for "$fileName" from $senderId — '
             'returning existing transferId ${existing.transferId}',
           );
+          // Wait for the original request's answer (it may still be at
+          // the pairing prompt) instead of reporting a pending one as OK.
+          final decision = _decisions[existing.transferId];
+          final accepted = decision != null
+              ? await decision.future.timeout(
+                  const Duration(seconds: 70),
+                  onTimeout: () => false,
+                )
+              : existingTransfer.status != TransferStatus.rejected;
           return shelf.Response.ok(
             jsonEncode({
-              'accepted': existingTransfer.status != TransferStatus.rejected,
+              'accepted': accepted,
               'transferId': existing.transferId,
             }),
             headers: _jsonHeaders,
@@ -1135,6 +1491,8 @@ class FileServer {
 
       final transferId = _uuid.v4();
       _recentRequests[dedupeKey] = _DedupeEntry(transferId, DateTime.now());
+      final decisionCompleter = Completer<bool>();
+      _decisions[transferId] = decisionCompleter;
 
       // Store expected SHA-256 hash for integrity verification after upload.
       final expectedHash = json['sha256'] as String?;
@@ -1170,24 +1528,33 @@ class FileServer {
         _incomingRequestController.add(transfer);
       }
 
-      // Decide acceptance. Apply a 60-second timeout so the sender does not
-      // hang indefinitely when the receiver doesn't respond to the dialog.
-      bool accepted = true;
-      if (onTransferRequest != null) {
-        try {
-          accepted = await onTransferRequest!(transfer).timeout(
-            const Duration(seconds: 60),
-            onTimeout: () {
-              _log.warning(
-                'Transfer request timed out after 60s — auto-rejecting',
-              );
-              return false;
-            },
-          );
-        } catch (_) {
-          accepted = false;
+      // Decide acceptance. A paired device is accepted silently; an
+      // unknown one gets the one-time pairing prompt (60 s, then rejected).
+      bool accepted;
+      String? issuedToken;
+      final peer = _authenticateAs(request, senderId);
+      if (peer != null) {
+        accepted = true;
+        issuedToken = await _upgradeLegacy(peer, request);
+      } else {
+        final decision = await _askPairing(
+          PairingRequest(
+            deviceId: senderId,
+            deviceName: senderName,
+            platform: senderPlatform,
+            ip: _remoteIp(request),
+            reason: PairingReason.file,
+            tokenCapable: _isTokenCapable(request),
+            allowOnceOption: true,
+            detail: fileName,
+          ),
+        );
+        accepted = decision != PairingDecision.reject;
+        if (decision == PairingDecision.trust && _isTokenCapable(request)) {
+          issuedToken = trustStore.tokenFor(senderId);
         }
       }
+      if (!decisionCompleter.isCompleted) decisionCompleter.complete(accepted);
 
       if (accepted) {
         _transfers[transferId] = transfer.copyWith(
@@ -1202,7 +1569,11 @@ class FileServer {
       }
 
       return shelf.Response.ok(
-        jsonEncode({'accepted': accepted, 'transferId': transferId}),
+        jsonEncode({
+          'accepted': accepted,
+          'transferId': transferId,
+          'pairingToken': ?issuedToken,
+        }),
         headers: _jsonHeaders,
       );
     } catch (e) {
@@ -1263,10 +1634,12 @@ class FileServer {
       );
     }
 
-    // Reject upload only if the transfer was explicitly rejected or cancelled.
-    // All other states are allowed: accepted (normal), pending (race),
-    // transferring (retry), completed (re-send same file), failed (retry).
-    if (transfer.status == TransferStatus.rejected ||
+    // Reject upload while the transfer is not accepted yet (pending — e.g.
+    // still at the pairing prompt) or was rejected/cancelled. Allowed:
+    // accepted (normal), transferring (retry), paused (resume),
+    // completed (re-send same file), failed (retry).
+    if (transfer.status == TransferStatus.pending ||
+        transfer.status == TransferStatus.rejected ||
         transfer.status == TransferStatus.cancelled) {
       return shelf.Response.forbidden(
         jsonEncode({'error': 'Transfer not accepted'}),
@@ -1600,8 +1973,9 @@ class FileServer {
   ///
   /// For plain file names (single-file transfer), delegates to [_uniqueFilePath].
   String _resolveFilePath(String baseDir, String fileName) {
-    // Normalize separators (sender may be on a different OS).
-    final normalized = fileName.replaceAll(r'\', '/');
+    // Normalize separators (sender may be on a different OS) and clean every
+    // path segment; "." / ".." segments are dropped.
+    final normalized = sanitizeRelativePath(fileName);
 
     if (normalized.contains('/')) {
       // Folder transfer — fileName is a relative path.
@@ -1610,7 +1984,7 @@ class FileServer {
       // Security: prevent directory traversal attacks.
       if (!p.isWithin(baseDir, targetPath)) {
         _log.warning('Blocked directory traversal attempt: $fileName');
-        return _uniqueFilePath(baseDir, p.basename(fileName));
+        return _uniqueFilePath(baseDir, p.posix.basename(normalized));
       }
 
       // Create intermediate directories.
@@ -1624,7 +1998,7 @@ class FileServer {
     }
 
     // Single-file transfer — use the existing collision-avoiding logic.
-    return _uniqueFilePath(baseDir, fileName);
+    return _uniqueFilePath(baseDir, normalized);
   }
 
   /// Returns a file path inside [directory] for [fileName].
@@ -1665,6 +2039,42 @@ class FileServer {
     } catch (e) {
       _log.warning('MediaScanner failed for $path: $e');
     }
+  }
+
+  /// Cleans one file name received from another device: removes control
+  /// characters and characters invalid on Windows/macOS/Linux, trailing dots
+  /// and spaces, and avoids reserved Windows device names. Never returns an
+  /// empty name, "." or "..".
+  static String sanitizeFileName(String name) {
+    var cleaned = name
+        .replaceAll(RegExp(r'[\x00-\x1f\x7f]'), '')
+        .replaceAll(RegExp(r'[<>:"/\\|?*]'), '_')
+        .trim()
+        .replaceAll(RegExp(r'[.\s]+$'), '');
+    if (cleaned.isEmpty || cleaned == '.' || cleaned == '..') {
+      cleaned = 'file';
+    }
+    final stem = cleaned.split('.').first.toUpperCase();
+    if (RegExp(r'^(CON|PRN|AUX|NUL|COM[0-9]|LPT[0-9])$').hasMatch(stem)) {
+      cleaned = '_$cleaned';
+    }
+    if (cleaned.length > 255) {
+      final ext = p.extension(cleaned);
+      cleaned = cleaned.substring(0, 255 - ext.length) + ext;
+    }
+    return cleaned;
+  }
+
+  /// Cleans a relative path (folder transfer) segment by segment and joins it
+  /// with "/". "." and ".." segments are dropped.
+  static String sanitizeRelativePath(String path) {
+    final segments = path
+        .replaceAll(r'\', '/')
+        .split('/')
+        .where((s) => s.trim().isNotEmpty && s != '.' && s != '..')
+        .map(sanitizeFileName)
+        .toList();
+    return segments.isEmpty ? 'file' : segments.join('/');
   }
 
   /// Sanitizes a string for use as a directory name by removing or replacing

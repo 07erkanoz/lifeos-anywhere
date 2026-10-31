@@ -7,6 +7,8 @@ import 'package:permission_handler/permission_handler.dart';
 
 import 'package:anyware/features/discovery/domain/device.dart';
 import 'package:anyware/features/discovery/presentation/providers.dart';
+import 'package:anyware/features/pairing/data/pairing_client.dart';
+import 'package:anyware/features/pairing/presentation/providers.dart';
 import 'package:anyware/features/server_sync/data/lan_remote_browser.dart';
 import 'package:anyware/features/server_sync/presentation/remote_folder_browser.dart';
 import 'package:anyware/features/settings/presentation/providers.dart';
@@ -790,10 +792,52 @@ class _SyncJobWizardState extends ConsumerState<SyncJobWizard> {
     final device = _targetDevice;
     if (device == null) return;
 
+    // Folders of another device can only be listed once it is paired with
+    // this one: ask it to pair first (its user approves once).
+    final store = ref.read(trustStoreProvider);
+    if (store.tokenFor(device.id) == null) {
+      final local = ref.read(localDeviceProvider).valueOrNull;
+      if (local == null) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            AppLocalizations.format('pairingWaiting', locale, {
+              'name': device.name,
+            }),
+          ),
+        ),
+      );
+      final result = await ref
+          .read(pairingClientProvider)
+          .requestPairing(
+            ip: device.ip,
+            port: device.port,
+            localId: local.id,
+            localName: local.name,
+            localPlatform: local.platform,
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      if (result != PairingResult.paired &&
+          result != PairingResult.unsupported) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              AppLocalizations.format('pairingNotApproved', locale, {
+                'name': device.name,
+              }),
+            ),
+          ),
+        );
+        return;
+      }
+    }
+
     final browser = LanRemoteBrowser(
       deviceIp: device.ip,
       devicePort: device.port,
       deviceName: device.name,
+      headers: store.authHeaders(device.id),
     );
 
     try {

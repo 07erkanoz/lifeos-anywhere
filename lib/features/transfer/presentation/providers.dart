@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:anyware/core/background_service.dart';
 import 'package:anyware/core/constants.dart';
 import 'package:anyware/features/discovery/presentation/providers.dart';
+import 'package:anyware/features/pairing/presentation/providers.dart';
 import 'package:anyware/features/platform/windows/notification_service.dart';
 import 'package:anyware/features/settings/presentation/providers.dart';
 import 'package:anyware/features/settings/data/settings_repository.dart';
@@ -52,11 +53,27 @@ final fileServerProvider = FutureProvider.autoDispose<FileServer>((ref) async {
 
   final server = FileServer(
     localDevice: device,
+    trustStore: ref.read(trustStoreProvider),
     downloadPath: downloadPath,
     overwriteFiles: overwriteFiles,
     syncReceiveFolder: syncReceiveFolder,
     // Pro activation callback removed — app is free.
   );
+
+  // First contact from an unknown device → one-time pairing prompt.
+  server.onPairingRequest = (request) {
+    if (_isDesktopPlatform) {
+      final locale = ref.read(settingsProvider).locale;
+      DesktopNotificationService.instance.notify(
+        title: AppLocalizations.get('pairingRequestTitle', locale),
+        body: AppLocalizations.format('pairingRequestBody', locale, {
+          'name': request.deviceName,
+          'platform': request.platformLabel,
+        }),
+      );
+    }
+    return ref.read(pairingPromptProvider.notifier).ask(request);
+  };
 
   // Wire clipboard receive events to persistent history.
   server.onClipboardReceived = (Map<String, dynamic> data) {
@@ -245,8 +262,10 @@ final fileSenderProvider = FutureProvider.autoDispose<FileSender>((ref) async {
   final device = await ref.watch(localDeviceProvider.future);
   final settings = ref.watch(settingsProvider);
 
-  final sender = FileSender(localDevice: device)
-    ..maxUploadSpeedKBps = settings.maxUploadSpeedKBps;
+  final sender = FileSender(
+    localDevice: device,
+    trustStore: ref.read(trustStoreProvider),
+  )..maxUploadSpeedKBps = settings.maxUploadSpeedKBps;
 
   ref.onDispose(() {
     sender.dispose();

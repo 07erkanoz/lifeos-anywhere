@@ -11,6 +11,8 @@ import 'package:path/path.dart' as p;
 import 'package:anyware/core/constants.dart';
 import 'package:anyware/features/discovery/domain/device.dart';
 import 'package:anyware/features/discovery/presentation/providers.dart';
+import 'package:anyware/features/pairing/data/pairing_client.dart';
+import 'package:anyware/features/pairing/presentation/providers.dart';
 import 'package:anyware/features/sync/data/cancellation_token.dart';
 import 'package:anyware/features/sync/domain/sync_manifest.dart';
 import 'package:anyware/features/sync/domain/sync_state.dart';
@@ -23,6 +25,11 @@ class SyncSender {
   static final _log = AppLogger('SyncSender');
 
   final Ref ref;
+
+  /// Pairing token (and protocol) headers for requests to [target]. The
+  /// receiver refuses sync requests from devices it is not paired with.
+  Map<String, String> _auth(Device target) =>
+      ref.read(trustStoreProvider).authHeaders(target.id);
 
   /// Checks if the target device is reachable by hitting /api/ping.
   ///
@@ -68,6 +75,23 @@ class SyncSender {
     int totalSize = 0,
   }) async {
     try {
+      // Pair once before the first sync; the receiver asks its user. Old
+      // (1.0.x) receivers have no /api/pair — they continue as before.
+      final store = ref.read(trustStoreProvider);
+      if (store.tokenFor(target.id) == null) {
+        final local = ref.read(localDeviceProvider).valueOrNull;
+        final result = await PairingClient(store).requestPairing(
+          ip: target.ip,
+          port: AppConstants.defaultPort,
+          localId: senderDeviceId,
+          localName: senderDeviceName,
+          localPlatform: local?.platform ?? Platform.operatingSystem,
+        );
+        if (result == PairingResult.rejected) {
+          return {'accepted': false, 'reason': 'pairing_rejected'};
+        }
+      }
+
       final uri = Uri.parse(
         'http://${target.ip}:${AppConstants.defaultPort}/api/sync/setup-request',
       );
@@ -75,12 +99,15 @@ class SyncSender {
       // 120-second timeout so the user has time to pick a folder.
       final response = await http.post(
         uri,
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json', ..._auth(target)},
         body: jsonEncode({
           'jobId': jobId,
           'jobName': jobName,
           'senderDeviceId': senderDeviceId,
           'senderDeviceName': senderDeviceName,
+          'senderPlatform':
+              ref.read(localDeviceProvider).valueOrNull?.platform ??
+              Platform.operatingSystem,
           'senderIp': senderIp ?? '', // Sender's own IP for reverse calls.
           if (remoteBaseDir != null) 'remoteBaseDir': remoteBaseDir,
           'direction': direction.name,
@@ -91,7 +118,11 @@ class SyncSender {
 
       if (response.statusCode == 200) {
         final body = jsonDecode(response.body) as Map<String, dynamic>;
-        _log.info('Setup request response from ${target.name}: $body');
+        await PairingClient.rememberIssuedToken(store, target, body);
+        _log.info(
+          'Setup request response from ${target.name}: '
+          '${{...body}..remove('pairingToken')}',
+        );
         return body;
       } else if (response.statusCode == 404) {
         // Old receiver without setup-request support → fallback.
@@ -124,7 +155,7 @@ class SyncSender {
       final response = await http
           .post(
             uri,
-            headers: {'Content-Type': 'application/json'},
+            headers: {'Content-Type': 'application/json', ..._auth(target)},
             body: jsonEncode({
               'jobId': jobId,
               'senderDeviceId': senderDeviceId,
@@ -166,7 +197,9 @@ class SyncSender {
         if (jobName != null) 'jobName': jobName,
       });
 
-      final response = await http.get(uri).timeout(const Duration(seconds: 10));
+      final response = await http
+          .get(uri, headers: _auth(target))
+          .timeout(const Duration(seconds: 10));
       if (response.statusCode == 200) {
         return jsonDecode(response.body) as Map<String, dynamic>;
       }
@@ -263,6 +296,7 @@ class SyncSender {
       }
 
       request.headers.addAll({
+        ..._auth(target),
         'X-Sync-Path': Uri.encodeFull(relativePath),
         'X-Device-Id': senderDevice.id,
         'X-Device-Name': Uri.encodeFull(senderDevice.name),
@@ -389,7 +423,7 @@ class SyncSender {
 
       final response = await http.post(
         requestUrl,
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json', ..._auth(target)},
         body: jsonEncode({
           'relativePath': relativePath,
           'senderName': senderDevice.name,
@@ -438,7 +472,7 @@ class SyncSender {
 
       final response = await http.post(
         uri,
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json', ..._auth(target)},
         body: jsonEncode({
           'senderName': senderName,
           if (basePath != null) 'basePath': basePath,
@@ -512,7 +546,8 @@ class SyncSender {
 
       final client = http.Client();
       try {
-        final request = http.Request('GET', uri);
+        final request = http.Request('GET', uri)
+          ..headers.addAll(_auth(target));
         if (resumeOffset > 0) {
           request.headers['Range'] = 'bytes=$resumeOffset-';
         }
@@ -622,7 +657,7 @@ class SyncSender {
 
       final response = await http.post(
         requestUrl,
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json', ..._auth(target)},
         body: jsonEncode({
           'relativePath': relativePath,
           'senderName': senderName,

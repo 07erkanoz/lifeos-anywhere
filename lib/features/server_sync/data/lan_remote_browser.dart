@@ -22,6 +22,9 @@ class LanRemoteBrowser implements RemoteBrowser {
   /// Optional device name shown in the browser title.
   final String? deviceName;
 
+  /// Pairing headers; the device lists folders only for paired devices.
+  final Map<String, String> headers;
+
   /// HTTP client (injectable for testing).
   final http.Client _client;
 
@@ -29,6 +32,7 @@ class LanRemoteBrowser implements RemoteBrowser {
     required this.deviceIp,
     required this.devicePort,
     this.deviceName,
+    this.headers = const {},
     http.Client? client,
   }) : _client = client ?? http.Client();
 
@@ -44,7 +48,7 @@ class LanRemoteBrowser implements RemoteBrowser {
         {if (path.isNotEmpty) 'path': path},
       );
 
-      final response = await _client.get(uri).timeout(
+      final response = await _client.get(uri, headers: headers).timeout(
             const Duration(seconds: 10),
           );
 

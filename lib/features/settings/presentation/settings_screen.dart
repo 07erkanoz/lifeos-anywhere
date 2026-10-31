@@ -11,6 +11,8 @@ import 'package:flutter/services.dart';
 import 'package:anyware/core/constants.dart';
 import 'package:anyware/core/tv_detector.dart';
 import 'package:anyware/features/discovery/presentation/providers.dart';
+import 'package:anyware/features/pairing/presentation/paired_devices_section.dart';
+import 'package:anyware/features/pairing/presentation/providers.dart';
 import 'package:anyware/features/settings/presentation/providers.dart';
 import 'package:anyware/features/settings/presentation/help_screen.dart';
 import 'package:anyware/features/settings/presentation/about_screen.dart';
@@ -128,6 +130,16 @@ class SettingsScreen extends ConsumerWidget {
 
           // Web Portal info
           _WebPortalTile(locale: locale),
+
+          const Divider(indent: 16, endIndent: 16, height: 24),
+
+          // =================================================================
+          // Paired devices section
+          // =================================================================
+          _SectionHeader(
+            label: AppLocalizations.get('pairedDevices', locale),
+          ),
+          PairedDevicesSection(locale: locale),
 
           const Divider(indent: 16, endIndent: 16, height: 24),
 
@@ -577,7 +589,8 @@ class _WebPortalTile extends ConsumerWidget {
     final deviceAsync = ref.watch(localDeviceProvider);
     final ip = deviceAsync.valueOrNull?.ip ?? '...';
     final port = AppConstants.defaultPort;
-    final url = 'http://$ip:$port/portal';
+    final portalKey = ref.watch(trustStoreProvider).portalKey;
+    final url = 'http://$ip:$port/portal?k=$portalKey';
 
     return ListTile(
       leading: const Icon(Icons.language),

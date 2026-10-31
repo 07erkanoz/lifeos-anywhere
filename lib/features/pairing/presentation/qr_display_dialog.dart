@@ -5,15 +5,27 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:anyware/core/constants.dart';
 import 'package:anyware/core/theme.dart';
 import 'package:anyware/features/discovery/presentation/providers.dart';
+import 'package:anyware/features/pairing/presentation/providers.dart';
 import 'package:anyware/i18n/app_localizations.dart';
 
-class QrDisplayDialog extends ConsumerWidget {
+class QrDisplayDialog extends ConsumerStatefulWidget {
   const QrDisplayDialog({super.key, required this.locale});
 
   final String locale;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<QrDisplayDialog> createState() => _QrDisplayDialogState();
+}
+
+class _QrDisplayDialogState extends ConsumerState<QrDisplayDialog> {
+  /// One-time code: whoever scans this QR is paired without a prompt,
+  /// because the user showed it to them. Valid for 10 minutes.
+  late final String _pairCode = ref.read(trustStoreProvider).issuePairCode();
+
+  String get locale => widget.locale;
+
+  @override
+  Widget build(BuildContext context) {
     final discoveryService = ref.read(discoveryServiceProvider).valueOrNull;
 
     if (discoveryService == null) {
@@ -21,7 +33,7 @@ class QrDisplayDialog extends ConsumerWidget {
     }
 
     final device = discoveryService.localDevice;
-    final jsonString = jsonEncode(device.toJson());
+    final jsonString = jsonEncode({...device.toJson(), 'pairCode': _pairCode});
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Dialog(

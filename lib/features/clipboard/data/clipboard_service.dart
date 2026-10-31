@@ -11,6 +11,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:anyware/core/constants.dart';
 import 'package:anyware/features/discovery/domain/device.dart';
+import 'package:anyware/features/pairing/data/pairing_client.dart';
+import 'package:anyware/features/pairing/data/trust_store.dart';
+import 'package:anyware/features/pairing/presentation/providers.dart';
 import 'package:anyware/features/settings/data/settings_repository.dart';
 
 /// Represents a clipboard entry with metadata.
@@ -57,7 +60,9 @@ class ClipboardEntry {
 enum ClipboardContentType { text, image }
 
 /// Provider for the clipboard service.
-final clipboardServiceProvider = Provider((ref) => ClipboardService());
+final clipboardServiceProvider = Provider(
+  (ref) => ClipboardService(trustStore: ref.watch(trustStoreProvider)),
+);
 
 /// Provider for clipboard history (persisted via SharedPreferences).
 final clipboardHistoryProvider =
@@ -150,7 +155,71 @@ final clipboardAutoSyncProvider = StateProvider<bool>((ref) => false);
 final clipboardSyncTargetProvider = StateProvider<Device?>((ref) => null);
 
 class ClipboardService {
+  ClipboardService({this.trustStore});
+
   static final _log = AppLogger('Clipboard');
+
+  /// Paired devices. The receiver only accepts clipboard data from paired
+  /// devices; when it is not paired yet we ask it to pair once, then retry.
+  final TrustStore? trustStore;
+
+  /// Targets we are currently pairing with (avoids parallel prompts while
+  /// auto-sync keeps ticking).
+  final Set<String> _pairingInFlight = {};
+
+  Future<http.Response> _postClipboard(
+    Device target,
+    Map<String, dynamic> payload, {
+    required String senderName,
+    required String senderDeviceId,
+    required Duration timeout,
+  }) async {
+    final url = Uri.parse(
+      'http://${target.ip}:${AppConstants.defaultPort}/api/clipboard',
+    );
+    final body = jsonEncode({
+      ...payload,
+      'sender': senderName,
+      'senderDeviceId': senderDeviceId,
+      'senderPlatform': Platform.operatingSystem,
+      'timestamp': DateTime.now().toIso8601String(),
+    });
+    Future<http.Response> post() => http
+        .post(
+          url,
+          headers: {
+            'Content-Type': 'application/json',
+            ...?trustStore?.authHeaders(target.id),
+          },
+          body: body,
+        )
+        .timeout(timeout);
+
+    var response = await post();
+    final store = trustStore;
+    if (store == null || !PairingClient.isPairingRequired(response)) {
+      return response;
+    }
+    if (!_pairingInFlight.add(target.id)) {
+      throw Exception('Waiting for ${target.name} to approve pairing');
+    }
+    try {
+      final result = await PairingClient(store).requestPairing(
+        ip: target.ip,
+        port: AppConstants.defaultPort,
+        localId: senderDeviceId,
+        localName: senderName,
+        localPlatform: Platform.operatingSystem,
+      );
+      if (result != PairingResult.paired) {
+        throw Exception('${target.name} did not approve pairing');
+      }
+    } finally {
+      _pairingInFlight.remove(target.id);
+    }
+    response = await post();
+    return response;
+  }
 
   Timer? _autoSyncTimer;
   String? _lastClipboardText;
@@ -162,24 +231,14 @@ class ClipboardService {
     required String senderName,
     required String senderDeviceId,
   }) async {
-    final url = Uri.parse(
-      'http://${target.ip}:${AppConstants.defaultPort}/api/clipboard',
-    );
-
     try {
-      final response = await http
-          .post(
-            url,
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'text': text,
-              'sender': senderName,
-              'senderDeviceId': senderDeviceId,
-              'type': 'text',
-              'timestamp': DateTime.now().toIso8601String(),
-            }),
-          )
-          .timeout(const Duration(seconds: 10));
+      final response = await _postClipboard(
+        target,
+        {'text': text, 'type': 'text'},
+        senderName: senderName,
+        senderDeviceId: senderDeviceId,
+        timeout: const Duration(seconds: 10),
+      );
 
       if (response.statusCode != 200) {
         throw Exception('Failed to send clipboard: ${response.statusCode}');
@@ -196,10 +255,6 @@ class ClipboardService {
     required String senderName,
     required String senderDeviceId,
   }) async {
-    final url = Uri.parse(
-      'http://${target.ip}:${AppConstants.defaultPort}/api/clipboard',
-    );
-
     final file = File(imagePath);
     if (!file.existsSync()) return;
 
@@ -207,20 +262,13 @@ class ClipboardService {
     final base64Image = base64Encode(bytes);
 
     try {
-      final response = await http
-          .post(
-            url,
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'text': '',
-              'imageBase64': base64Image,
-              'sender': senderName,
-              'senderDeviceId': senderDeviceId,
-              'type': 'image',
-              'timestamp': DateTime.now().toIso8601String(),
-            }),
-          )
-          .timeout(const Duration(seconds: 30));
+      final response = await _postClipboard(
+        target,
+        {'text': '', 'imageBase64': base64Image, 'type': 'image'},
+        senderName: senderName,
+        senderDeviceId: senderDeviceId,
+        timeout: const Duration(seconds: 30),
+      );
 
       if (response.statusCode != 200) {
         throw Exception(

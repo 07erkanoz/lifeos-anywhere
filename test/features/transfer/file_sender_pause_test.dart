@@ -1,8 +1,10 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:anyware/features/discovery/domain/device.dart';
+import 'package:anyware/features/pairing/data/trust_store.dart';
 import 'package:anyware/features/transfer/data/file_sender.dart';
 import 'package:anyware/features/transfer/data/file_server.dart';
 import 'package:anyware/features/transfer/domain/transfer.dart';
@@ -35,15 +37,37 @@ void main() {
       lastSeen: now,
     );
 
+    // The two devices are already paired: same secret on both sides.
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final receiverTrust = TrustStore(prefs);
+    final senderTrust = TrustStore(prefs);
+    final token = receiverTrust.newToken();
+    await receiverTrust.trust(
+      id: 'sender',
+      name: 'Sender',
+      platform: 'linux',
+      token: token,
+    );
+    await senderTrust.trust(
+      id: 'receiver',
+      name: 'Receiver',
+      platform: 'linux',
+      token: token,
+    );
+
     final server = FileServer(
       localDevice: receiver,
+      trustStore: receiverTrust,
       downloadPath: downloadDir.path,
       overwriteFiles: true,
     );
     await server.start(0);
 
-    final sender = FileSender(localDevice: senderDevice)
-      ..maxUploadSpeedKBps = 512;
+    final sender = FileSender(
+      localDevice: senderDevice,
+      trustStore: senderTrust,
+    )..maxUploadSpeedKBps = 512;
     addTearDown(() async {
       sender.dispose();
       await server.dispose();

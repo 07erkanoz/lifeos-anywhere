@@ -22,6 +22,9 @@ import 'package:anyware/features/settings/presentation/providers.dart';
 import 'package:anyware/features/dashboard/presentation/dashboard_screen.dart';
 import 'package:anyware/features/discovery/presentation/device_list_screen.dart';
 import 'package:anyware/features/discovery/presentation/providers.dart';
+import 'package:anyware/features/pairing/domain/pairing_request.dart';
+import 'package:anyware/features/pairing/presentation/pairing_prompt_dialog.dart';
+import 'package:anyware/features/pairing/presentation/providers.dart';
 import 'package:anyware/features/transfer/presentation/transfer_screen.dart';
 import 'package:anyware/features/transfer/presentation/providers.dart';
 import 'package:anyware/features/transfer/domain/transfer.dart';
@@ -640,6 +643,32 @@ class _MainShellState extends ConsumerState<_MainShell>
     );
   }
 
+  PendingPairingPrompt? _shownPairingPrompt;
+
+  /// Shows the pairing prompts one after another.
+  void _showNextPairingPrompt(
+    List<PendingPairingPrompt> prompts,
+    String locale,
+  ) {
+    if (_shownPairingPrompt != null || prompts.isEmpty || !mounted) return;
+    final prompt = prompts.first;
+    _shownPairingPrompt = prompt;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => PairingPromptDialog(prompt: prompt, locale: locale),
+    ).whenComplete(() {
+      _shownPairingPrompt = null;
+      // Closed without an answer (e.g. back key) counts as "reject".
+      ref
+          .read(pairingPromptProvider.notifier)
+          .resolve(prompt, PairingDecision.reject);
+      if (mounted) {
+        _showNextPairingPrompt(ref.read(pairingPromptProvider), locale);
+      }
+    });
+  }
+
   void _toggleSidebar() {
     final autoCollapsed =
         MediaQuery.sizeOf(context).width < AppBreakpoints.expanded;
@@ -690,6 +719,11 @@ class _MainShellState extends ConsumerState<_MainShell>
       if (hasNewTransfer && next.any((t) => t.isActive)) {
         _navigateToTransfers();
       }
+    });
+
+    // One-time pairing prompt when an unknown device contacts us.
+    ref.listen<List<PendingPairingPrompt>>(pairingPromptProvider, (_, next) {
+      _showNextPairingPrompt(next, locale);
     });
 
     // Show sync setup dialog when a remote device sends a setup request.

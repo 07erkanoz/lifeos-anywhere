@@ -1,1 +1,4 @@
-- Linux paketi Arch ve LifeOS'ta ek kütüphane kurmadan açılır.
+- Cihazlar bir kez eşleşir: tanımadığınız bir cihaz ilk kez dosya, pano ya da eşitleme gönderdiğinde tek bir onay sorulur; onaylanan cihaz bir daha sorulmaz.
+- Eşleşmemiş cihazlar artık panoya yazamaz, klasörlerinizi listeleyemez ve eşitleme kullanamaz. Web Portalı, Ayarlar'daki anahtarlı adresle açılır.
+- Eşleşmiş cihazlar Ayarlar → Eşleşmiş cihazlar altında görünür ve kaldırılabilir.
+- 1.0.x sürümlü cihazlar göndermeye devam edebilir; bir kez onaylanır, cihaz ve IP adresiyle tanınır (daha zayıf). İki cihazı da güncelleyin.

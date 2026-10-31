@@ -1,1 +1,4 @@
-- The Linux package starts on Arch and LifeOS without extra libraries.
+- Devices pair once: the first time an unknown device sends a file, clipboard content or a sync request you approve it once; it is not asked again.
+- Unpaired devices can no longer write to the clipboard, list your folders or use sync. The Web Portal opens with the keyed address shown in Settings.
+- Paired devices are listed under Settings → Paired devices and can be removed.
+- Devices on 1.0.x can still send; they are approved once and recognised by device and IP address (weaker). Update both devices.

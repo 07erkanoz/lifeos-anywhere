@@ -6,6 +6,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:anyware/core/constants.dart';
 import 'package:anyware/core/theme.dart';
 import 'package:anyware/features/discovery/presentation/providers.dart';
+import 'package:anyware/features/pairing/presentation/providers.dart';
 import 'package:anyware/i18n/app_localizations.dart';
 
 /// Displays a QR code containing the web portal URL so any device with a
@@ -24,8 +25,10 @@ class WebPortalQrDialog extends ConsumerWidget {
     }
 
     final device = discoveryService.localDevice;
+    // The key lets only browsers that got this URL from this screen in.
+    final portalKey = ref.read(trustStoreProvider).portalKey;
     final portalUrl =
-        'http://${device.ip}:${AppConstants.defaultPort}/portal';
+        'http://${device.ip}:${AppConstants.defaultPort}/portal?k=$portalKey';
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Dialog(

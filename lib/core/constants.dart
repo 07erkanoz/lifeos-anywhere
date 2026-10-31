@@ -1,7 +1,7 @@
 class AppConstants {
   static const String appName = 'LifeOS AnyWhere';
-  static const String appVersion = '1.0.0';
-  static const String protocolVersion = '1.0';
+  static const String appVersion = '1.1.0';
+  static const String protocolVersion = '1.1';
   static const String websiteUrl = 'https://lifeos.com.tr';
   static const String githubUrl =
       'https://github.com/07erkanoz/lifeos-anywhere';

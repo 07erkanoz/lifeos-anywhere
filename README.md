@@ -52,6 +52,19 @@
 
 No account, no sign-up, no configuration needed.
 
+## Pairing & Security
+
+AnyWhere asks **once per device**, not on every transfer:
+
+1. The first time an unknown device sends a file, clipboard content or a sync request, this device shows one prompt: *"<name> (<platform>) wants to pair with this device — Allow / Reject"*.
+2. On approval both devices store a shared random 32-byte secret. Every later request carries it in the `X-AnyWhere-Token` header and is accepted silently.
+3. Scanning a device's pairing QR code pairs immediately, without the prompt (the code is one-time and expires after 10 minutes). Adding a device by IP asks it to pair.
+4. Paired devices are listed under **Settings → Paired devices**, where a pairing can be removed.
+
+Unpaired devices cannot write to the clipboard, browse folders or use sync endpoints; `/api/info` and `/api/ping` stay open for discovery. The Web Portal needs the key in the URL shown in Settings / its QR code.
+
+**Older versions:** a device running 1.0.x cannot store a token. It still gets the one-time prompt, and is then trusted by device ID and IP address. This is weaker (another device taking over that IP on the LAN would be trusted too); updating both devices to 1.1+ upgrades the pairing to a token automatically. Protocol version is `1.1`; devices advertise `"capabilities": ["pairing-token"]` in their discovery JSON.
+
 ## Building from Source
 
 ### Prerequisites
