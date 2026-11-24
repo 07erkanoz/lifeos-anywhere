@@ -1,4 +1,6 @@
-- Devices pair once: the first time an unknown device sends a file, clipboard content or a sync request you approve it once; it is not asked again.
-- Unpaired devices can no longer write to the clipboard, list your folders or use sync. The Web Portal opens with the keyed address shown in Settings.
-- Paired devices are listed under Settings → Paired devices and can be removed.
-- Devices on 1.0.x can still send; they are approved once and recognised by device and IP address (weaker). Update both devices.
+- Encrypted connection: paired devices keep each other's certificate, and files and the clipboard travel encrypted. While pairing, both screens show the same six-digit code; allow only if they match.
+- Pairs encrypted with LifeOS Linux computers and sends and receives files with them.
+- Reachable in the background: on Android, paired devices on the same Wi-Fi can see the phone and send to it with the app closed. A silent notification stays; it uses little battery (Settings → Stay reachable in the background).
+- A computer stays listed even when its network broadcasts are missed: paired devices are also looked for at their address.
+- A send request sometimes showed as "rejected" on some receivers; fixed.
+- With older versions, files and the clipboard work unencrypted as before. Update both devices.

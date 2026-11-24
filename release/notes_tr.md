@@ -1,4 +1,6 @@
-- Cihazlar bir kez eşleşir: tanımadığınız bir cihaz ilk kez dosya, pano ya da eşitleme gönderdiğinde tek bir onay sorulur; onaylanan cihaz bir daha sorulmaz.
-- Eşleşmemiş cihazlar artık panoya yazamaz, klasörlerinizi listeleyemez ve eşitleme kullanamaz. Web Portalı, Ayarlar'daki anahtarlı adresle açılır.
-- Eşleşmiş cihazlar Ayarlar → Eşleşmiş cihazlar altında görünür ve kaldırılabilir.
-- 1.0.x sürümlü cihazlar göndermeye devam edebilir; bir kez onaylanır, cihaz ve IP adresiyle tanınır (daha zayıf). İki cihazı da güncelleyin.
+- Bağlantı şifreli: eşleşen cihazlar birbirinin sertifikasını saklar, dosya ve pano şifreli gider. Eşleşirken iki ekranda aynı altı haneli kod çıkar; kodlar aynıysa izin verin.
+- LifeOS Linux bilgisayarlarla şifreli eşleşir ve dosya alıp verir.
+- Arka planda ulaşılabilir: Android'de uygulama kapalıyken de aynı Wi-Fi'daki eşli cihazlar telefonu görür ve ona gönderebilir. Sessiz bir bildirim durur, pili az kullanır (Ayarlar → Arka planda ulaşılabilir kal).
+- Bilgisayar ağdaki yayınları kaçırsa da listede kalır: eşli cihazlar adresinden de aranır.
+- Gönderme isteği bazı alıcılarda "reddedildi" görünüyordu; düzeltildi.
+- Eski sürümlerle dosya ve pano şifresiz, eskisi gibi çalışır. İki cihazı da güncelleyin.
