@@ -6,6 +6,7 @@ import 'package:webdav_client/webdav_client.dart' as webdav;
 import 'package:anyware/core/logger.dart';
 import 'package:anyware/features/server_sync/data/cloud_transport.dart';
 import 'package:anyware/features/sync/data/cancellation_token.dart';
+import 'package:anyware/features/sync/data/sync_diff_engine.dart' show kUnknownMtime;
 import 'package:anyware/features/sync/domain/sync_manifest.dart';
 
 final _log = AppLogger('WebDavTransport');
@@ -166,7 +167,7 @@ class WebDavCloudTransport implements CloudTransport, RemoteBrowser {
         entries.add(SyncManifestEntry(
           relativePath: relPath,
           size: item.size ?? 0,
-          lastModified: item.modified ?? DateTime.now(),
+          lastModified: item.modified ?? kUnknownMtime,
         ));
       }
     }

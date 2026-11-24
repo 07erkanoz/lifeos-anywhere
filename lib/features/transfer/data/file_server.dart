@@ -12,6 +12,8 @@ import 'package:anyware/core/constants.dart';
 import 'package:anyware/core/tls/tls_identity.dart';
 import 'package:anyware/core/tls/tls_listener.dart';
 import 'package:anyware/features/discovery/domain/device.dart';
+import 'package:anyware/features/esitleme/data/esitleme_service.dart';
+import 'package:anyware/features/ileti/data/ileti_lan.dart';
 import 'package:anyware/features/pairing/data/trust_store.dart';
 import 'package:anyware/features/pairing/domain/pairing_request.dart';
 import 'package:anyware/features/transfer/domain/transfer.dart';
@@ -121,6 +123,12 @@ class FileServer {
   /// Asks the user whether an unknown device may pair with this one. When
   /// `null`, unknown devices are always rejected.
   Future<PairingDecision> Function(PairingRequest request)? onPairingRequest;
+
+  /// Folder sync (`/api/esitle*`); `null` where Syncthing is not available.
+  EsitlemeService? esitleme;
+
+  /// LifeOS İleti (`/api/ileti*`); `null` until the app has set it up.
+  IletiLan? ileti;
 
   /// One prompt per device at a time; repeated requests join it.
   final Map<String, Future<PairingDecision>> _pendingPairings = {};
@@ -251,6 +259,16 @@ class FileServer {
     router.get('/api/sync/pull', _handleSyncPull);
     router.post('/api/sync/remove-pairing', _handleRemovePairing);
     router.get('/api/browse', _handleBrowse);
+    // Folder sync with LifeOS and other AnyWhere devices (Syncthing; the
+    // device ids travel here, over pinned TLS).
+    // LifeOS İleti (chat) on the local network (docs/ileti-protokol.md §3).
+    router.post('/api/ileti', _handleIleti);
+    router.post('/api/ileti/okundu', _handleIleti);
+    router.post('/api/ileti/posta', _handleIleti);
+    router.post('/api/ileti/ek/<id>', _handleIletiFile);
+    router.get('/api/esitle', _handleEsitle);
+    router.post('/api/esitle/klasor', _handleEsitle);
+    router.post('/api/esitle/birak', _handleEsitle);
     // Pro activation endpoint removed — app is free.
 
     // Web Portal routes — browser-based file management.
@@ -604,6 +622,89 @@ class FileServer {
   /// Writes the received text to the system clipboard and notifies listeners.
   /// Only paired devices may do this; an unknown sender is rejected (never
   /// written silently) and a one-time pairing prompt is shown instead.
+  shelf.Response _plain(int status, String body) => shelf.Response(
+        status,
+        body: body,
+        headers: {'Content-Type': 'text/plain; charset=utf-8'},
+      );
+
+  shelf.Response _reply(int status, Object reply) => reply is String
+      ? _plain(status, reply)
+      : shelf.Response(status, body: jsonEncode(reply), headers: _jsonHeaders);
+
+  /// The paired device behind an İleti request: pinned, over TLS, its token.
+  TrustedDevice? _iletiPeer(shelf.Request request) {
+    final device = _authenticate(request);
+    if (device == null || !device.isPinned || !_isSecure(request)) return null;
+    return device;
+  }
+
+  Future<shelf.Response> _handleIleti(shelf.Request request) async {
+    final peer = _iletiPeer(request);
+    if (peer == null) return _plain(403, 'yalniz sifreli eslesmis cihaz');
+    final lan = ileti;
+    if (lan == null) return _plain(501, 'ileti yok');
+    final Map<String, dynamic> body;
+    try {
+      final raw = await request.readAsString();
+      if (raw.length > 1 << 20) return _plain(400, 'çok büyük');
+      body = jsonDecode(raw) as Map<String, dynamic>;
+    } catch (_) {
+      return _plain(400, 'gecersiz istek');
+    }
+    final (status, reply) = switch (request.url.path) {
+      'api/ileti' => await lan.receiveEnvelope(peer, body),
+      'api/ileti/okundu' => lan.receiveRead(peer, body),
+      'api/ileti/posta' => lan.receivePosta(peer, body),
+      _ => (404, 'yok'),
+    };
+    return _reply(status, reply);
+  }
+
+  Future<shelf.Response> _handleIletiFile(shelf.Request request, String id) async {
+    final peer = _iletiPeer(request);
+    if (peer == null) return _plain(403, 'yalniz sifreli eslesmis cihaz');
+    final lan = ileti;
+    if (lan == null) return _plain(501, 'ileti yok');
+    final (status, reply) = await lan.receiveFile(peer, id, request.read());
+    return _reply(status, reply);
+  }
+
+  /// `/api/esitle*`, as LifeOS's: only a device paired with encryption, over
+  /// TLS with its token; its user allowed eşitleme (asked once).
+  Future<shelf.Response> _handleEsitle(shelf.Request request) async {
+    shelf.Response text(int status, String body) => shelf.Response(
+          status,
+          body: body,
+          headers: {'Content-Type': 'text/plain; charset=utf-8'},
+        );
+    final device = _authenticate(request);
+    if (device == null || !device.isPinned || !_isSecure(request)) {
+      return text(403, 'yalniz sifreli eslesmis cihaz');
+    }
+    final service = esitleme;
+    if (service == null) return text(503, 'eşitleme bu cihazda yok');
+    Map<String, dynamic> body = {};
+    if (request.method == 'POST') {
+      try {
+        final raw = await request.readAsString();
+        if (raw.length > 1 << 20) return text(400, 'çok büyük');
+        if (raw.trim().isNotEmpty) body = jsonDecode(raw) as Map<String, dynamic>;
+      } catch (_) {
+        return text(400, 'gecersiz istek');
+      }
+    }
+    final (status, reply) = await service.handle(
+      device,
+      request.method,
+      '/${request.url.path}',
+      body,
+      _remoteIp(request),
+    );
+    if (reply is String) return text(status, reply);
+    return shelf.Response(status, body: jsonEncode(reply), headers: _jsonHeaders);
+  }
+
   Future<shelf.Response> _handleClipboard(shelf.Request request) async {
     try {
       final body = await request.readAsString();

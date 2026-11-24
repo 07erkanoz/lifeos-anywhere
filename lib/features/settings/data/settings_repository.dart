@@ -15,6 +15,18 @@ class SettingsRepository {
 
   SettingsRepository(this._prefs);
 
+  /// The saved settings exactly as stored, synchronously (defaults when none
+  /// or unreadable): what the app's first frame is drawn with.
+  AppSettings loadSaved() {
+    final jsonString = _prefs.getString(_settingsKey);
+    if (jsonString == null) return AppSettings.defaults();
+    try {
+      return AppSettings.fromJson(jsonDecode(jsonString) as Map<String, dynamic>);
+    } catch (_) {
+      return AppSettings.defaults();
+    }
+  }
+
   /// Loads the saved settings from SharedPreferences.
   /// Returns default settings if nothing is saved yet.
   Future<AppSettings> load() async {

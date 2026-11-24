@@ -9,6 +9,7 @@ import 'package:anyware/features/server_sync/data/cloud_transport.dart';
 import 'package:anyware/features/server_sync/data/oauth_service.dart';
 import 'package:anyware/features/server_sync/data/oauth_token.dart';
 import 'package:anyware/features/sync/data/cancellation_token.dart';
+import 'package:anyware/features/sync/data/sync_diff_engine.dart' show kUnknownMtime;
 import 'package:anyware/features/sync/domain/sync_manifest.dart';
 
 final _log = AppLogger('GDriveTransport');
@@ -213,7 +214,7 @@ class GDriveTransport implements CloudTransport, RemoteBrowser {
           relativePath: item.path,
           hash: hash,
           size: item.size ?? 0,
-          lastModified: item.modified ?? DateTime.now(),
+          lastModified: item.modified ?? kUnknownMtime,
         ));
       }
     }

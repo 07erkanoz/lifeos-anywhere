@@ -10,6 +10,7 @@ import 'package:anyware/features/server_sync/data/cloud_transport.dart';
 import 'package:anyware/features/server_sync/data/oauth_service.dart';
 import 'package:anyware/features/server_sync/data/oauth_token.dart';
 import 'package:anyware/features/sync/data/cancellation_token.dart';
+import 'package:anyware/features/sync/data/sync_diff_engine.dart' show kUnknownMtime;
 import 'package:anyware/features/sync/domain/sync_manifest.dart';
 
 final _log = AppLogger('OneDriveTransport');
@@ -99,8 +100,17 @@ class OneDriveTransport implements CloudTransport, RemoteBrowser {
 
     while (nextLink != null) {
       final resp = await _get(nextLink, token);
+      // A failed page/sub-folder must fail the whole listing — a partial
+      // listing would look like remote deletions.
+      if (resp.statusCode != 200) {
+        throw Exception(
+            'OneDrive listing failed for "$path" (${resp.statusCode})');
+      }
       final data = jsonDecode(resp.body) as Map<String, dynamic>;
-      final items = data['value'] as List? ?? [];
+      final items = data['value'] as List?;
+      if (items == null) {
+        throw Exception('OneDrive listing for "$path" has no value array');
+      }
 
       for (final item in items) {
         final name = item['name'] as String? ?? '';
@@ -182,8 +192,17 @@ class OneDriveTransport implements CloudTransport, RemoteBrowser {
 
     while (nextLink != null) {
       final resp = await _get(nextLink, token);
+      // A failed page/sub-folder must fail the whole listing — a partial
+      // listing would look like remote deletions.
+      if (resp.statusCode != 200) {
+        throw Exception(
+            'OneDrive listing failed for "$path" (${resp.statusCode})');
+      }
       final data = jsonDecode(resp.body) as Map<String, dynamic>;
-      final items = data['value'] as List? ?? [];
+      final items = data['value'] as List?;
+      if (items == null) {
+        throw Exception('OneDrive listing for "$path" has no value array');
+      }
 
       for (final item in items) {
         final name = item['name'] as String? ?? '';
@@ -209,8 +228,8 @@ class OneDriveTransport implements CloudTransport, RemoteBrowser {
             lastModified: item['lastModifiedDateTime'] != null
                 ? DateTime.tryParse(
                         item['lastModifiedDateTime'] as String) ??
-                    DateTime.now()
-                : DateTime.now(),
+                    kUnknownMtime
+                : kUnknownMtime,
           ));
         }
       }
@@ -240,9 +259,10 @@ class OneDriveTransport implements CloudTransport, RemoteBrowser {
       final token = await _ensureToken();
 
       if (fileSize < _simpleUploadLimit) {
-        return _simpleUpload(file, remotePath, token, onProgress, cancel);
+        return await _simpleUpload(
+            file, remotePath, token, onProgress, cancel);
       } else {
-        return _resumableUpload(
+        return await _resumableUpload(
             file, fileSize, remotePath, token, onProgress, cancel);
       }
     } on CancelledException {

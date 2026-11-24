@@ -1,7 +1,7 @@
 name: anyware
 description: "LifeOS AnyWhere - Cross-platform local network file sharing"
 publish_to: 'none'
-version: 1.2.0+2009
+version: 2.0.0+2010
 
 environment:
   sdk: ^3.11.0
@@ -70,6 +70,8 @@ dependencies:
   web_socket_channel: ^3.0.1
   flutter_webrtc: ^0.12.4
   dartssh2: ^2.16.0
+  # İleti's mailbox key (ed25519), lib/features/ileti/data/ileti_posta.dart; dartssh2 already uses it
+  pinenacl: ^0.6.0
 
   # Cloud Sync (OAuth + Google Drive + OneDrive)
   flutter_appauth: ^7.0.1

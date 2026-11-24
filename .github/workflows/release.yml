@@ -81,6 +81,9 @@ jobs:
           done > .env
       - run: flutter pub get
       - run: flutter build windows --release --build-name=${{ needs.version.outputs.version }} --build-number=${{ needs.version.outputs.build }} --dart-define-from-file=.env
+      - name: Syncthing (klasör eşitleme)
+        shell: bash
+        run: bash tool/syncthing.sh windows
       - name: Kurulum programını oluştur
         shell: pwsh
         run: |
@@ -142,6 +145,8 @@ jobs:
           plugin=build/linux/x64/release/bundle/lib/libtray_manager_plugin.so
           readelf -d "$plugin" | grep NEEDED
           ! readelf -d "$plugin" | grep -qE 'libayatana-(indicator|ido)'
+      - name: Syncthing (klasör eşitleme)
+        run: bash tool/syncthing.sh linux
       - name: Linux paketini oluştur
         run: bash packaging/linux/make-release.sh
       - name: Paketten kurulumu dene
@@ -207,6 +212,8 @@ jobs:
           printf 'storePassword=%s\nkeyPassword=%s\nkeyAlias=%s\nstoreFile=../upload-keystore.jks\n' \
             "$KEYSTORE_PASSWORD" "$KEY_PASSWORD" "$KEY_ALIAS" > android/key.properties
       - run: flutter pub get
+      - name: Syncthing (klasör eşitleme)
+        run: bash tool/syncthing.sh android
       - run: flutter build apk --release --build-name=${{ needs.version.outputs.version }} --build-number=${{ needs.version.outputs.build }} --dart-define-from-file=.env
       # A package signed with the debug key could not update the one people
       # have: it must be the release key's.
@@ -215,6 +222,8 @@ jobs:
           apksigner="$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)"
           "$apksigner" verify --print-certs build/app/outputs/flutter-apk/app-release.apk > signer.txt
           cat signer.txt
+          unzip -l build/app/outputs/flutter-apk/app-release.apk | grep -E "lib/(arm64-v8a|armeabi-v7a)/libsyncthing.so" \
+            || { echo "::error::APK'da Syncthing yok."; exit 1; }
           if grep -q "CN=Android Debug" signer.txt; then
             echo "::error::APK hata ayıklama anahtarıyla imzalanmış."
             exit 1

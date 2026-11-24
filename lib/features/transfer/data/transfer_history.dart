@@ -16,6 +16,9 @@ class TransferRecord {
   final String? error;
   final DateTime timestamp;
 
+  /// Where the file is on this device: where it landed, or what was sent.
+  final String? filePath;
+
   const TransferRecord({
     required this.fileName,
     required this.fileSize,
@@ -24,6 +27,7 @@ class TransferRecord {
     required this.succeeded,
     this.error,
     required this.timestamp,
+    this.filePath,
   });
 
   Map<String, dynamic> toJson() => {
@@ -34,6 +38,7 @@ class TransferRecord {
     'succeeded': succeeded,
     'error': error,
     'timestamp': timestamp.toIso8601String(),
+    if (filePath != null) 'filePath': filePath,
   };
 
   factory TransferRecord.fromJson(Map<String, dynamic> json) => TransferRecord(
@@ -44,6 +49,7 @@ class TransferRecord {
     succeeded: json['succeeded'] as bool? ?? false,
     error: json['error'] as String?,
     timestamp: DateTime.tryParse(json['timestamp'] as String? ?? '') ?? DateTime.now(),
+    filePath: json['filePath'] as String?,
   );
 
   /// Creates a record from a finished [Transfer].
@@ -55,6 +61,7 @@ class TransferRecord {
     succeeded: transfer.status == TransferStatus.completed,
     error: transfer.error,
     timestamp: DateTime.now(),
+    filePath: transfer.isSending ? transfer.sourceFilePath : transfer.filePath,
   );
 
   /// Formatted file size string.

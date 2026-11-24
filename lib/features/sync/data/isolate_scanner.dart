@@ -7,6 +7,37 @@ import 'package:path/path.dart' as p;
 import 'package:anyware/features/sync/data/sync_filter_utils.dart';
 import 'package:anyware/features/sync/domain/sync_manifest.dart';
 
+/// Suffixes of the temporary / staging files the sync engines write next to
+/// real files. They are never part of a manifest on either side, otherwise a
+/// half-written temp file would be synced (or deleted) like user data.
+const syncTempSuffixes = <String>[
+  '.sync_tmp',
+  '.sync_tmp.meta',
+  '.sync_dl',
+  '.sync_bak',
+  '.gdrive_tmp',
+  '.onedrive_tmp',
+];
+
+/// Whether [path] (relative or absolute) names a sync temp/staging file.
+bool isSyncTempPath(String path) {
+  for (final s in syncTempSuffixes) {
+    if (path.endsWith(s)) return true;
+  }
+  return false;
+}
+
+/// Thrown when a scan cannot produce a trustworthy manifest (root folder
+/// missing or unreadable). Callers must treat this as a failed job — never as
+/// an empty folder, because an empty manifest turns into "delete everything on
+/// the other side" in a bidirectional diff.
+class ScanException implements Exception {
+  final String message;
+  const ScanException(this.message);
+  @override
+  String toString() => 'ScanException: $message';
+}
+
 /// Parameters for the isolate scan function.
 ///
 /// Must be a plain class (no closures) so it can cross the isolate boundary.
@@ -33,75 +64,122 @@ class ScanResult {
   /// Maps relativePath → absolute path (needed by callers to resolve files).
   final Map<String, String> fullPaths;
 
-  const ScanResult({required this.entries, required this.fullPaths});
+  /// Relative paths (`/` separators) of sub-directories that could not be
+  /// listed. Their contents are UNKNOWN — not deleted — so callers must not
+  /// derive deletions for anything under them.
+  final List<String> skippedDirs;
+
+  /// Relative paths of files that were listed but could not be stat'd/read.
+  /// Same rule: unknown, not deleted.
+  final List<String> skippedFiles;
+
+  const ScanResult({
+    required this.entries,
+    required this.fullPaths,
+    this.skippedDirs = const [],
+    this.skippedFiles = const [],
+  });
+
+  bool get isPartial => skippedDirs.isNotEmpty || skippedFiles.isNotEmpty;
+
+  /// All paths/prefixes whose state is unknown after this scan.
+  List<String> get unknownPaths => [...skippedDirs, ...skippedFiles];
 }
 
 /// Runs directory scanning + optional hashing in a background isolate.
 ///
-/// This keeps the main isolate free for UI rendering and network I/O.
+/// Throws [ScanException] if the root folder is missing or unreadable.
+/// Unreadable sub-folders are skipped and reported in
+/// [ScanResult.skippedDirs].
 Future<ScanResult> scanDirectoryInIsolate(ScanParams params) {
-  return compute(_scanDirectory, params);
+  return compute(scanDirectorySync, params);
 }
 
-/// Top-level function that runs inside the isolate.
+/// Synchronous scan (the function run inside the isolate). Exposed for tests.
 ///
 /// MUST NOT capture any closures or reference Ref/providers.
-/// Uses synchronous I/O (fine inside a dedicated isolate).
-ScanResult _scanDirectory(ScanParams params) {
-  final dir = Directory(params.dirPath);
-  if (!dir.existsSync()) {
-    return const ScanResult(entries: [], fullPaths: {});
+ScanResult scanDirectorySync(ScanParams params) {
+  final root = Directory(params.dirPath);
+  if (!root.existsSync()) {
+    throw ScanException('Folder does not exist: ${params.dirPath}');
   }
 
   final entries = <SyncManifestEntry>[];
   final fullPaths = <String, String>{};
+  final skippedDirs = <String>[];
+  final skippedFiles = <String>[];
 
-  // Synchronous listing is fine inside a dedicated isolate.
-  final List<FileSystemEntity> entities;
-  try {
-    entities = dir.listSync(recursive: true);
-  } catch (_) {
-    return const ScanResult(entries: [], fullPaths: {});
-  }
+  // Resolved paths of directories already visited (symlink cycle guard).
+  final visited = <String>{};
 
-  for (final entity in entities) {
-    if (entity is! File) continue;
+  String rel(String path) =>
+      p.relative(path, from: params.dirPath).replaceAll(r'\', '/');
 
-    final relPath =
-        p.relative(entity.path, from: params.dirPath).replaceAll(r'\', '/');
-
-    // Apply include/exclude filters.
-    if (!matchesSyncFilters(
-      relPath,
-      includePatterns: params.includePatterns,
-      excludePatterns: params.excludePatterns,
-    )) {
+  // Iterative depth-first walk so that one unreadable folder only loses
+  // that folder, never the whole manifest.
+  final stack = <Directory>[root];
+  var isRoot = true;
+  while (stack.isNotEmpty) {
+    final dir = stack.removeLast();
+    final List<FileSystemEntity> children;
+    try {
+      final resolved = dir.resolveSymbolicLinksSync();
+      if (!visited.add(resolved)) continue;
+      children = dir.listSync(recursive: false, followLinks: true);
+    } catch (e) {
+      if (isRoot) {
+        throw ScanException('Cannot read folder ${params.dirPath}: $e');
+      }
+      skippedDirs.add(rel(dir.path));
       continue;
+    } finally {
+      isRoot = false;
     }
 
-    try {
-      final stat = entity.statSync();
-      String? hash;
+    for (final entity in children) {
+      if (entity is Directory) {
+        stack.add(entity);
+        continue;
+      }
+      if (entity is! File) continue;
 
-      // Compute SHA-256 for small-enough files.
-      if (params.hashThresholdBytes > 0 &&
-          stat.size <= params.hashThresholdBytes &&
-          stat.size > 0) {
-        final bytes = entity.readAsBytesSync();
-        hash = sha256.convert(bytes).toString();
+      final relPath = rel(entity.path);
+      if (isSyncTempPath(relPath)) continue;
+
+      if (!matchesSyncFilters(
+        relPath,
+        includePatterns: params.includePatterns,
+        excludePatterns: params.excludePatterns,
+      )) {
+        continue;
       }
 
-      entries.add(SyncManifestEntry(
-        relativePath: relPath,
-        size: stat.size,
-        lastModified: stat.modified.toUtc(),
-        hash: hash,
-      ));
-      fullPaths[relPath] = entity.path;
-    } catch (_) {
-      // Skip files that cannot be stat'd or read (permission errors, etc.).
+      try {
+        final stat = entity.statSync();
+        String? hash;
+        if (params.hashThresholdBytes > 0 &&
+            stat.size <= params.hashThresholdBytes &&
+            stat.size > 0) {
+          hash = sha256.convert(entity.readAsBytesSync()).toString();
+        }
+        entries.add(SyncManifestEntry(
+          relativePath: relPath,
+          size: stat.size,
+          lastModified: stat.modified.toUtc(),
+          hash: hash,
+        ));
+        fullPaths[relPath] = entity.path;
+      } catch (_) {
+        // Unreadable file: its state is unknown, which is not "deleted".
+        skippedFiles.add(relPath);
+      }
     }
   }
 
-  return ScanResult(entries: entries, fullPaths: fullPaths);
+  return ScanResult(
+    entries: entries,
+    fullPaths: fullPaths,
+    skippedDirs: skippedDirs,
+    skippedFiles: skippedFiles,
+  );
 }

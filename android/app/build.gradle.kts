@@ -50,6 +50,14 @@ android {
         }
     }
 
+    // Syncthing (tool/syncthing.sh) is packed as libsyncthing.so: extracted to
+    // nativeLibraryDir, the one place Android lets an app execute a binary.
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+
     buildTypes {
         release {
             signingConfig = if (keystorePropertiesFile.exists()) {

@@ -119,5 +119,13 @@
             <action android:name="android.intent.action.VIEW"/>
             <data android:mimeType="*/*"/>
         </intent>
+        <!-- opening a received file (content:// from our FileProvider) -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="content" android:mimeType="*/*"/>
+        </intent>
+        <!-- "show in folder": the system Files app -->
+        <package android:name="com.google.android.documentsui"/>
+        <package android:name="com.android.documentsui"/>
     </queries>
 </manifest>

@@ -24,7 +24,10 @@ final settingsProvider =
 /// Windows platform toggles (startup, tray, explorer menu) now also invoke
 /// the corresponding platform service so the changes actually take effect.
 class SettingsNotifier extends StateNotifier<AppSettings> {
-  SettingsNotifier(this._repo) : super(AppSettings.defaults()) {
+  // The saved settings as they are, read synchronously, so the first frame
+  // already has the chosen theme and language (the async load then only fills
+  // in the device name and download folder).
+  SettingsNotifier(this._repo) : super(_repo.loadSaved()) {
     _loadInitial();
   }
 

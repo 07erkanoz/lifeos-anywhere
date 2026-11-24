@@ -11,13 +11,12 @@ import 'package:flutter/services.dart';
 import 'package:anyware/core/constants.dart';
 import 'package:anyware/core/tv_detector.dart';
 import 'package:anyware/features/discovery/presentation/providers.dart';
-import 'package:anyware/features/pairing/presentation/paired_devices_section.dart';
 import 'package:anyware/features/pairing/presentation/providers.dart';
 import 'package:anyware/features/settings/presentation/providers.dart';
 import 'package:anyware/features/settings/presentation/help_screen.dart';
 import 'package:anyware/features/settings/presentation/about_screen.dart';
 import 'package:anyware/i18n/app_localizations.dart';
-import 'package:anyware/widgets/desktop_content_shell.dart';
+import 'package:anyware/ui/ui_kit.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -27,351 +26,288 @@ class SettingsScreen extends ConsumerWidget {
     final settings = ref.watch(settingsProvider);
     final notifier = ref.read(settingsProvider.notifier);
     final locale = settings.locale;
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final ui = Ui.of(context);
+    final me = ref.watch(localDeviceProvider).valueOrNull;
+
+    Widget toggle({
+      required IconData icon,
+      required String title,
+      String? subtitle,
+      required bool value,
+      required VoidCallback onChanged,
+    }) =>
+        SwitchListTile(
+          secondary: Icon(icon, color: ui.accentText),
+          title: Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+          subtitle: subtitle == null
+              ? null
+              : Text(subtitle, style: TextStyle(fontSize: 12, color: ui.muted)),
+          value: value,
+          onChanged: (_) => onChanged(),
+        );
+
+    Widget link({
+      required IconData icon,
+      required String title,
+      String? subtitle,
+      Widget? trailing,
+      VoidCallback? onTap,
+    }) =>
+        ListTile(
+          leading: Icon(icon, color: ui.accentText),
+          title: Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+          subtitle: subtitle == null
+              ? null
+              : Text(subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 12, color: ui.muted)),
+          trailing: trailing ?? (onTap == null ? null : Icon(Icons.chevron_right_rounded, color: ui.muted)),
+          onTap: onTap,
+        );
+
+    Divider line() => Divider(height: 1, thickness: 1, color: ui.border);
 
     final body = FocusTraversalGroup(
       policy: OrderedTraversalPolicy(),
       child: ListView(
-        padding: const EdgeInsets.only(top: 8, bottom: 32),
+        padding: const EdgeInsets.only(bottom: 32),
         children: [
-          // =================================================================
-          // General section
-          // =================================================================
-          _SectionHeader(
-            label: AppLocalizations.get('general', locale),
-          ),
+          PageHeader(title: AppLocalizations.get('settings', locale)),
 
-          // Device name
-          ListTile(
-            leading: const Icon(Icons.badge_outlined),
-            title: Text(AppLocalizations.get('deviceName', locale)),
-            subtitle: Text(
-              settings.deviceName.isNotEmpty
-                  ? settings.deviceName
-                  : '---',
+          // This device: its name as paired devices see it.
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
+            decoration: BoxDecoration(
+              color: ui.surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: ui.border),
             ),
-            trailing: const Icon(Icons.edit, size: 20),
-            onTap: () => _showDeviceNameDialog(
-              context,
-              settings.deviceName,
-              notifier,
-              locale,
-            ),
-          ),
-
-          // Download path
-          ListTile(
-            leading: const Icon(Icons.folder_outlined),
-            title: Text(AppLocalizations.get('saveLocation', locale)),
-            subtitle: Text(
-              settings.downloadPath.isNotEmpty
-                  ? settings.downloadPath
-                  : '---',
-              overflow: TextOverflow.ellipsis,
-              maxLines: 1,
-            ),
-            trailing: OutlinedButton(
-              onPressed: () => _pickDownloadPath(context, notifier, locale),
-              child: Text(AppLocalizations.get('chooseFolder', locale)),
-            ),
-          ),
-
-          const Divider(indent: 16, endIndent: 16, height: 24),
-
-          // =================================================================
-          // Transfer section
-          // =================================================================
-          _SectionHeader(
-            label: AppLocalizations.get('transfer', locale),
-          ),
-
-          // Auto-accept
-          SwitchListTile(
-            secondary: const Icon(Icons.file_download_outlined),
-            title: Text(AppLocalizations.get('autoAccept', locale)),
-            subtitle: Text(
-              AppLocalizations.get('autoAcceptDesc', locale),
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-            value: settings.autoAcceptFiles,
-            onChanged: (_) => notifier.toggleAutoAccept(),
-          ),
-
-          // Overwrite files
-          SwitchListTile(
-            secondary: const Icon(Icons.file_copy_outlined),
-            title: Text(AppLocalizations.get('overwriteFiles', locale)),
-            subtitle: Text(
-              AppLocalizations.get('overwriteFilesDesc', locale),
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-            value: settings.overwriteFiles,
-            onChanged: (_) => notifier.toggleOverwriteFiles(),
-          ),
-
-          // Auto sync on LAN
-          SwitchListTile(
-            secondary: const Icon(Icons.sync_outlined),
-            title: Text(AppLocalizations.get('autoSyncOnLan', locale)),
-            subtitle: Text(
-              AppLocalizations.get('autoSyncOnLanDesc', locale),
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-            value: settings.autoSyncOnLan,
-            onChanged: (_) => notifier.toggleAutoSyncOnLan(),
-          ),
-
-          // Stay reachable in the background (Android)
-          if (Platform.isAndroid)
-            SwitchListTile(
-              secondary: const Icon(Icons.wifi_tethering_outlined),
-              title: Text(AppLocalizations.get('stayReachable', locale)),
-              subtitle: Text(
-                AppLocalizations.get('stayReachableDesc', locale),
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-              value: settings.stayReachable,
-              onChanged: (_) => notifier.toggleStayReachable(),
-            ),
-
-          // Web Portal info
-          _WebPortalTile(locale: locale),
-
-          const Divider(indent: 16, endIndent: 16, height: 24),
-
-          // =================================================================
-          // Paired devices section
-          // =================================================================
-          _SectionHeader(
-            label: AppLocalizations.get('pairedDevices', locale),
-          ),
-          PairedDevicesSection(locale: locale),
-
-          const Divider(indent: 16, endIndent: 16, height: 24),
-
-          // =================================================================
-          // Appearance section
-          // =================================================================
-          _SectionHeader(
-            label: AppLocalizations.get('appearance', locale),
-          ),
-
-          // Theme selector
-          ListTile(
-            leading: const Icon(Icons.palette_outlined),
-            title: Text(AppLocalizations.get('appearance', locale)),
-            subtitle: Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final options = [
-                    ('system', Icons.brightness_auto,
-                      AppLocalizations.get('systemMode', locale)),
-                    ('light', Icons.light_mode,
-                      AppLocalizations.get('lightMode', locale)),
-                    ('dark', Icons.dark_mode,
-                      AppLocalizations.get('darkMode', locale)),
-                  ];
-
-                  if (constraints.maxWidth < 430) {
-                    return DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: settings.theme,
-                        isExpanded: true,
-                        borderRadius: BorderRadius.circular(12),
-                        items: [
-                          for (final option in options)
-                            DropdownMenuItem(
-                              value: option.$1,
-                              child: Row(
-                                children: [
-                                  Icon(option.$2, size: 18),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Text(
-                                      option.$3,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                        ],
-                        onChanged: (value) {
-                          if (value != null) notifier.updateTheme(value);
-                        },
+            child: Row(
+              children: [
+                DeviceAvatar(platform: me?.platform ?? Platform.operatingSystem, size: 44),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        settings.deviceName.isNotEmpty ? settings.deviceName : '---',
+                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
                       ),
-                    );
-                  }
-
-                  return SegmentedButton<String>(
-                    segments: [
-                      for (final option in options)
-                        ButtonSegment<String>(
-                          value: option.$1,
-                          label: Text(
-                            option.$3,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          icon: Icon(option.$2, size: 18),
-                        ),
+                      Text(AppLocalizations.get('deviceName', locale),
+                          style: TextStyle(fontSize: 12, color: ui.muted)),
                     ],
-                    selected: {settings.theme},
-                    onSelectionChanged: (selection) {
-                      notifier.updateTheme(selection.first);
+                  ),
+                ),
+                OutlinedButton(
+                  onPressed: () => _showDeviceNameDialog(context, settings.deviceName, notifier, locale),
+                  child: Text(AppLocalizations.get('edit', locale)),
+                ),
+              ],
+            ),
+          ),
+
+          SectionHeader(AppLocalizations.get('transfer', locale)),
+          Panel(children: [
+            if (Platform.isAndroid) ...[
+              toggle(
+                icon: Icons.wifi_tethering_rounded,
+                title: AppLocalizations.get('stayReachable', locale),
+                subtitle: AppLocalizations.get('stayReachableDesc', locale),
+                value: settings.stayReachable,
+                onChanged: notifier.toggleStayReachable,
+              ),
+              line(),
+            ],
+            toggle(
+              icon: Icons.file_download_outlined,
+              title: AppLocalizations.get('autoAccept', locale),
+              subtitle: AppLocalizations.get('autoAcceptDesc', locale),
+              value: settings.autoAcceptFiles,
+              onChanged: notifier.toggleAutoAccept,
+            ),
+            line(),
+            toggle(
+              icon: Icons.file_copy_outlined,
+              title: AppLocalizations.get('overwriteFiles', locale),
+              subtitle: AppLocalizations.get('overwriteFilesDesc', locale),
+              value: settings.overwriteFiles,
+              onChanged: notifier.toggleOverwriteFiles,
+            ),
+            line(),
+            link(
+              icon: Icons.folder_outlined,
+              title: AppLocalizations.get('saveLocation', locale),
+              subtitle: settings.downloadPath.isNotEmpty ? settings.downloadPath : '---',
+              trailing: TextButton(
+                onPressed: () => _pickDownloadPath(context, notifier, locale),
+                child: Text(AppLocalizations.get('chooseFolder', locale)),
+              ),
+            ),
+            line(),
+            _WebPortalTile(locale: locale),
+          ]),
+
+          SectionHeader(AppLocalizations.get('appearance', locale)),
+          Panel(children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.palette_outlined, color: ui.accentText),
+                      const SizedBox(width: 16),
+                      Text(AppLocalizations.get('theme', locale),
+                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      const options = [
+                        ('system', Icons.brightness_auto_rounded, 'systemMode'),
+                        ('light', Icons.light_mode_rounded, 'lightMode'),
+                        ('dark', Icons.dark_mode_rounded, 'darkMode'),
+                      ];
+                      // three segments do not fit a narrow phone: a menu there
+                      if (constraints.maxWidth < 430) {
+                        return DropdownButton<String>(
+                          value: settings.theme,
+                          isExpanded: true,
+                          underline: const SizedBox.shrink(),
+                          borderRadius: BorderRadius.circular(12),
+                          items: [
+                            for (final (value, icon, key) in options)
+                              DropdownMenuItem(
+                                value: value,
+                                child: Row(children: [
+                                  Icon(icon, size: 18),
+                                  const SizedBox(width: 10),
+                                  Text(AppLocalizations.get(key, locale)),
+                                ]),
+                              ),
+                          ],
+                          onChanged: (value) {
+                            if (value != null) notifier.updateTheme(value);
+                          },
+                        );
+                      }
+                      return SizedBox(
+                        width: double.infinity,
+                        child: SegmentedButton<String>(
+                          segments: [
+                            for (final (value, icon, key) in options)
+                              ButtonSegment<String>(
+                                value: value,
+                                icon: Icon(icon, size: 18),
+                                label: Text(AppLocalizations.get(key, locale), overflow: TextOverflow.ellipsis),
+                              ),
+                          ],
+                          selected: {settings.theme},
+                          onSelectionChanged: (selection) => notifier.updateTheme(selection.first),
+                          showSelectedIcon: false,
+                        ),
+                      );
                     },
-                    showSelectedIcon: false,
-                  );
+                  ),
+                ],
+              ),
+            ),
+            line(),
+            link(
+              icon: Icons.language_rounded,
+              title: AppLocalizations.get('language', locale),
+              trailing: DropdownButton<String>(
+                value: settings.locale,
+                underline: const SizedBox.shrink(),
+                borderRadius: BorderRadius.circular(12),
+                items: [
+                  for (final code in AppLocalizations.supportedLocales)
+                    DropdownMenuItem(
+                      value: code,
+                      child: Text(AppLocalizations.localeNames[code] ?? code),
+                    ),
+                ],
+                onChanged: (value) {
+                  if (value != null) notifier.updateLocale(value);
                 },
               ),
             ),
-          ),
+          ]),
 
-          const SizedBox(height: 4),
-
-          // Language selector
-          ListTile(
-            leading: const Icon(Icons.language),
-            title: Text(AppLocalizations.get('language', locale)),
-            trailing: DropdownButton<String>(
-              value: settings.locale,
-              underline: const SizedBox.shrink(),
-              borderRadius: BorderRadius.circular(12),
-              items: [
-                for (final code in AppLocalizations.supportedLocales)
-                  DropdownMenuItem(
-                    value: code,
-                    child: Text(AppLocalizations.localeNames[code] ?? code),
-                  ),
-              ],
-              onChanged: (value) {
-                if (value != null) {
-                  notifier.updateLocale(value);
-                }
-              },
-            ),
-          ),
-
-          // =================================================================
-          // Windows section (only on Windows)
-          // =================================================================
           if (Platform.isWindows) ...[
-            const Divider(indent: 16, endIndent: 16, height: 24),
-
-            _SectionHeader(
-              label: AppLocalizations.get('windows', locale),
-            ),
-
-            // Launch at startup
-            SwitchListTile(
-              secondary: const Icon(Icons.rocket_launch_outlined),
-              title: Text(
-                AppLocalizations.get('launchAtStartup', locale),
+            SectionHeader(AppLocalizations.get('windows', locale)),
+            Panel(children: [
+              toggle(
+                icon: Icons.rocket_launch_outlined,
+                title: AppLocalizations.get('launchAtStartup', locale),
+                value: settings.launchAtStartup,
+                onChanged: notifier.toggleLaunchAtStartup,
               ),
-              value: settings.launchAtStartup,
-              onChanged: (_) => notifier.toggleLaunchAtStartup(),
-            ),
-
-            // Minimize to tray
-            SwitchListTile(
-              secondary: const Icon(Icons.vertical_align_bottom),
-              title: Text(
-                AppLocalizations.get('minimizeToTray', locale),
+              line(),
+              toggle(
+                icon: Icons.vertical_align_bottom_rounded,
+                title: AppLocalizations.get('minimizeToTray', locale),
+                value: settings.minimizeToTray,
+                onChanged: notifier.toggleMinimizeToTray,
               ),
-              value: settings.minimizeToTray,
-              onChanged: (_) => notifier.toggleMinimizeToTray(),
-            ),
-
-            // Explorer context menu
-            SwitchListTile(
-              secondary: const Icon(Icons.menu_open),
-              title: Text(
-                AppLocalizations.get('explorerMenu', locale),
+              line(),
+              toggle(
+                icon: Icons.menu_open_rounded,
+                title: AppLocalizations.get('explorerMenu', locale),
+                value: settings.showInExplorerMenu,
+                onChanged: notifier.toggleExplorerMenu,
               ),
-              value: settings.showInExplorerMenu,
-              onChanged: (_) => notifier.toggleExplorerMenu(),
-            ),
+            ]),
           ],
 
-          const Divider(indent: 16, endIndent: 16, height: 24),
-
-          // =================================================================
-          // About section
-          // =================================================================
-          _SectionHeader(
-            label: AppLocalizations.get('about', locale),
-          ),
-
-          ListTile(
-            leading: const Icon(Icons.install_mobile_rounded),
-            title: Text(AppLocalizations.get('installOnOtherDevices', locale)),
-            subtitle: Text(
-              AppLocalizations.get('installOnOtherDevicesDesc', locale),
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
+          SectionHeader(AppLocalizations.get('about', locale)),
+          Panel(children: [
+            link(
+              icon: Icons.install_mobile_rounded,
+              title: AppLocalizations.get('installOnOtherDevices', locale),
+              subtitle: AppLocalizations.get('installOnOtherDevicesDesc', locale),
+              trailing: Icon(Icons.open_in_new_rounded, size: 20, color: ui.muted),
+              onTap: () async {
+                try {
+                  await launchUrl(Uri.parse(AppConstants.websiteUrl), mode: LaunchMode.externalApplication);
+                } catch (_) {}
+              },
+            ),
+            line(),
+            link(
+              icon: Icons.help_outline_rounded,
+              title: AppLocalizations.get('help', locale),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => HelpScreen(locale: locale)),
               ),
             ),
-            trailing: const Icon(Icons.open_in_new, size: 20),
-            onTap: () async {
-              final uri = Uri.parse(AppConstants.websiteUrl);
-              try {
-                await launchUrl(uri, mode: LaunchMode.externalApplication);
-              } catch (_) {}
-            },
-          ),
-
-          ListTile(
-            leading: const Icon(Icons.help_outline),
-            title: Text(AppLocalizations.get('help', locale)),
-            trailing: const Icon(Icons.chevron_right, size: 20),
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => HelpScreen(locale: locale),
-                ),
-              );
-            },
-          ),
-
-          ListTile(
-            leading: const Icon(Icons.info_outline),
-            title: Text(AppLocalizations.get('about', locale)),
-            subtitle: Text('${AppLocalizations.get('version', locale)} ${AppConstants.appVersion}'),
-            trailing: const Icon(Icons.chevron_right, size: 20),
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => AboutScreen(locale: locale),
-                ),
-              );
-            },
-          ),
+            line(),
+            link(
+              icon: Icons.info_outline_rounded,
+              title: AppLocalizations.get('about', locale),
+              subtitle: 'AnyWhere ${AppConstants.appVersion}',
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => AboutScreen(locale: locale)),
+              ),
+            ),
+          ]),
         ],
       ),
     );
 
-    if (DesktopShellScope.of(context)) {
-      return DesktopContentShell(
-        title: AppLocalizations.get('settings', locale),
-        maxWidth: 720,
-        child: body,
-      );
-    }
-
     return Scaffold(
-      appBar: AppBar(
-        title: Text(AppLocalizations.get('settings', locale)),
+      backgroundColor: ui.bg,
+      body: SafeArea(
+        bottom: false,
+        child: Center(
+          child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 760), child: body),
+        ),
       ),
-      body: body,
     );
   }
 
@@ -638,24 +574,3 @@ class _WebPortalTile extends ConsumerWidget {
   }
 }
 
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-      child: Text(
-        label,
-        style: theme.textTheme.titleSmall?.copyWith(
-          color: theme.colorScheme.primary,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-}

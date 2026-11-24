@@ -14,6 +14,7 @@ import android.net.NetworkRequest
 import android.net.wifi.WifiManager
 import android.net.wifi.WifiNetworkSpecifier
 import android.os.Build
+import android.provider.DocumentsContract
 import android.provider.Settings
 import android.webkit.MimeTypeMap
 import androidx.core.content.FileProvider
@@ -38,6 +39,8 @@ class MainActivity : FlutterActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
+                    // Syncthing is run from here (lib/features/esitleme/data/syncthing.dart)
+                    "nativeLibraryDir" -> result.success(applicationInfo.nativeLibraryDir)
                     "isTV" -> {
                         val uiModeManager = getSystemService(Context.UI_MODE_SERVICE) as UiModeManager
                         val isTV = uiModeManager.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION
@@ -104,20 +107,29 @@ class MainActivity : FlutterActivity() {
                                     "*/*"
                                 )
 
+                                // Just try: asking resolveActivity() first answered "no app"
+                                // on Android 11+ (package visibility), so nothing opened.
+                                fun viewIntent(type: String) = Intent(Intent.ACTION_VIEW).apply {
+                                    setDataAndType(uri, type)
+                                    clipData = android.content.ClipData.newRawUri(file.name, uri)
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
                                 var opened = false
                                 for (candidate in mimeCandidates) {
-                                    val viewIntent = Intent(Intent.ACTION_VIEW).apply {
-                                        setDataAndType(uri, candidate)
-                                        clipData = android.content.ClipData.newRawUri(file.name, uri)
-                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                    }
-                                    if (viewIntent.resolveActivity(packageManager) == null) continue
                                     try {
-                                        startActivity(viewIntent)
+                                        startActivity(viewIntent(candidate))
                                         opened = true
                                         break
                                     } catch (_: ActivityNotFoundException) {
                                     } catch (_: SecurityException) {
+                                    }
+                                }
+                                if (!opened) {
+                                    // the system's "open with" sheet, which also says when no app can
+                                    try {
+                                        startActivity(Intent.createChooser(viewIntent("*/*"), file.name))
+                                        opened = true
+                                    } catch (_: Exception) {
                                     }
                                 }
                                 result.success(opened)
@@ -135,67 +147,45 @@ class MainActivity : FlutterActivity() {
                                 val file = File(path)
                                 val dir = if (file.isDirectory) file else file.parentFile
 
-                                // Build a content URI that Android file managers understand.
-                                val relativePath = dir?.absolutePath
-                                    ?.removePrefix("/storage/emulated/0/") ?: ""
-                                val encodedPath = Uri.encode(relativePath, "/")
-
-                                // Strategy 1: Open the Documents UI directly to the folder.
-                                // This works on most stock Android file managers.
-                                val treeUri = Uri.parse(
-                                    "content://com.android.externalstorage.documents/document/primary:$encodedPath"
-                                )
+                                // The folder as a DocumentsProvider document. Its id is
+                                // "primary:Download/AnyWhere" and must be encoded (':' and '/'):
+                                // built by hand it was not, and file managers fell back to the
+                                // root of the storage instead of the folder.
+                                val authority = "com.android.externalstorage.documents"
+                                val base = "/storage/emulated/0"
+                                val abs = dir?.absolutePath ?: base
+                                val relative = if (abs.startsWith("$base/")) abs.removePrefix("$base/") else ""
+                                val docUri = DocumentsContract.buildDocumentUri(authority, "primary:$relative")
                                 var opened = false
 
-                                // Try ACTION_VIEW with document URI (works on Samsung, Pixel)
-                                try {
-                                    val intent = Intent(Intent.ACTION_VIEW).apply {
-                                        setDataAndType(treeUri, "resource/folder")
-                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                    }
+                                fun tryStart(intent: Intent): Boolean = try {
+                                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                     startActivity(intent)
-                                    opened = true
-                                } catch (_: Exception) {}
-
-                                // Strategy 2: Open with vnd.android.document/directory
-                                if (!opened) {
-                                    try {
-                                        val intent = Intent(Intent.ACTION_VIEW).apply {
-                                            setDataAndType(treeUri, "vnd.android.document/directory")
-                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                        }
-                                        startActivity(intent)
-                                        opened = true
-                                    } catch (_: Exception) {}
+                                    true
+                                } catch (_: Exception) {
+                                    false
                                 }
 
-                                // Strategy 3: Use the system file manager package directly
-                                if (!opened) {
-                                    try {
-                                        val intent = packageManager
-                                            .getLaunchIntentForPackage("com.google.android.documentsui")
-                                            ?: packageManager
-                                                .getLaunchIntentForPackage("com.android.documentsui")
-                                        if (intent != null) {
-                                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                            startActivity(intent)
-                                            opened = true
-                                        }
-                                    } catch (_: Exception) {}
+                                // 1. The system Files app (DocumentsUI), straight at the folder.
+                                for (pkg in listOf("com.google.android.documentsui", "com.android.documentsui")) {
+                                    if (opened) break
+                                    opened = tryStart(Intent(Intent.ACTION_VIEW).apply {
+                                        setDataAndType(docUri, DocumentsContract.Document.MIME_TYPE_DIR)
+                                        setPackage(pkg)
+                                    })
                                 }
-
-                                // Strategy 4: Generic file manager intent
+                                // 2. Any file manager that takes a folder document.
                                 if (!opened) {
-                                    try {
-                                        val intent = Intent(Intent.ACTION_VIEW).apply {
-                                            data = Uri.parse("content://com.android.externalstorage.documents/root/primary")
-                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                        }
-                                        startActivity(intent)
-                                        opened = true
-                                    } catch (_: Exception) {}
+                                    opened = tryStart(Intent(Intent.ACTION_VIEW).apply {
+                                        setDataAndType(docUri, DocumentsContract.Document.MIME_TYPE_DIR)
+                                    })
+                                }
+                                // 3. Files app opened on its own (at least the right app).
+                                if (!opened) {
+                                    val launch = packageManager.getLaunchIntentForPackage("com.google.android.documentsui")
+                                        ?: packageManager.getLaunchIntentForPackage("com.android.documentsui")
+                                    if (launch != null) opened = tryStart(launch)
                                 }
 
                                 if (opened) {

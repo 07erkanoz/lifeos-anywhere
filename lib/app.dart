@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:anyware/features/esitleme/presentation/providers.dart';
 import 'package:anyware/core/app_visibility.dart';
 import 'package:anyware/core/background_service.dart';
 import 'package:anyware/core/android_platform_service.dart';
@@ -21,7 +22,6 @@ import 'package:anyware/core/theme.dart';
 import 'package:anyware/core/tv_detector.dart';
 import 'package:anyware/features/settings/presentation/providers.dart';
 import 'package:anyware/features/dashboard/presentation/dashboard_screen.dart';
-import 'package:anyware/features/discovery/presentation/device_list_screen.dart';
 import 'package:anyware/features/discovery/presentation/providers.dart';
 import 'package:anyware/features/pairing/data/pairing_client.dart';
 import 'package:anyware/features/pairing/domain/pairing_request.dart';
@@ -32,16 +32,12 @@ import 'package:anyware/features/transfer/presentation/providers.dart';
 import 'package:anyware/features/transfer/domain/transfer.dart';
 import 'package:anyware/features/settings/presentation/settings_screen.dart';
 import 'package:anyware/i18n/app_localizations.dart';
-import 'package:anyware/widgets/tv_sidebar.dart';
 import 'package:anyware/widgets/desktop_content_shell.dart';
 import 'package:anyware/widgets/desktop_status_bar.dart';
-import 'package:anyware/features/clipboard/presentation/clipboard_screen.dart';
 import 'package:anyware/features/clipboard/data/clipboard_service.dart';
-import 'package:anyware/features/sync/presentation/sync_screen.dart';
 import 'package:anyware/features/sync/presentation/sync_setup_dialog.dart';
 import 'package:anyware/features/sync/data/sync_service.dart';
 import 'package:anyware/features/sync/domain/sync_state.dart';
-import 'package:anyware/features/server_sync/presentation/server_sync_screen.dart';
 import 'package:anyware/features/server_sync/data/server_sync_service.dart';
 import 'package:anyware/features/sharing/presentation/share_target_picker.dart';
 import 'package:anyware/features/sharing/data/dropped_file_expander.dart';
@@ -49,6 +45,13 @@ import 'package:anyware/features/platform/tray_service.dart';
 import 'package:anyware/features/platform/linux/linux_firewall_service.dart';
 import 'package:anyware/features/settings/data/settings_repository.dart';
 import 'package:anyware/widgets/app_states.dart';
+import 'package:anyware/features/ileti/domain/ileti_message.dart';
+import 'package:anyware/features/ileti/presentation/providers.dart';
+import 'package:anyware/ui/devices_home.dart';
+import 'package:anyware/ui/files_screen.dart';
+import 'package:anyware/ui/sync_home.dart';
+import 'package:anyware/ui/ui_kit.dart';
+import 'package:anyware/ui/ui_strings.dart';
 
 class App extends ConsumerWidget {
   const App({super.key});
@@ -164,24 +167,12 @@ class _MainShellState extends ConsumerState<_MainShell>
         SettingsScreen(),
       ];
     }
-    // Desktop sidebar: Dashboard, Transfers, Clipboard, Sync, ServerSync, Settings
-    if (_useSidebar) {
-      return const <Widget>[
-        DashboardScreen(),
-        TransferScreen(),
-        ClipboardScreen(),
-        SyncScreen(),
-        ServerSyncScreen(),
-        SettingsScreen(),
-      ];
-    }
-    // Mobile: DeviceList, Transfers, Clipboard, Sync, ServerSync, Settings
+    // AnyWhere 2.0 (lib/ui): Cihazlar, Dosyalar, Eşitleme, Ayarlar — the
+    // same four on phones (bottom bar) and desktops (rail).
     return const <Widget>[
-      DeviceListScreen(),
-      TransferScreen(),
-      ClipboardScreen(),
-      SyncScreen(),
-      ServerSyncScreen(),
+      DevicesHome(),
+      FilesScreen(),
+      SyncHome(),
       SettingsScreen(),
     ];
   }
@@ -579,14 +570,15 @@ class _MainShellState extends ConsumerState<_MainShell>
 
   void _navigateToClipboard() {
     if (_isTV) return;
-    _selectIndex(2);
+    ref.read(filesFilterProvider.notifier).state = 4;
+    _selectIndex(1);
   }
 
   void _selectIndex(int index) {
     if (_selectedIndex != index) {
       setState(() => _selectedIndex = index);
     }
-    if (!_isTV && index == 2) {
+    if (!_isTV && index == 1 && ref.read(filesFilterProvider) == 4) {
       ref.read(clipboardUnreadCountProvider.notifier).state = 0;
     }
   }
@@ -731,6 +723,46 @@ class _MainShellState extends ConsumerState<_MainShell>
     });
   }
 
+  PendingEsitlemePrompt? _shownEsitlemePrompt;
+
+  void _showNextEsitlemePrompt(
+    List<PendingEsitlemePrompt> prompts,
+    String locale,
+  ) {
+    if (_shownEsitlemePrompt != null || prompts.isEmpty || !mounted) return;
+    final prompt = prompts.first;
+    _shownEsitlemePrompt = prompt;
+    final notifier = ref.read(esitlemePromptProvider.notifier);
+    showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(AppLocalizations.get('esitlemeAskTitle', locale)),
+        content: Text(
+          AppLocalizations.format('esitlemeAskBody', locale, {
+            'name': prompt.device.name,
+          }),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(AppLocalizations.get('reject', locale)),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(AppLocalizations.get('esitlemeAllow', locale)),
+          ),
+        ],
+      ),
+    ).then((answer) {
+      _shownEsitlemePrompt = null;
+      // dismissed without an answer: not kept, asked again next time
+      notifier.resolve(prompt, answer);
+      if (mounted) {
+        _showNextEsitlemePrompt(ref.read(esitlemePromptProvider), locale);
+      }
+    });
+  }
+
   void _toggleSidebar() {
     final autoCollapsed =
         MediaQuery.sizeOf(context).width < AppBreakpoints.expanded;
@@ -745,7 +777,7 @@ class _MainShellState extends ConsumerState<_MainShell>
 
     ref.listen<ClipboardEntry?>(clipboardReceivedEventProvider, (prev, next) {
       if (next == null || identical(prev, next)) return;
-      if (_selectedIndex == 2 && !_isTV) {
+      if (_selectedIndex == 1 && ref.read(filesFilterProvider) == 4 && !_isTV) {
         ref.read(clipboardUnreadCountProvider.notifier).state = 0;
       }
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -786,6 +818,11 @@ class _MainShellState extends ConsumerState<_MainShell>
     // One-time pairing prompt when an unknown device contacts us.
     ref.listen<List<PendingPairingPrompt>>(pairingPromptProvider, (_, next) {
       _showNextPairingPrompt(next, locale);
+    });
+
+    // A paired device asks to sync folders: asked once per device.
+    ref.listen<List<PendingEsitlemePrompt>>(esitlemePromptProvider, (_, next) {
+      _showNextEsitlemePrompt(next, locale);
     });
 
     // Show sync setup dialog when a remote device sends a setup request.
@@ -876,25 +913,10 @@ class _MainShellState extends ConsumerState<_MainShell>
   // ─────────────────────────────────────────────────────────────────────────
 
   Widget _buildSidebarLayout(String locale) {
-    final autoCollapsed =
-        MediaQuery.sizeOf(context).width < AppBreakpoints.expanded;
-    final isSidebarCollapsed = _sidebarCollapsedOverride ?? autoCollapsed;
-
-    // Compute badges from providers.
+    // The Dosyalar badge: what is moving now and unread clipboard entries.
     final transfers = ref.watch(activeTransfersProvider);
     final activeTransferCount = transfers.where((t) => t.isActive).length;
-    final syncState = ref.watch(syncServiceProvider);
-    final serverSyncState = ref.watch(serverSyncServiceProvider);
-    final activeSyncCount =
-        syncState.jobs.where((j) => j.isActive).length +
-        serverSyncState.jobs.where((j) => j.isActive).length;
     final unreadClipboardCount = ref.watch(clipboardUnreadCountProvider);
-
-    final badges = <int, String>{
-      if (activeTransferCount > 0) 1: '$activeTransferCount',
-      if (unreadClipboardCount > 0) 2: '$unreadClipboardCount',
-      if (activeSyncCount > 0) 3: '$activeSyncCount',
-    };
 
     return Scaffold(
       body: Column(
@@ -907,14 +929,13 @@ class _MainShellState extends ConsumerState<_MainShell>
             child: Row(
               children: [
                 // Left sidebar
-                TvSidebar(
+                _Rail(
                   selectedIndex: _selectedIndex,
-                  onIndexChanged: _selectIndex,
-                  locale: locale,
-                  isTv: false,
-                  isCollapsed: isSidebarCollapsed,
-                  onToggleCollapse: _toggleSidebar,
-                  badges: badges.isNotEmpty ? badges : null,
+                  onSelected: _selectIndex,
+                  destinations: _destinations(
+                    locale,
+                    activeTransferCount + unreadClipboardCount,
+                  ),
                 ),
 
                 // Content area + status bar
@@ -1021,94 +1042,43 @@ class _MainShellState extends ConsumerState<_MainShell>
       );
     }
 
-    final navLabels = [
-      AppLocalizations.get('devices', locale),
-      AppLocalizations.get('transfers', locale),
-      AppLocalizations.get('clipboard', locale),
-      AppLocalizations.get('more', locale),
-    ];
-    const navIcons = [
-      Icons.devices_rounded,
-      Icons.swap_horiz_rounded,
-      Icons.content_paste_rounded,
-      Icons.more_horiz_rounded,
-    ];
-    final unreadClipboardCount = ref.watch(clipboardUnreadCountProvider);
+    final transfers = ref.watch(activeTransfersProvider);
+    final activeTransfers = transfers.where((t) => t.isActive).length;
+    final unreadClipboard = ref.watch(clipboardUnreadCountProvider);
+    final filesBadge = activeTransfers + unreadClipboard;
+    final ui = Ui.of(context);
 
     return Scaffold(
+      backgroundColor: ui.bg,
       body: _AnimatedIndexedStack(index: _selectedIndex, children: _screens),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex <= 2 ? _selectedIndex : 3,
-        onDestinationSelected: (int index) {
-          if (index == 3) {
-            _showMoreDestinations(locale);
-          } else {
-            _selectIndex(index);
-          }
-        },
+        selectedIndex: _selectedIndex,
+        onDestinationSelected: _selectIndex,
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-        height: 64,
+        height: 72,
+        backgroundColor: ui.surface,
+        indicatorColor: ui.accentSoft,
         destinations: [
-          for (int i = 0; i < navLabels.length; i++)
-            NavigationDestination(
-              icon: i == 2 && unreadClipboardCount > 0
-                  ? Badge(
-                      label: Text('$unreadClipboardCount'),
-                      child: Icon(navIcons[i]),
-                    )
-                  : Icon(navIcons[i]),
-              label: navLabels[i],
-            ),
+          for (final d in _destinations(locale, filesBadge))
+            NavigationDestination(icon: d.icon, label: d.label),
         ],
       ),
     );
   }
 
-  Future<void> _showMoreDestinations(String locale) async {
-    final selected = await showModalBottomSheet<int>(
-      context: context,
-      useSafeArea: true,
-      showDragHandle: true,
-      builder: (sheetContext) => Padding(
-        padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.sync_rounded),
-              title: Text(AppLocalizations.get('folderSync', locale)),
-              selected: _selectedIndex == 3,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              onTap: () => Navigator.of(sheetContext).pop(3),
-            ),
-            ListTile(
-              leading: const Icon(Icons.cloud_sync_rounded),
-              title: Text(AppLocalizations.get('serverSync', locale)),
-              selected: _selectedIndex == 4,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              onTap: () => Navigator.of(sheetContext).pop(4),
-            ),
-            ListTile(
-              leading: const Icon(Icons.settings_rounded),
-              title: Text(AppLocalizations.get('settings', locale)),
-              selected: _selectedIndex == 5,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              onTap: () => Navigator.of(sheetContext).pop(5),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    if (selected != null && mounted) {
-      _selectIndex(selected);
-    }
+  List<({Widget icon, String label})> _destinations(String locale, int filesBadge) {
+    Widget badged(IconData icon, int n) =>
+        n > 0 ? Badge(label: Text('$n'), child: Icon(icon)) : Icon(icon);
+    final unreadChats = ref
+        .watch(iletiProvider)
+        .values
+        .fold<int>(0, (n, list) => n + list.where((m) => m.status == IletiStatus.unread).length);
+    return [
+      (icon: badged(Icons.chat_bubble_outline_rounded, unreadChats), label: S.get('navDevices', locale)),
+      (icon: badged(Icons.swap_vert_rounded, filesBadge), label: S.get('navFiles', locale)),
+      (icon: const Icon(Icons.sync_rounded), label: S.get('navSync', locale)),
+      (icon: const Icon(Icons.tune_rounded), label: S.get('navSettings', locale)),
+    ];
   }
 }
 
@@ -1274,6 +1244,80 @@ class _TitleBarButtonState extends State<_TitleBarButton> {
                 : widget.iconColor,
           ),
         ),
+      ),
+    );
+  }
+}
+
+
+/// The desktop rail of AnyWhere 2.0: the app mark, then the four sections.
+class _Rail extends StatelessWidget {
+  const _Rail({
+    required this.selectedIndex,
+    required this.onSelected,
+    required this.destinations,
+  });
+
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
+  final List<({Widget icon, String label})> destinations;
+
+  @override
+  Widget build(BuildContext context) {
+    final ui = Ui.of(context);
+    return Container(
+      width: 84,
+      decoration: BoxDecoration(
+        color: ui.dark ? const Color(0xFF0C0A12) : const Color(0xFFF1EFF7),
+        border: Border(right: BorderSide(color: ui.border)),
+      ),
+      child: Column(
+        children: [
+          const SizedBox(height: 16),
+          // AnyWhere's own logo (assets/icons/logo.png), as the old sidebar had it
+          const AppLogo(size: 40),
+          const SizedBox(height: 20),
+          for (var i = 0; i < destinations.length; i++)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Tooltip(
+                message: destinations[i].label,
+                child: Material(
+                  color: i == selectedIndex ? ui.accentSoft : Colors.transparent,
+                  borderRadius: BorderRadius.circular(14),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(14),
+                    onTap: () => onSelected(i),
+                    child: SizedBox(
+                      width: 64,
+                      height: 56,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          IconTheme(
+                            data: IconThemeData(
+                              size: 20,
+                              color: i == selectedIndex ? ui.text : ui.muted,
+                            ),
+                            child: destinations[i].icon,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            destinations[i].label,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: i == selectedIndex ? FontWeight.w600 : FontWeight.w500,
+                              color: i == selectedIndex ? ui.text : ui.muted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

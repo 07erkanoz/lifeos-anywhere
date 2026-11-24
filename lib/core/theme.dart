@@ -1,56 +1,57 @@
 import 'package:flutter/material.dart';
 
-/// Modern minimalist color palette — Indigo accent, clean whites/deep blacks.
+/// LifeOS palette (the AnyWhere 2.0 mock, LifeOS İleti's colours): violet
+/// accent on a deep violet-black night and a soft violet-white day.
 class AppColors {
   AppColors._();
 
   // — Main dark backgrounds (Zinc scale) —
-  static const Color darkBg = Color(0xFF09090B);
-  static const Color darkSurface = Color(0xFF18181B);
-  static const Color darkCard = Color(0xFF1C1C22);
-  static const Color darkSidebar = Color(0xFF111114);
+  static const Color darkBg = Color(0xFF100E17);
+  static const Color darkSurface = Color(0xFF1A1724);
+  static const Color darkCard = Color(0xFF1A1724);
+  static const Color darkSidebar = Color(0xFF0C0A12);
 
   // — Light theme backgrounds (Clean white) —
-  static const Color lightBg = Color(0xFFFFFFFF);
-  static const Color lightSurface = Color(0xFFFAFAFA);
+  static const Color lightBg = Color(0xFFF7F6FB);
+  static const Color lightSurface = Color(0xFFFFFFFF);
   static const Color lightCard = Color(0xFFFFFFFF);
-  static const Color lightSidebar = Color(0xFFF5F5F7);
+  static const Color lightSidebar = Color(0xFFF1EFF7);
 
   // — Indigo accent (dark theme — lighter for contrast) —
-  static const Color neonBlue = Color(0xFF818CF8);     // Indigo-400
-  static const Color neonGreen = Color(0xFF34D399);     // Emerald-400
-  static const Color neonPurple = Color(0xFFA78BFA);    // Violet-400
-  static const Color neonCyan = Color(0xFF818CF8);      // Indigo-400
+  static const Color neonBlue = Color(0xFFA78BFA);
+  static const Color neonGreen = Color(0xFF4ADE80);
+  static const Color neonPurple = Color(0xFFA78BFA);
+  static const Color neonCyan = Color(0xFFA78BFA);
 
   // — Light theme accents (Indigo base) —
-  static const Color lightPrimary = Color(0xFF6366F1);       // Indigo-500
-  static const Color lightAccentGreen = Color(0xFF10B981);   // Emerald-500
-  static const Color lightAccentPurple = Color(0xFF6366F1);  // Indigo-500
+  static const Color lightPrimary = Color(0xFF7C3AED);
+  static const Color lightAccentGreen = Color(0xFF15803D);
+  static const Color lightAccentPurple = Color(0xFF7C3AED);
 
   // — Status colors —
-  static const Color statusConnected = Color(0xFF10B981);  // Emerald-500
-  static const Color statusActive = Color(0xFF6366F1);     // Indigo-500
-  static const Color statusPaired = Color(0xFF818CF8);     // Indigo-400
+  static const Color statusConnected = Color(0xFF22C55E);
+  static const Color statusActive = Color(0xFF7C3AED);
+  static const Color statusPaired = Color(0xFFA78BFA);
 
   // — Glass effect (dark theme card borders) —
-  static const Color glassBorder = Color(0xFF27272A);     // Zinc-800
-  static const Color glassBg = Color(0xFF1C1C22);         // Dark card
-  static const Color glassBorderFocused = Color(0xFF3F3F46); // Zinc-700
+  static const Color glassBorder = Color(0xFF2B2739);
+  static const Color glassBg = Color(0xFF1A1724);
+  static const Color glassBorderFocused = Color(0xFF3A3450);
 
   // — Light card borders & shadows —
-  static const Color lightCardBorder = Color(0xFFE5E7EB);
-  static const Color lightCardBorderHover = Color(0xFFD1D5DB);
-  static const Color lightDivider = Color(0xFFF3F4F6);
+  static const Color lightCardBorder = Color(0xFFE4E1EE);
+  static const Color lightCardBorderHover = Color(0xFFD3CEE3);
+  static const Color lightDivider = Color(0xFFEEECF3);
 
   // — Text colors (dark) —
-  static const Color textPrimary = Color(0xFFFAFAFA);     // Zinc-50
-  static const Color textSecondary = Color(0xFFA1A1AA);   // Zinc-400
-  static const Color textTertiary = Color(0xFF71717A);    // Zinc-500
+  static const Color textPrimary = Color(0xFFF1EEF8);
+  static const Color textSecondary = Color(0xFFA59FB8);
+  static const Color textTertiary = Color(0xFF8A84A0);
 
   // — Text colors (light) —
-  static const Color lightTextPrimary = Color(0xFF111827);   // Gray-900
-  static const Color lightTextSecondary = Color(0xFF6B7280); // Gray-500
-  static const Color lightTextTertiary = Color(0xFF9CA3AF);  // Gray-400
+  static const Color lightTextPrimary = Color(0xFF17141F);
+  static const Color lightTextSecondary = Color(0xFF5F5A6E);
+  static const Color lightTextTertiary = Color(0xFF77718A);
 }
 
 /// Explicit text theme for cross-platform consistency (Inter font).
@@ -84,7 +85,7 @@ const _appTextTheme = TextTheme(
 );
 
 class AppTheme {
-  static const Color _seedColor = Color(0xFF6366F1); // Indigo-500
+  static const Color _seedColor = Color(0xFF7C3AED); // Violet-600
 
   static ThemeData get light {
     final colorScheme = ColorScheme.fromSeed(

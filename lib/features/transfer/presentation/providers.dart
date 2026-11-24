@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:anyware/core/background_service.dart';
 import 'package:anyware/core/constants.dart';
 import 'package:anyware/features/discovery/presentation/providers.dart';
+import 'package:anyware/features/esitleme/presentation/providers.dart';
+import 'package:anyware/features/ileti/presentation/providers.dart';
 import 'package:anyware/features/pairing/presentation/providers.dart';
 import 'package:anyware/features/platform/windows/notification_service.dart';
 import 'package:anyware/features/settings/presentation/providers.dart';
@@ -59,6 +61,33 @@ final fileServerProvider = FutureProvider.autoDispose<FileServer>((ref) async {
     syncReceiveFolder: syncReceiveFolder,
     // Pro activation callback removed — app is free.
   );
+
+  // LifeOS İleti (/api/ileti*): chat with paired devices on this network.
+  try {
+    server.ileti = await ref.read(iletiLanProvider.future);
+  } catch (e) {
+    _log.warning('İleti unavailable: $e');
+  }
+
+  // Folder sync (/api/esitle): LifeOS-compatible, through Syncthing.
+  try {
+    final esitleme = await ref.read(esitlemeServiceProvider.future);
+    server.esitleme = esitleme;
+    esitleme.onFolderAdded = (device, folder) {
+      final locale = ref.read(settingsProvider).locale;
+      if (_isDesktopPlatform) {
+        DesktopNotificationService.instance.notify(
+          title: 'LifeOS AnyWhere',
+          body: AppLocalizations.format('esitlemeFolderAdded', locale, {
+            'label': folder.label,
+            'name': device.name,
+          }),
+        );
+      }
+    };
+  } catch (e) {
+    _log.warning('Folder sync unavailable: $e');
+  }
 
   // First contact from an unknown device → one-time pairing prompt.
   server.onPairingRequest = (request) {

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
@@ -98,9 +99,17 @@ class PeerTls {
   /// One package:http client for the whole app (never closed).
   late final http.Client shared = client();
 
+  /// Certificates met, by fingerprint (İleti's pair key needs the peer's
+  /// public key: lib/features/ileti/data/ileti_crypto.dart).
+  final Map<String, Uint8List> _ders = {};
+
+  /// The certificate (DER) with [fingerprint], if a connection met it.
+  Uint8List? certFor(String fingerprint) => _ders[fingerprint];
+
   bool _check(X509Certificate certificate, String host, int port) {
     final seen = TlsIdentity.fingerprintOf(certificate.der);
     _seen[host] = seen;
+    _ders[seen] = certificate.der;
     final expected = _expected[host] ?? '';
     return expected.isEmpty || _equal(seen, expected);
   }

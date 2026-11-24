@@ -68,7 +68,8 @@ final localDeviceProvider = FutureProvider<Device>((ref) async {
     platform: platform,
     version: AppConstants.protocolVersion,
     lastSeen: DateTime.now(),
-    capabilities: ['pairing-token', if (tls != null) kTlsCapability],
+    // "ileti": LifeOS İleti's chat (lib/features/ileti), only with encryption
+    capabilities: ['pairing-token', if (tls != null) ...[kTlsCapability, 'ileti']],
   );
 });
 

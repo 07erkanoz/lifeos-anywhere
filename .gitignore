@@ -61,3 +61,7 @@ app.*.map.json
 # Supabase local config (contains secrets)
 supabase/.env
 supabase/.temp/
+
+# Syncthing, fetched at build time (tool/syncthing.sh)
+/android/app/src/main/jniLibs/*/libsyncthing.so
+/android/app/src/main/assets/syncthing-LICENSE.txt

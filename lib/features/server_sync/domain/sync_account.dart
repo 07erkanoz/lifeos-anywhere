@@ -206,9 +206,44 @@ class SyncAccount {
         remotePath: remotePath ?? this.remotePath,
       );
 
+  // ── Secrets ──
+
+  /// Credential fields that must live in secure storage, never in
+  /// SharedPreferences.
+  static const secretKeys = ['password', 'privateKey', 'passphrase'];
+
+  /// The secret fields of this account (null values omitted).
+  Map<String, String> get secrets => {
+        'password': ?password,
+        'privateKey': ?privateKey,
+        'passphrase': ?passphrase,
+      };
+
+  bool get hasSecrets => secrets.isNotEmpty;
+
+  /// Returns a copy with the secret fields replaced by [values].
+  SyncAccount withSecrets(Map<String, dynamic> values) => SyncAccount(
+        id: id,
+        name: name,
+        providerType: providerType,
+        createdAt: createdAt,
+        lastConnectedAt: lastConnectedAt,
+        host: host,
+        port: port,
+        username: username,
+        password: values['password'] as String?,
+        privateKey: values['privateKey'] as String?,
+        passphrase: values['passphrase'] as String?,
+        authMethod: authMethod,
+        email: email,
+        remotePath: remotePath,
+      );
+
   // ── JSON ──
 
-  Map<String, dynamic> toJson() => {
+  /// Serialises the account. Secrets are left out unless [includeSecrets]
+  /// is true (only used as a fallback when secure storage is unavailable).
+  Map<String, dynamic> toJson({bool includeSecrets = false}) => {
         'id': id,
         'name': name,
         'providerType': providerType.name,
@@ -217,9 +252,9 @@ class SyncAccount {
         'host': host,
         'port': port,
         'username': username,
-        'password': password,
-        'privateKey': privateKey,
-        'passphrase': passphrase,
+        if (includeSecrets) 'password': password,
+        if (includeSecrets) 'privateKey': privateKey,
+        if (includeSecrets) 'passphrase': passphrase,
         'authMethod': authMethod,
         'email': email,
         'remotePath': remotePath,
