@@ -3,22 +3,30 @@ import 'dart:io';
 
 import 'package:anyware/core/constants.dart';
 import 'package:anyware/core/logger.dart';
+import 'package:anyware/core/tls/peer_tls.dart';
+import 'package:anyware/core/tls/tls_identity.dart';
 import 'package:anyware/features/discovery/data/discovery_service.dart';
 import 'package:anyware/features/discovery/data/latency_service.dart';
 import 'package:anyware/features/discovery/domain/device.dart';
 import 'package:anyware/core/android_platform_service.dart';
+import 'package:anyware/core/background_service.dart';
+import 'package:anyware/features/pairing/presentation/providers.dart';
 import 'package:anyware/features/platform/android/direct_share_service.dart';
 import 'package:anyware/features/settings/data/settings_repository.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:network_info_plus/network_info_plus.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
 bool get _androidDiscoveryAllowed {
   if (!Platform.isAndroid) return true;
-  return WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+  // on screen, or kept reachable in the background (quiet mode)
+  return WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed ||
+      BackgroundTransferService.instance.presenceActive.value;
 }
 
 /// Provides the [Device] representing the current machine.
@@ -43,6 +51,15 @@ final localDeviceProvider = FutureProvider<Device>((ref) async {
   final ip = await _getBestLocalIp();
   AppLogger('LocalDevice').info('Selected IP = $ip, ID = $id');
 
+  // This device's certificate (made once): peers that speak TLS are reached,
+  // and let in, encrypted; "tls" in the Device JSON tells them so.
+  PeerTls.instance.trustStore = ref.read(trustStoreProvider);
+  final support = await getApplicationSupportDirectory();
+  final tls = await TlsIdentity.load(
+    Directory(p.join(support.path, 'tls')),
+    name: id,
+  );
+
   return Device(
     id: id,
     name: deviceName,
@@ -51,7 +68,7 @@ final localDeviceProvider = FutureProvider<Device>((ref) async {
     platform: platform,
     version: AppConstants.protocolVersion,
     lastSeen: DateTime.now(),
-    capabilities: const ['pairing-token'],
+    capabilities: ['pairing-token', if (tls != null) kTlsCapability],
   );
 });
 
@@ -159,7 +176,13 @@ Future<String> _getBestLocalIp() async {
 final discoveryServiceProvider = FutureProvider<DiscoveryService>((ref) async {
   final device = await ref.watch(localDeviceProvider.future);
 
-  final service = DiscoveryService(localDevice: device);
+  final service = DiscoveryService(localDevice: device)
+    // paired devices are looked for at their last address too (HTTP), so a
+    // computer whose broadcasts never arrive is still found
+    ..knownPeers = () => [
+      for (final d in ref.read(trustStoreProvider).devices)
+        if (d.lastIp.isNotEmpty) (id: d.id, ip: d.lastIp),
+    ];
 
   // Await start so the socket is bound and multicast is joined before
   // anyone tries to read the stream.

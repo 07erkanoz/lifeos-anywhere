@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 
+import 'package:anyware/core/tls/peer_tls.dart';
 import 'package:anyware/core/logger.dart';
 import 'package:anyware/features/discovery/domain/device.dart';
 import 'package:anyware/features/pairing/data/pairing_client.dart';
@@ -32,7 +33,7 @@ class FileSender {
   /// Maximum upload speed in KB/s. 0 = unlimited.
   int maxUploadSpeedKBps = 0;
 
-  late final HttpClient _httpClient = HttpClient()
+  late final HttpClient _httpClient = PeerTls.instance.httpClient()
     ..connectionTimeout = const Duration(seconds: 30)
     ..idleTimeout = const Duration(seconds: 60);
 
@@ -198,9 +199,9 @@ class FileSender {
       if (fileHash != null) 'sha256': fileHash,
     });
 
-    final requestUri = Uri.http(
-      '${target.ip}:${target.port}',
-      '/api/send-request',
+    final requestUri = PeerTls.instance.uri(
+        target,
+        '/api/send-request',
     );
 
     String reqResponse;
@@ -359,8 +360,8 @@ class FileSender {
     int resumeOffset = 0,
   }) async {
     try {
-      final uploadUri = Uri.http(
-        '${target.ip}:${target.port}',
+      final uploadUri = PeerTls.instance.uri(
+        target,
         '/api/upload/$transferId',
       );
 
@@ -605,8 +606,8 @@ class FileSender {
     if (target == null) return false;
 
     try {
-      final pauseUri = Uri.http(
-        '${target.ip}:${target.port}',
+      final pauseUri = PeerTls.instance.uri(
+        target,
         '/api/pause/$transferId',
       );
       final request = await _httpClient.postUrl(pauseUri);
@@ -689,7 +690,9 @@ class FileSender {
   /// Returns `true` if the device responds within 5 seconds.
   Future<bool> pingDevice(Device target) async {
     try {
-      final pingUri = Uri.http('${target.ip}:${target.port}', '/api/ping');
+      final pingUri = PeerTls.instance.uri(
+        target,
+        '/api/ping');
       final request = await _httpClient.getUrl(pingUri);
       final response = await request.close().timeout(
         const Duration(seconds: 5),
@@ -721,8 +724,8 @@ class FileSender {
   /// error, old receiver without resume support).
   Future<int> _queryReceivedOffset(Device target, String transferId) async {
     try {
-      final statusUri = Uri.http(
-        '${target.ip}:${target.port}',
+      final statusUri = PeerTls.instance.uri(
+        target,
         '/api/status/$transferId',
       );
       final request = await _httpClient.getUrl(statusUri);
@@ -766,7 +769,9 @@ class FileSender {
       try {
         return await _post(uri, body, headers).timeout(timeout);
       } catch (e) {
-        if (attempt == _maxRetries) rethrow;
+        // the receiver answered with a client error: asking again changes nothing
+        final clientError = e is HttpException && e.message.startsWith('HTTP 4');
+        if (attempt == _maxRetries || clientError) rethrow;
         final delay = _baseRetryDelay * (1 << (attempt - 1));
         _log.warning(
           'Request attempt $attempt failed ($e), retrying in ${delay.inSeconds}s...',
@@ -783,12 +788,27 @@ class FileSender {
     String body, [
     Map<String, String> headers = const {},
   ]) async {
+    // The JSON as UTF-8 bytes with its length: written as a string with no
+    // length it went chunked, and a receiver reading by Content-Length saw an
+    // empty request (LifeOS answered 400, shown here as "rejected"). The
+    // length is the bytes', not the characters' (Turkish names differ).
+    final payload = utf8.encode(body);
     final request = await _httpClient.postUrl(uri);
     request.headers.contentType = ContentType.json;
     headers.forEach(request.headers.set);
-    request.write(body);
+    request.contentLength = payload.length;
+    request.add(payload);
     final response = await request.close();
-    return response.transform(utf8.decoder).join();
+    final responseBody = await response.transform(utf8.decoder).join();
+    // An HTTP error is an error, not an answer: before, a 400 body without
+    // `accepted` read as a refusal.
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw HttpException(
+        'HTTP ${response.statusCode}: $responseBody',
+        uri: uri,
+      );
+    }
+    return responseBody;
   }
 
   /// Pushes a [Transfer] snapshot to the progress stream.

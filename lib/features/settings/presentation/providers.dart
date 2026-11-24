@@ -162,6 +162,13 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
     await _persist();
   }
 
+  /// Toggles staying reachable in the background (Android).
+  Future<void> toggleStayReachable() async {
+    await _initialLoadCompleter.future;
+    state = state.copyWith(stayReachable: !state.stayReachable);
+    await _persist();
+  }
+
   /// Toggles the "Send with AnyWhere" option in the OS file explorer context
   /// menu (Windows shell extension).
   Future<void> toggleExplorerMenu() async {

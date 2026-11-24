@@ -42,6 +42,66 @@ class DiscoveryService {
   Timer? _cleanupTimer;
   Timer? _rejoinTimer;
   Timer? _healthCheckTimer;
+  Timer? _probeTimer;
+
+  /// Paired devices (id, last address) to look for even when none of their
+  /// broadcasts arrives. Set by the provider from the trust store.
+  List<({String id, String ip})> Function()? knownPeers;
+
+  /// A device silent for this long is asked over HTTP (GET /api/info) whether
+  /// it is still there. Android Wi-Fi drops broadcasts in power save and a
+  /// firewall may drop them on the other side, while the device's own server
+  /// still answers: it stays listed instead of blinking out (LifeOS does the
+  /// same, lifeos_store/yakin.py `_probe`).
+  int get _probeAfterSeconds => _quiet ? 75 : 8;
+  bool _probing = false;
+
+  /// Quiet: the app is in the background, kept reachable by the battery-light
+  /// service (BackgroundTransferService.presence). One announcement and one
+  /// look at silent paired devices every [quietIntervalSeconds], no
+  /// multicast lock, no restart for silence (broadcasts are not received
+  /// then): the phone wakes for little more than a peer's unicast packet or a
+  /// connection to its server. LifeOS writes to phones as rarely
+  /// (lifeos_store/yakin.py `MOBILE_EVERY`).
+  bool _quiet = false;
+  bool get quiet => _quiet;
+  static const int quietIntervalSeconds = 30;
+
+  int get _broadcastSeconds => _quiet
+      ? quietIntervalSeconds
+      : Platform.isAndroid
+      ? AppConstants.androidDiscoveryIntervalSeconds
+      : AppConstants.discoveryIntervalSeconds;
+
+  int get _timeoutSeconds =>
+      _quiet ? quietIntervalSeconds * 3 : AppConstants.deviceTimeoutSeconds;
+
+  /// Switches quiet mode (see [quiet]) and restarts the timers it changes.
+  void setQuiet(bool quiet) {
+    if (_quiet == quiet) return;
+    _quiet = quiet;
+    _log.info(quiet ? 'Quiet mode (background)' : 'Normal mode');
+    if (_socket == null) return;
+    _startTimers();
+    if (!quiet) {
+      _lastPacketReceived = DateTime.now();
+      _broadcast();
+      unawaited(_probeSilent());
+    }
+  }
+
+  void _startTimers() {
+    _broadcastTimer?.cancel();
+    _broadcastTimer = Timer.periodic(
+      Duration(seconds: _broadcastSeconds),
+      (_) => _broadcast(),
+    );
+    _probeTimer?.cancel();
+    _probeTimer = Timer.periodic(
+      Duration(seconds: _quiet ? quietIntervalSeconds : _probeAfterSeconds ~/ 2),
+      (_) => _probeSilent(),
+    );
+  }
 
   /// Consecutive broadcast failures. Reset on every successful send.
   int _consecutiveBroadcastFailures = 0;
@@ -203,14 +263,6 @@ class DiscoveryService {
 
     // Broadcast our own info periodically.
     _broadcast();
-    _broadcastTimer = Timer.periodic(
-      Duration(
-        seconds: Platform.isAndroid
-            ? AppConstants.androidDiscoveryIntervalSeconds
-            : AppConstants.discoveryIntervalSeconds,
-      ),
-      (_) => _broadcast(),
-    );
 
     // Run the cleanup pass every 5 seconds to remove stale devices.
     _cleanupTimer = Timer.periodic(
@@ -234,6 +286,9 @@ class DiscoveryService {
       const Duration(seconds: 30),
       (_) => _healthCheck(),
     );
+
+    _startTimers();
+    unawaited(_probeSilent());
   }
 
   /// Whether a deliberate stop is in progress (suppresses onDone restart).
@@ -256,6 +311,9 @@ class DiscoveryService {
 
     _healthCheckTimer?.cancel();
     _healthCheckTimer = null;
+
+    _probeTimer?.cancel();
+    _probeTimer = null;
 
     _socketSub?.cancel();
     _socketSub = null;
@@ -361,7 +419,7 @@ class DiscoveryService {
   /// membership. This is a common cause of "devices stop seeing each other
   /// after a while" on LAN networks.
   Future<void> _rejoinMulticast() async {
-    if (_socket == null) return;
+    if (_socket == null || _quiet) return;
 
     _log.debug('Periodic multicast re-join...');
     final multicastAddress = InternetAddress(
@@ -382,7 +440,7 @@ class DiscoveryService {
   /// for more than 60 seconds while the service is supposedly running, the
   /// socket is assumed dead and we trigger a full restart.
   void _healthCheck() {
-    if (_socket == null) return;
+    if (_socket == null || _quiet) return;
 
     final silentDuration = DateTime.now().difference(_lastPacketReceived);
     if (silentDuration.inSeconds > 60) {
@@ -565,6 +623,58 @@ class DiscoveryService {
     }
   }
 
+  /// Asks the devices gone quiet, and the paired ones not heard at all, at
+  /// their last address. One short GET each; nothing when all are heard.
+  Future<void> _probeSilent() async {
+    if (_socket == null || _probing) return;
+    _probing = true;
+    try {
+      final now = DateTime.now();
+      final targets = <String, ({String ip, int port})>{};
+      for (final d in _devices.values) {
+        if (now.difference(d.lastSeen).inSeconds >= _probeAfterSeconds &&
+            d.ip.isNotEmpty) {
+          targets[d.id] = (ip: d.ip, port: d.port);
+        }
+      }
+      for (final peer in knownPeers?.call() ?? const []) {
+        if (peer.ip.isEmpty || _devices.containsKey(peer.id)) continue;
+        targets[peer.id] = (ip: peer.ip, port: AppConstants.defaultPort);
+      }
+      await Future.wait(
+        targets.entries.map((e) => _probe(e.key, e.value.ip, e.value.port)),
+      );
+    } finally {
+      _probing = false;
+    }
+  }
+
+  Future<void> _probe(String id, String ip, int port) async {
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(milliseconds: 1500);
+    try {
+      final request = await client
+          .getUrl(Uri.http('$ip:$port', '/api/info'))
+          .timeout(const Duration(milliseconds: 1500));
+      final response = await request.close().timeout(
+        const Duration(milliseconds: 1500),
+      );
+      if (response.statusCode != 200) {
+        await response.drain<void>();
+        return;
+      }
+      final body = await response.transform(utf8.decoder).join();
+      final device = Device.fromJson(jsonDecode(body) as Map<String, dynamic>);
+      if (device.id != id || device.id == localDevice.id) return;
+      _devices[id] = device.copyWith(ip: ip, lastSeen: DateTime.now());
+      _emitDevices();
+    } catch (_) {
+      // not there: it leaves the list after the usual timeout
+    } finally {
+      client.close(force: true);
+    }
+  }
+
   /// Adds a device manually (e.g., via QR code scan).
   void addManualDevice(Device device) {
     _log.info('Adding manual device: ${device.name} (${device.ip})');
@@ -580,7 +690,7 @@ class DiscoveryService {
 
     for (final entry in _devices.entries) {
       final elapsed = now.difference(entry.value.lastSeen).inSeconds;
-      if (elapsed > AppConstants.deviceTimeoutSeconds) {
+      if (elapsed > _timeoutSeconds) {
         staleIds.add(entry.key);
       }
     }

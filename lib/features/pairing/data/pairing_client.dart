@@ -1,8 +1,11 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import 'package:anyware/core/logger.dart';
+import 'package:anyware/core/tls/peer_tls.dart';
+import 'package:anyware/core/tls/tls_identity.dart';
 import 'package:anyware/features/discovery/domain/device.dart';
 import 'package:anyware/features/pairing/data/trust_store.dart';
 
@@ -21,12 +24,20 @@ enum PairingResult {
   failed,
 }
 
+/// A pairing this device asked for over TLS, while the other side decides:
+/// the code both screens show.
+typedef OutgoingPairing = ({String name, String code});
+
 /// Client side of device pairing: asks a device to trust us and stores the
 /// shared secret it returns.
 class PairingClient {
   PairingClient(this.store);
 
   static final _log = AppLogger('PairingClient');
+
+  /// The pairing waiting for the other device's answer, with the code to
+  /// compare (the app shows it); `null` when none waits.
+  static final ValueNotifier<OutgoingPairing?> waiting = ValueNotifier(null);
 
   final TrustStore store;
 
@@ -41,22 +52,46 @@ class PairingClient {
     required String localPlatform,
     String? pairCode,
   }) async {
+    // A device that answers TLS is paired over TLS: its certificate, met
+    // here first, is pinned, and both screens show the same code.
+    var seen = '';
+    if (TlsIdentity.current != null) {
+      try {
+        final info = await PeerTls.instance.shared
+            .get(PeerTls.instance.uriFor(ip, port, '/api/info', tls: true))
+            .timeout(const Duration(seconds: 5));
+        if (info.statusCode == 200) seen = PeerTls.instance.seenAt(ip);
+      } catch (_) {
+        // no TLS there (protocol 1.1): plain HTTP as before
+      }
+    }
+    final secure = seen.isNotEmpty;
     try {
-      final response = await http
+      final uri = secure
+          ? PeerTls.instance.uriPinned(ip, port, '/api/pair', seen)
+          : Uri.http('$ip:$port', '/api/pair');
+      if (secure) {
+        waiting.value = (
+          name: ip,
+          code: TlsIdentity.pairingCode(TlsIdentity.current!.fingerprint, seen),
+        );
+      }
+      final response = await PeerTls.instance.shared
           .post(
-            Uri.http('$ip:$port', '/api/pair'),
+            uri,
             headers: {
               'Content-Type': 'application/json',
-              kProtocolHeader: store.authHeaders(null)[kProtocolHeader]!,
+              ...store.authHeaders(null),
             },
             body: jsonEncode({
               'id': localId,
               'name': localName,
               'platform': localPlatform,
               'pairCode': ?pairCode,
+              if (secure) 'fingerprint': TlsIdentity.current!.fingerprint,
             }),
           )
-          .timeout(const Duration(seconds: 70));
+          .timeout(const Duration(seconds: 75));
 
       if (response.statusCode == 404) return PairingResult.unsupported;
       if (response.statusCode != 200) return PairingResult.failed;
@@ -74,12 +109,15 @@ class PairingClient {
         platform: peer.platform,
         token: token,
         ip: ip,
+        fingerprint: secure ? seen : null,
       );
-      _log.info('Paired with ${peer.name} ($ip)');
+      _log.info('Paired with ${peer.name} ($ip)${secure ? ', encrypted' : ''}');
       return PairingResult.paired;
     } catch (e) {
       _log.warning('Pairing with $ip failed: $e');
       return PairingResult.failed;
+    } finally {
+      if (secure) waiting.value = null;
     }
   }
 
@@ -92,12 +130,17 @@ class PairingClient {
   ) async {
     final token = responseJson['pairingToken'];
     if (store == null || token is! String || token.isEmpty) return;
+    // the receiver was reached over TLS: the certificate met is pinned
+    final seen = PeerTls.instance.usesTls(peer)
+        ? PeerTls.instance.seenAt(peer.ip)
+        : '';
     await store.trust(
       id: peer.id,
       name: peer.name,
       platform: peer.platform,
       token: token,
       ip: peer.ip,
+      fingerprint: seen.isEmpty ? null : seen,
     );
   }
 

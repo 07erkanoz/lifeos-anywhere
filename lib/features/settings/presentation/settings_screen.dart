@@ -128,6 +128,21 @@ class SettingsScreen extends ConsumerWidget {
             onChanged: (_) => notifier.toggleAutoSyncOnLan(),
           ),
 
+          // Stay reachable in the background (Android)
+          if (Platform.isAndroid)
+            SwitchListTile(
+              secondary: const Icon(Icons.wifi_tethering_outlined),
+              title: Text(AppLocalizations.get('stayReachable', locale)),
+              subtitle: Text(
+                AppLocalizations.get('stayReachableDesc', locale),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+              value: settings.stayReachable,
+              onChanged: (_) => notifier.toggleStayReachable(),
+            ),
+
           // Web Portal info
           _WebPortalTile(locale: locale),
 

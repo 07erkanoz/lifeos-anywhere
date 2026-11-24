@@ -104,6 +104,39 @@ class _PairingPromptDialogState extends ConsumerState<PairingPromptDialog> {
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
+            if (request.code.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      AppLocalizations.format('pairingCode', locale, {
+                        'code': request.code,
+                      }),
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: theme.colorScheme.onPrimaryContainer,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      AppLocalizations.get('pairingCodeHint', locale),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onPrimaryContainer,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            ],
             if (request.allowOnceOption) ...[
               const SizedBox(height: 8),
               CheckboxListTile(

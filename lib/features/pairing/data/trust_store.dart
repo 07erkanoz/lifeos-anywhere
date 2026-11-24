@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:anyware/core/constants.dart';
 import 'package:anyware/core/logger.dart';
+import 'package:anyware/core/tls/tls_identity.dart';
 
 /// HTTP header that carries the per-pair secret on every request between
 /// two paired devices.
@@ -14,6 +15,11 @@ const String kPairTokenHeader = 'X-AnyWhere-Token';
 /// HTTP header with the sender's protocol version. Its presence tells the
 /// receiver that the sender can store a pairing token (protocol >= 1.1).
 const String kProtocolHeader = 'X-AnyWhere-Protocol';
+
+/// HTTP header with the sender's certificate fingerprint (LifeOS:
+/// `X-LifeOS-Fingerprint`). Over TLS a paired device that has not pinned it
+/// yet pins it from here, the token proving who sent it.
+const String kFingerprintHeader = 'X-LifeOS-Fingerprint';
 
 /// Capability flag advertised in the Device JSON (`capabilities` list).
 const String kPairingCapability = 'pairing-token';
@@ -35,6 +41,7 @@ class TrustedDevice {
     required this.token,
     required this.pairedAt,
     this.lastIp = '',
+    this.fingerprint,
   });
 
   final String id;
@@ -43,6 +50,13 @@ class TrustedDevice {
   final String? token;
   final DateTime pairedAt;
   final String lastIp;
+
+  /// The device's certificate fingerprint, pinned when the two paired over
+  /// TLS (or at its first TLS request after an older pairing). Once set the
+  /// device is reached, and let in, only over TLS with that certificate.
+  final String? fingerprint;
+
+  bool get isPinned => fingerprint != null && fingerprint!.isNotEmpty;
 
   /// Trusted by device id + IP only (old peer without token support).
   bool get isLegacy => token == null || token!.isEmpty;
@@ -57,6 +71,7 @@ class TrustedDevice {
           DateTime.tryParse(json['pairedAt'] as String? ?? '') ??
           DateTime.now(),
       lastIp: json['lastIp'] as String? ?? '',
+      fingerprint: json['fingerprint'] as String?,
     );
   }
 
@@ -67,6 +82,7 @@ class TrustedDevice {
     if (token != null) 'token': token,
     'pairedAt': pairedAt.toIso8601String(),
     'lastIp': lastIp,
+    if (isPinned) 'fingerprint': fingerprint,
   };
 
   TrustedDevice copyWith({
@@ -74,6 +90,7 @@ class TrustedDevice {
     String? platform,
     String? token,
     String? lastIp,
+    String? fingerprint,
   }) {
     return TrustedDevice(
       id: id,
@@ -82,6 +99,7 @@ class TrustedDevice {
       token: token ?? this.token,
       pairedAt: pairedAt,
       lastIp: lastIp ?? this.lastIp,
+      fingerprint: fingerprint ?? this.fingerprint,
     );
   }
 }
@@ -129,9 +147,11 @@ class TrustStore extends ChangeNotifier {
   /// Headers every outgoing request to [peerId] should carry.
   Map<String, String> authHeaders(String? peerId) {
     final token = peerId == null ? null : tokenFor(peerId);
+    final fingerprint = TlsIdentity.current?.fingerprint;
     return {
       kProtocolHeader: AppConstants.protocolVersion,
       kPairTokenHeader: ?token,
+      kFingerprintHeader: ?fingerprint,
     };
   }
 
@@ -161,13 +181,15 @@ class TrustStore extends ChangeNotifier {
   }
 
   /// Stores (or replaces) a trusted device. Pass `token: null` to trust an
-  /// old peer by id + IP only.
+  /// old peer by id + IP only. A [fingerprint] pins its certificate; without
+  /// one, a pin it already had is kept.
   Future<TrustedDevice> trust({
     required String id,
     required String name,
     required String platform,
     required String? token,
     String ip = '',
+    String? fingerprint,
   }) async {
     final existing = _devices[id];
     final device = TrustedDevice(
@@ -177,6 +199,9 @@ class TrustStore extends ChangeNotifier {
       token: token,
       pairedAt: existing?.pairedAt ?? DateTime.now(),
       lastIp: ip.isNotEmpty ? ip : (existing?.lastIp ?? ''),
+      fingerprint: fingerprint != null && fingerprint.isNotEmpty
+          ? fingerprint
+          : existing?.fingerprint,
     );
     _devices[id] = device;
     await _save();
@@ -196,6 +221,17 @@ class TrustStore extends ChangeNotifier {
       name: changedName ? name : null,
     );
     _save();
+    notifyListeners();
+  }
+
+  /// Pins [fingerprint] for a paired device that has none yet (a pairing
+  /// made before encryption, met over TLS now). Never replaces a pin.
+  Future<void> pin(String id, String fingerprint) async {
+    final d = _devices[id];
+    if (d == null || d.isPinned || fingerprint.isEmpty) return;
+    _devices[id] = d.copyWith(fingerprint: fingerprint);
+    _log.info('Pinned the certificate of ${d.name}');
+    await _save();
     notifyListeners();
   }
 

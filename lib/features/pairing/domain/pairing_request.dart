@@ -1,3 +1,5 @@
+import 'package:anyware/core/tls/tls_identity.dart';
+
 /// What the user answered to a pairing prompt.
 enum PairingDecision {
   /// Not allowed. The device stays unknown.
@@ -24,6 +26,7 @@ class PairingRequest {
     required this.tokenCapable,
     this.allowOnceOption = false,
     this.detail,
+    this.fingerprint,
   });
 
   final String deviceId;
@@ -41,6 +44,17 @@ class PairingRequest {
 
   /// Optional extra text, e.g. the file name.
   final String? detail;
+
+  /// The sender's certificate fingerprint, when it asked over TLS: pinned
+  /// on approval, so from then on it is reached and let in only over TLS.
+  final String? fingerprint;
+
+  /// The six digits both screens show ('' without TLS). When they match the
+  /// other device's, nobody sits in between.
+  String get code => TlsIdentity.pairingCode(
+    TlsIdentity.current?.fingerprint ?? '',
+    fingerprint ?? '',
+  );
 
   /// Human-readable platform label for the prompt.
   String get platformLabel {

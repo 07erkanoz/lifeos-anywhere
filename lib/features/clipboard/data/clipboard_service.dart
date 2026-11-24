@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:anyware/core/tls/peer_tls.dart';
 import 'package:anyware/core/logger.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -174,9 +175,7 @@ class ClipboardService {
     required String senderDeviceId,
     required Duration timeout,
   }) async {
-    final url = Uri.parse(
-      'http://${target.ip}:${AppConstants.defaultPort}/api/clipboard',
-    );
+    final url = PeerTls.instance.uri(target, '/api/clipboard', port: AppConstants.defaultPort);
     final body = jsonEncode({
       ...payload,
       'sender': senderName,
@@ -184,7 +183,7 @@ class ClipboardService {
       'senderPlatform': Platform.operatingSystem,
       'timestamp': DateTime.now().toIso8601String(),
     });
-    Future<http.Response> post() => http
+    Future<http.Response> post() => PeerTls.instance.shared
         .post(
           url,
           headers: {

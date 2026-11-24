@@ -23,6 +23,8 @@
     <!-- Foreground service for long-running transfers -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
+    <!-- connectedDevice: the paired computers on this Wi-Fi (no 6 h daily cap as dataSync has on Android 15) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <!-- Removed: REQUEST_INSTALL_PACKAGES not needed for file transfer -->
 
@@ -97,10 +99,11 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
-        <!-- Foreground service for active file transfers (flutter_foreground_task) -->
+        <!-- Foreground service (flutter_foreground_task): active transfers, and staying reachable for paired
+             devices on this Wi-Fi while the app is in the background (lib/core/background_service.dart) -->
         <service
             android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
-            android:foregroundServiceType="dataSync"
+            android:foregroundServiceType="connectedDevice"
             android:exported="false" />
 
         <meta-data

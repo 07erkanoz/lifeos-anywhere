@@ -837,6 +837,7 @@ class _SyncJobWizardState extends ConsumerState<SyncJobWizard> {
       deviceIp: device.ip,
       devicePort: device.port,
       deviceName: device.name,
+      deviceId: device.id,
       headers: store.authHeaders(device.id),
     );
 

@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
+import 'package:anyware/core/tls/peer_tls.dart';
 import 'package:anyware/core/logger.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
@@ -36,10 +37,8 @@ class SyncSender {
   /// Returns `true` if the device responds within 5 seconds.
   Future<bool> pingTarget(Device target) async {
     try {
-      final pingUri = Uri.parse(
-        'http://${target.ip}:${AppConstants.defaultPort}/api/ping',
-      );
-      final client = http.Client();
+      final pingUri = PeerTls.instance.uri(target, '/api/ping', port: AppConstants.defaultPort);
+      final client = PeerTls.instance.client();
       try {
         final response = await client
             .get(pingUri)
@@ -92,12 +91,10 @@ class SyncSender {
         }
       }
 
-      final uri = Uri.parse(
-        'http://${target.ip}:${AppConstants.defaultPort}/api/sync/setup-request',
-      );
+      final uri = PeerTls.instance.uri(target, '/api/sync/setup-request', port: AppConstants.defaultPort);
 
       // 120-second timeout so the user has time to pick a folder.
-      final response = await http.post(
+      final response = await PeerTls.instance.shared.post(
         uri,
         headers: {'Content-Type': 'application/json', ..._auth(target)},
         body: jsonEncode({
@@ -149,9 +146,7 @@ class SyncSender {
     required String senderDeviceId,
   }) async {
     try {
-      final uri = Uri.parse(
-        'http://${target.ip}:${AppConstants.defaultPort}/api/sync/remove-pairing',
-      );
+      final uri = PeerTls.instance.uri(target, '/api/sync/remove-pairing', port: AppConstants.defaultPort);
       final response = await http
           .post(
             uri,
@@ -188,9 +183,7 @@ class SyncSender {
     String? jobName,
   }) async {
     try {
-      final uri = Uri.parse(
-        'http://${target.ip}:${AppConstants.defaultPort}/api/sync/check',
-      ).replace(queryParameters: {
+      final uri = PeerTls.instance.uri(target, '/api/sync/check', port: AppConstants.defaultPort).replace(queryParameters: {
         'path': relativePath,
         'sender': senderName,
         if (jobId != null) 'jobId': jobId,
@@ -258,9 +251,7 @@ class SyncSender {
       // Check cancellation before starting network operations.
       if (cancel != null && cancel.isCancelled) return 'Cancelled';
 
-      final requestUrl = Uri.parse(
-        'http://${target.ip}:${AppConstants.defaultPort}/api/sync/upload',
-      );
+      final requestUrl = PeerTls.instance.uri(target, '/api/sync/upload', port: AppConstants.defaultPort);
 
       final fileSize = await file.length();
 
@@ -417,11 +408,9 @@ class SyncSender {
     final senderDevice = discoveryService.localDevice;
 
     try {
-      final requestUrl = Uri.parse(
-        'http://${target.ip}:${AppConstants.defaultPort}/api/sync/delete',
-      );
+      final requestUrl = PeerTls.instance.uri(target, '/api/sync/delete', port: AppConstants.defaultPort);
 
-      final response = await http.post(
+      final response = await PeerTls.instance.shared.post(
         requestUrl,
         headers: {'Content-Type': 'application/json', ..._auth(target)},
         body: jsonEncode({
@@ -466,11 +455,9 @@ class SyncSender {
     String? jobName,
   }) async {
     try {
-      final uri = Uri.parse(
-        'http://${target.ip}:${AppConstants.defaultPort}/api/sync/manifest',
-      );
+      final uri = PeerTls.instance.uri(target, '/api/sync/manifest', port: AppConstants.defaultPort);
 
-      final response = await http.post(
+      final response = await PeerTls.instance.shared.post(
         uri,
         headers: {'Content-Type': 'application/json', ..._auth(target)},
         body: jsonEncode({
@@ -520,9 +507,7 @@ class SyncSender {
         if (jobName != null) 'jobName': jobName,
       };
 
-      final uri = Uri.parse(
-        'http://${target.ip}:${AppConstants.defaultPort}/api/sync/pull',
-      ).replace(queryParameters: queryParams);
+      final uri = PeerTls.instance.uri(target, '/api/sync/pull', port: AppConstants.defaultPort).replace(queryParameters: queryParams);
 
       // Create target directory.
       final localFilePath = p.normalize(
@@ -544,7 +529,7 @@ class SyncSender {
         );
       }
 
-      final client = http.Client();
+      final client = PeerTls.instance.client();
       try {
         final request = http.Request('GET', uri)
           ..headers.addAll(_auth(target));
@@ -651,11 +636,9 @@ class SyncSender {
     String? jobName,
   }) async {
     try {
-      final requestUrl = Uri.parse(
-        'http://${target.ip}:${AppConstants.defaultPort}/api/sync/delete',
-      );
+      final requestUrl = PeerTls.instance.uri(target, '/api/sync/delete', port: AppConstants.defaultPort);
 
-      final response = await http.post(
+      final response = await PeerTls.instance.shared.post(
         requestUrl,
         headers: {'Content-Type': 'application/json', ..._auth(target)},
         body: jsonEncode({

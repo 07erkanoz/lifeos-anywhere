@@ -26,6 +26,7 @@ dependencies:
   path: ^1.9.0
   http: ^1.2.0
   crypto: ^3.0.6
+  pointycastle: ^4.0.0
 
   # State Management
   flutter_riverpod: ^2.6.1

@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
+
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 
 import 'package:anyware/core/logger.dart';
@@ -46,6 +48,42 @@ class BackgroundTransferService {
   String _syncNotifTitle = 'Sync active';
   String _syncNotifText = '';
 
+  /// Staying reachable in the background for paired devices (presence):
+  /// the service runs without a wake lock or Wi-Fi lock; the phone wakes
+  /// only for a paired computer's packet or connection.
+  bool _presence = false;
+  String _presenceTitle = '';
+  String _presenceText = '';
+
+  /// Whether the running service holds the wake and Wi-Fi locks.
+  bool _locksHeld = false;
+
+  /// Whether presence is on (discovery may run in the background then).
+  final ValueNotifier<bool> presenceActive = ValueNotifier(false);
+
+  /// Locks only for real work: a transfer or a sync watcher.
+  bool get _wantLocks => _activeCount > 0 || _syncActive;
+
+  ForegroundTaskOptions _options() => ForegroundTaskOptions(
+    eventAction: ForegroundTaskEventAction.nothing(),
+    autoRunOnBoot: false,
+    autoRunOnMyPackageReplaced: false,
+    allowWakeLock: _wantLocks,
+    allowWifiLock: _wantLocks,
+  );
+
+  final AndroidNotificationOptions _notificationOptions =
+      AndroidNotificationOptions(
+        channelId: 'lifeos_transfer',
+        channelName: 'File Transfer',
+        channelDescription: 'Shows progress while transferring files',
+        channelImportance: NotificationChannelImportance.LOW,
+        priority: NotificationPriority.LOW,
+        playSound: false,
+        enableVibration: false,
+        visibility: NotificationVisibility.VISIBILITY_PUBLIC,
+      );
+
   /// Initialise the foreground task configuration (Android only).
   /// Safe to call on all platforms — non-Android is a no-op.
   Future<void> init() async {
@@ -55,27 +93,12 @@ class BackgroundTransferService {
     if (!Platform.isAndroid) return;
 
     FlutterForegroundTask.init(
-      androidNotificationOptions: AndroidNotificationOptions(
-        channelId: 'lifeos_transfer',
-        channelName: 'File Transfer',
-        channelDescription: 'Shows progress while transferring files',
-        channelImportance: NotificationChannelImportance.LOW,
-        priority: NotificationPriority.LOW,
-        playSound: false,
-        enableVibration: false,
-        visibility: NotificationVisibility.VISIBILITY_PUBLIC,
-      ),
+      androidNotificationOptions: _notificationOptions,
       iosNotificationOptions: const IOSNotificationOptions(
         showNotification: false,
         playSound: false,
       ),
-      foregroundTaskOptions: ForegroundTaskOptions(
-        eventAction: ForegroundTaskEventAction.nothing(),
-        autoRunOnBoot: false,
-        autoRunOnMyPackageReplaced: false,
-        allowWakeLock: true,
-        allowWifiLock: true,
-      ),
+      foregroundTaskOptions: _options(),
     );
 
     // Clean up the previous always-on implementation after an app upgrade or
@@ -95,6 +118,50 @@ class BackgroundTransferService {
   // Transfer lifecycle
   // ────────────────────────────────────────────────────────────────────────
 
+  // ────────────────────────────────────────────────────────────────────────
+  // Presence: reachable in the background
+  // ────────────────────────────────────────────────────────────────────────
+
+  /// The app went to the background with paired devices on this Wi-Fi: keep
+  /// the server and a quiet discovery alive, with a silent notification.
+  Future<void> startPresence({
+    required String title,
+    required String text,
+  }) async {
+    if (!Platform.isAndroid) return;
+    _presence = true;
+    _presenceTitle = title;
+    _presenceText = text;
+    presenceActive.value = true;
+    if (_activeCount == 0 && !_syncActive) {
+      await _ensureService(title: title, text: text);
+    }
+  }
+
+  /// The app is on screen again (or Wi-Fi is gone): presence ends.
+  Future<void> stopPresence() async {
+    if (!_presence) return;
+    _presence = false;
+    presenceActive.value = false;
+    await _stopServiceIfIdle();
+  }
+
+  /// Takes the locks when work starts and gives them back when only presence
+  /// is left: the plugin takes them as the service starts, so it restarts.
+  Future<void> _syncLocks() async {
+    if (!Platform.isAndroid || !_serviceActive || _locksHeld == _wantLocks) {
+      return;
+    }
+    try {
+      await FlutterForegroundTask.updateService(foregroundTaskOptions: _options());
+      await FlutterForegroundTask.restartService();
+      _locksHeld = _wantLocks;
+      _log.info(_locksHeld ? 'Locks taken for work' : 'Locks given back (presence only)');
+    } catch (e) {
+      _log.warning('Could not change the service locks: $e');
+    }
+  }
+
   /// Call when a new transfer starts. Updates the notification to show
   /// transfer info and starts the foreground service on demand.
   ///
@@ -108,6 +175,7 @@ class BackgroundTransferService {
 
     if (Platform.isAndroid) {
       await _ensureService(title: title, text: text);
+      await _syncLocks();
     }
   }
 
@@ -171,6 +239,7 @@ class BackgroundTransferService {
     if (_activeCount == 0 && Platform.isAndroid) {
       await _ensureService(title: title, text: text);
     }
+    await _syncLocks();
     // If transfer active, it takes priority — notification unchanged.
   }
 
@@ -267,6 +336,15 @@ class BackgroundTransferService {
         return;
       }
 
+      FlutterForegroundTask.init(
+        androidNotificationOptions: _notificationOptions,
+        iosNotificationOptions: const IOSNotificationOptions(
+          showNotification: false,
+          playSound: false,
+        ),
+        foregroundTaskOptions: _options(),
+      );
+      _locksHeld = _wantLocks;
       await FlutterForegroundTask.startService(
         notificationTitle: title,
         notificationText: text,
@@ -286,6 +364,21 @@ class BackgroundTransferService {
 
   Future<void> _stopServiceIfIdle() async {
     if (!Platform.isAndroid || _activeCount > 0 || _syncActive) return;
+    if (_presence) {
+      // only presence is left: its notification, and no locks
+      if (_serviceActive) {
+        try {
+          await FlutterForegroundTask.updateService(
+            notificationTitle: _presenceTitle,
+            notificationText: _presenceText,
+          );
+        } catch (_) {}
+        await _syncLocks();
+      } else {
+        await _ensureService(title: _presenceTitle, text: _presenceText);
+      }
+      return;
+    }
     final pending = _serviceStartFuture;
     if (pending != null) await pending;
     if (!_serviceActive && !await FlutterForegroundTask.isRunningService) {
@@ -302,6 +395,8 @@ class BackgroundTransferService {
   }
 
   Future<void> shutdown() async {
+    _presence = false;
+    presenceActive.value = false;
     _activeCount = 0;
     _syncWatchCount = 0;
     _syncActive = false;

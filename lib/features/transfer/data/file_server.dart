@@ -9,6 +9,8 @@ import 'package:mime/mime.dart';
 import 'package:anyware/core/logger.dart';
 
 import 'package:anyware/core/constants.dart';
+import 'package:anyware/core/tls/tls_identity.dart';
+import 'package:anyware/core/tls/tls_listener.dart';
 import 'package:anyware/features/discovery/domain/device.dart';
 import 'package:anyware/features/pairing/data/trust_store.dart';
 import 'package:anyware/features/pairing/domain/pairing_request.dart';
@@ -67,6 +69,7 @@ class FileServer {
   String syncReceiveFolder;
 
   HttpServer? _server;
+  TlsListener? _listener;
 
   /// All transfers this server knows about, keyed by transfer id.
   final Map<String, Transfer> _transfers = {};
@@ -144,12 +147,18 @@ class FileServer {
         .addMiddleware(_authMiddleware)
         .addHandler(router.call);
 
-    _server = await shelf_io.serve(
-      handler,
+    // Plain HTTP and TLS on the same port, told apart by the first byte
+    // (LifeOS does the same): old peers go on with plain HTTP, the firewall
+    // needs no new port.
+    _listener = await TlsListener.bind(
       InternetAddress.anyIPv4,
       port,
+      context: TlsIdentity.current?.serverContext(),
       shared: true,
     );
+    final server = HttpServer.listenOn(_listener!.sockets);
+    shelf_io.serveRequests(server, handler);
+    _server = server;
 
     // Periodically clean up finished transfers to prevent memory leaks
     // during long-running sessions.
@@ -166,6 +175,8 @@ class FileServer {
     _cleanupTimer = null;
     await _server?.close(force: true);
     _server = null;
+    await _listener?.close();
+    _listener = null;
   }
 
   /// Stops the server and closes all stream controllers.
@@ -335,6 +346,26 @@ class FileServer {
     return info?.remoteAddress.address ?? '';
   }
 
+  /// Whether [request] came in over TLS.
+  bool _isSecure(shelf.Request request) {
+    final info =
+        request.context['shelf.io.connection_info'] as HttpConnectionInfo?;
+    final listener = _listener;
+    return info != null &&
+        listener != null &&
+        listener.isSecure(info.remoteAddress, info.remotePort);
+  }
+
+  /// The sender's certificate fingerprint, from a request that came over
+  /// TLS (`null` over plain HTTP: anyone could claim one there).
+  String? _senderPin(shelf.Request request, [String? fromBody]) {
+    if (!_isSecure(request)) return null;
+    final pin = (fromBody != null && fromBody.isNotEmpty)
+        ? fromBody
+        : request.headers[kFingerprintHeader];
+    return pin == null || pin.isEmpty ? null : pin;
+  }
+
   /// Whether the sender runs protocol 1.1+ and can keep a pairing token.
   static bool _isTokenCapable(shelf.Request request) =>
       request.headers[kProtocolHeader] != null;
@@ -347,12 +378,26 @@ class FileServer {
   TrustedDevice? _authenticate(shelf.Request request) {
     final ip = _remoteIp(request);
     final token = request.headers[kPairTokenHeader];
+    TrustedDevice? device;
     if (token != null && token.isNotEmpty) {
-      final device = trustStore.byToken(token);
-      if (device != null) trustStore.touch(device.id, ip: ip);
-      return device;
+      device = trustStore.byToken(token);
+    } else {
+      device = trustStore.legacyByIp(ip);
     }
-    return trustStore.legacyByIp(ip);
+    if (device == null) return null;
+    final secure = _isSecure(request);
+    if (device.isPinned && !secure) {
+      // pinned: only over TLS (its token must never travel in the clear)
+      _log.warning('Refused ${device.name} over plain HTTP (pinned to TLS)');
+      return null;
+    }
+    trustStore.touch(device.id, ip: ip);
+    if (secure && !device.isPinned && !device.isLegacy) {
+      // paired before encryption: pinned at its first TLS request
+      final pin = _senderPin(request);
+      if (pin != null) trustStore.pin(device.id, pin);
+    }
+    return device;
   }
 
   /// Like [_authenticate], but the paired device must also be the one the
@@ -418,6 +463,7 @@ class FileServer {
           // Old peers cannot keep a token: trust by device id + IP.
           token: request.tokenCapable ? trustStore.newToken() : null,
           ip: request.ip,
+          fingerprint: request.fingerprint,
         );
         _log.info(
           'Paired with ${request.deviceName} ($id, ${request.ip})'
@@ -469,6 +515,7 @@ class FileServer {
           platform: platform,
           token: token,
           ip: ip,
+          fingerprint: _senderPin(request, json['fingerprint'] as String?),
         );
         _log.info('Paired with $name ($id) via QR code');
       } else {
@@ -480,6 +527,7 @@ class FileServer {
             ip: ip,
             reason: PairingReason.pair,
             tokenCapable: true,
+            fingerprint: _senderPin(request, json['fingerprint'] as String?),
           ),
         );
         if (decision == PairingDecision.trust) {
@@ -572,6 +620,7 @@ class FileServer {
               ip: _remoteIp(request),
               reason: PairingReason.clipboard,
               tokenCapable: _isTokenCapable(request),
+              fingerprint: _senderPin(request),
             ),
           ),
         );
@@ -681,6 +730,7 @@ class FileServer {
             reason: PairingReason.sync,
             tokenCapable: _isTokenCapable(request),
             detail: setupRequest.jobName,
+            fingerprint: _senderPin(request),
           ),
         );
         if (decision != PairingDecision.trust) {
@@ -1547,6 +1597,10 @@ class FileServer {
             tokenCapable: _isTokenCapable(request),
             allowOnceOption: true,
             detail: fileName,
+            fingerprint: _senderPin(
+              request,
+              json['senderFingerprint'] as String?,
+            ),
           ),
         );
         accepted = decision != PairingDecision.reject;

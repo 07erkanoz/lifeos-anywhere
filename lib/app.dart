@@ -5,6 +5,7 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -22,6 +23,7 @@ import 'package:anyware/features/settings/presentation/providers.dart';
 import 'package:anyware/features/dashboard/presentation/dashboard_screen.dart';
 import 'package:anyware/features/discovery/presentation/device_list_screen.dart';
 import 'package:anyware/features/discovery/presentation/providers.dart';
+import 'package:anyware/features/pairing/data/pairing_client.dart';
 import 'package:anyware/features/pairing/domain/pairing_request.dart';
 import 'package:anyware/features/pairing/presentation/pairing_prompt_dialog.dart';
 import 'package:anyware/features/pairing/presentation/providers.dart';
@@ -189,6 +191,7 @@ class _MainShellState extends ConsumerState<_MainShell>
     super.initState();
     windowManager.addListener(this);
     WidgetsBinding.instance.addObserver(this);
+    PairingClient.waiting.addListener(_showOutgoingPairingCode);
     if (_useSidebar) _startVisibilityPoll();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initLocaleIfNeeded();
@@ -283,9 +286,11 @@ class _MainShellState extends ConsumerState<_MainShell>
 
   Future<void> _resumeAndroidNetwork() async {
     _androidNetworkShouldRun = true;
+    unawaited(BackgroundTransferService.instance.stopPresence());
     await AndroidPlatformService.instance.acquireMulticastLock();
     try {
       final service = await ref.read(discoveryServiceProvider.future);
+      service.setQuiet(false);
       if (!_androidNetworkShouldRun) {
         service.stop();
         await AndroidPlatformService.instance.releaseMulticastLock();
@@ -297,8 +302,41 @@ class _MainShellState extends ConsumerState<_MainShell>
 
   void _pauseAndroidNetwork() {
     _androidNetworkShouldRun = false;
-    ref.read(discoveryServiceProvider).valueOrNull?.stop();
     unawaited(AndroidPlatformService.instance.releaseMulticastLock());
+    unawaited(_stayReachableOrStop());
+  }
+
+  /// In the background: with paired devices and Wi-Fi (and the setting on),
+  /// the server and a quiet discovery stay up under a silent, lock-free
+  /// foreground service, so a paired computer still sees this phone and can
+  /// send to it. Otherwise discovery stops, as before.
+  Future<void> _stayReachableOrStop() async {
+    final discovery = ref.read(discoveryServiceProvider).valueOrNull;
+    final settings = ref.read(settingsProvider);
+    var onWifi = false;
+    try {
+      final links = await Connectivity().checkConnectivity();
+      onWifi =
+          links.contains(ConnectivityResult.wifi) ||
+          links.contains(ConnectivityResult.ethernet);
+    } catch (_) {}
+    if (_androidNetworkShouldRun) return; // back on screen meanwhile
+    final reachable =
+        settings.stayReachable &&
+        onWifi &&
+        ref.read(trustStoreProvider).devices.isNotEmpty &&
+        discovery != null;
+    if (!reachable) {
+      discovery?.stop();
+      return;
+    }
+    discovery.setQuiet(true);
+    if (!discovery.isRunning) await discovery.start();
+    final locale = settings.locale;
+    await BackgroundTransferService.instance.startPresence(
+      title: AppLocalizations.get('presenceTitle', locale),
+      text: AppLocalizations.get('presenceText', locale),
+    );
   }
 
   Future<void> _checkLinuxFirewall() async {
@@ -514,6 +552,7 @@ class _MainShellState extends ConsumerState<_MainShell>
   @override
   void dispose() {
     _visibilityPoll?.cancel();
+    PairingClient.waiting.removeListener(_showOutgoingPairingCode);
     windowManager.removeListener(this);
     WidgetsBinding.instance.removeObserver(this);
     if (Platform.isAndroid) {
@@ -639,6 +678,29 @@ class _MainShellState extends ConsumerState<_MainShell>
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// While this device waits for another to accept its pairing over TLS:
+  /// the code both screens show, to compare before allowing there.
+  void _showOutgoingPairingCode() {
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger == null) return;
+    messenger.hideCurrentSnackBar();
+    final waiting = PairingClient.waiting.value;
+    if (waiting == null) return;
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          AppLocalizations.format(
+            'pairingCodeWaiting',
+            ref.read(settingsProvider).locale,
+            {'code': waiting.code},
+          ),
+        ),
+        duration: const Duration(seconds: 75),
       ),
     );
   }

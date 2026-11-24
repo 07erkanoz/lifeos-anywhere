@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import 'package:anyware/core/tls/peer_tls.dart';
 import 'package:anyware/core/logger.dart';
 import 'package:anyware/features/server_sync/data/cloud_transport.dart';
 
@@ -33,8 +34,12 @@ class LanRemoteBrowser implements RemoteBrowser {
     required this.devicePort,
     this.deviceName,
     this.headers = const {},
+    this.deviceId,
     http.Client? client,
-  }) : _client = client ?? http.Client();
+  }) : _client = client ?? PeerTls.instance.client();
+
+  /// The device's id: a pinned device is browsed only over TLS.
+  final String? deviceId;
 
   @override
   String get rootPath => ''; // empty → platform roots
@@ -42,10 +47,12 @@ class LanRemoteBrowser implements RemoteBrowser {
   @override
   Future<List<RemoteEntry>> listDirectory(String path) async {
     try {
-      final uri = Uri.http(
-        '$deviceIp:$devicePort',
+      final uri = PeerTls.instance.uriFor(
+        deviceIp,
+        devicePort,
         '/api/browse',
-        {if (path.isNotEmpty) 'path': path},
+        deviceId: deviceId,
+        query: {if (path.isNotEmpty) 'path': path},
       );
 
       final response = await _client.get(uri, headers: headers).timeout(

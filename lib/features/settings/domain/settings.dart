@@ -16,6 +16,10 @@ class AppSettings {
   /// Automatically start sync jobs when a matching device is discovered on LAN.
   final bool autoSyncOnLan;
 
+  /// Android: stay reachable for paired devices on the same Wi-Fi while the
+  /// app is in the background (a silent notification, no wake lock).
+  final bool stayReachable;
+
   /// Custom folder for incoming sync files. Empty means default
   /// `<downloadPath>/Sync/<senderName>/`.
   final String syncReceiveFolder;
@@ -33,6 +37,7 @@ class AppSettings {
     this.showInExplorerMenu = true,
     this.maxUploadSpeedKBps = 0,
     this.autoSyncOnLan = false,
+    this.stayReachable = true,
     this.syncReceiveFolder = '',
   });
 
@@ -68,6 +73,7 @@ class AppSettings {
       showInExplorerMenu: json['showInExplorerMenu'] as bool? ?? true,
       maxUploadSpeedKBps: json['maxUploadSpeedKBps'] as int? ?? 0,
       autoSyncOnLan: json['autoSyncOnLan'] as bool? ?? false,
+      stayReachable: json['stayReachable'] as bool? ?? true,
       syncReceiveFolder: json['syncReceiveFolder'] as String? ?? '',
     );
   }
@@ -86,6 +92,7 @@ class AppSettings {
       'showInExplorerMenu': showInExplorerMenu,
       'maxUploadSpeedKBps': maxUploadSpeedKBps,
       'autoSyncOnLan': autoSyncOnLan,
+      'stayReachable': stayReachable,
       'syncReceiveFolder': syncReceiveFolder,
     };
   }
@@ -103,6 +110,7 @@ class AppSettings {
     bool? showInExplorerMenu,
     int? maxUploadSpeedKBps,
     bool? autoSyncOnLan,
+    bool? stayReachable,
     String? syncReceiveFolder,
   }) {
     return AppSettings(
@@ -118,6 +126,7 @@ class AppSettings {
       showInExplorerMenu: showInExplorerMenu ?? this.showInExplorerMenu,
       maxUploadSpeedKBps: maxUploadSpeedKBps ?? this.maxUploadSpeedKBps,
       autoSyncOnLan: autoSyncOnLan ?? this.autoSyncOnLan,
+      stayReachable: stayReachable ?? this.stayReachable,
       syncReceiveFolder: syncReceiveFolder ?? this.syncReceiveFolder,
     );
   }
@@ -152,6 +161,7 @@ class AppSettings {
           showInExplorerMenu == other.showInExplorerMenu &&
           maxUploadSpeedKBps == other.maxUploadSpeedKBps &&
           autoSyncOnLan == other.autoSyncOnLan &&
+          stayReachable == other.stayReachable &&
           syncReceiveFolder == other.syncReceiveFolder;
 
   @override
@@ -168,6 +178,7 @@ class AppSettings {
         showInExplorerMenu,
         maxUploadSpeedKBps,
         autoSyncOnLan,
+        stayReachable,
         syncReceiveFolder,
       );
 
