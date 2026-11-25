@@ -12,6 +12,8 @@ import 'package:anyware/features/transfer/domain/transfer.dart';
 import 'package:anyware/features/transfer/presentation/providers.dart';
 import 'package:anyware/ui/ui_kit.dart';
 import 'package:anyware/ui/ui_strings.dart';
+import 'package:anyware/features/scan/document_scan.dart';
+import 'package:anyware/ui/scans.dart';
 
 /// 0 all, 1 photos, 2 documents, 3 video, 4 clipboard.
 final filesFilterProvider = StateProvider<int>((ref) => 0);
@@ -115,6 +117,8 @@ class FilesScreen extends ConsumerWidget {
       'filterDocs',
       'filterVideo',
       'filterClipboard',
+      // index 5: the scanned PDFs (phones)
+      if (DocumentScan.available) 'filterScans',
     ];
 
     return Scaffold(
@@ -129,6 +133,7 @@ class FilesScreen extends ConsumerWidget {
               actions: [
                 PopupMenuButton<int>(
                   icon: const Icon(Icons.more_vert_rounded),
+                  enabled: filter != 5,
                   onSelected: (_) {
                     if (filter == 4) {
                       ref.read(clipboardHistoryProvider.notifier).clear();
@@ -179,6 +184,8 @@ class FilesScreen extends ConsumerWidget {
             Expanded(
               child: filter == 4
                   ? const _ClipboardList()
+                  : filter == 5 && DocumentScan.available
+                  ? const ScansList()
                   : _TransferList(filter: filter),
             ),
           ],

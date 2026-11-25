@@ -25,6 +25,7 @@ import 'package:anyware/ui/chat_screen.dart';
 import 'package:anyware/ui/remote_pair_screen.dart';
 import 'package:anyware/ui/ui_kit.dart';
 import 'package:anyware/ui/ui_strings.dart';
+import 'package:anyware/ui/scans.dart';
 import 'package:anyware/ui/scan_flow.dart';
 import 'package:anyware/features/scan/document_scan.dart';
 
@@ -173,7 +174,10 @@ class _DeviceList extends ConsumerWidget {
               ],
             ),
             const _MeCard(),
-            if (DocumentScan.available) _ScanCard(locale: locale),
+            if (DocumentScan.available) ...[
+              _ScanCard(locale: locale),
+              _RecentScans(locale: locale),
+            ],
             SectionHeader(S.get('pairedDevices', locale)),
             if (rows.isEmpty)
               Padding(
@@ -550,6 +554,41 @@ class _ScanCard extends ConsumerWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// The last scans under the card: their first pages; "All" opens the list.
+class _RecentScans extends ConsumerWidget {
+  const _RecentScans({required this.locale});
+  final String locale;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final ui = Ui.of(context);
+    final scans = ref.watch(scansProvider);
+    if (scans.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+      child: Row(
+        children: [
+          for (final f in scans.take(3))
+            Padding(
+              padding: const EdgeInsets.only(right: 10),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: () => openScan(context, f.path),
+                child: ScanThumb(path: f.path, width: 54),
+              ),
+            ),
+          const Spacer(),
+          TextButton(
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const ScansScreen())),
+            child: Text(S.get('scansAll', locale, {'n': '${scans.length}'}),
+                style: TextStyle(color: ui.accentText, fontWeight: FontWeight.w600)),
+          ),
+        ],
       ),
     );
   }

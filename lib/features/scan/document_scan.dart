@@ -60,3 +60,17 @@ class DocumentScan {
     }
   }
 }
+
+/// The scanned PDFs (<downloads>/Taramalar), newest first.
+List<File> listScans(String downloadPath) {
+  final dir = Directory('$downloadPath${Platform.pathSeparator}Taramalar');
+  if (downloadPath.isEmpty || !dir.existsSync()) return const [];
+  final files = dir
+      .listSync()
+      .whereType<File>()
+      .where((f) => f.path.toLowerCase().endsWith('.pdf'))
+      .map((f) => (f, f.statSync().modified))
+      .toList()
+    ..sort((a, b) => b.$2.compareTo(a.$2));
+  return [for (final (f, _) in files) f];
+}

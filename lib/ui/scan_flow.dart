@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
-import 'package:anyware/core/open_any_file.dart';
 import 'package:anyware/features/ileti/presentation/providers.dart';
 import 'package:anyware/features/scan/document_scan.dart';
 import 'package:anyware/features/settings/presentation/providers.dart';
 import 'package:anyware/ui/devices_home.dart';
 import 'package:anyware/ui/ui_strings.dart';
+import 'package:anyware/ui/scans.dart';
 
 /// Belge tara: camera to PDF, saved in the download folder. With [toDevice]
 /// it goes straight into that conversation; otherwise a snack bar offers to
@@ -23,6 +23,7 @@ Future<void> scanToPdfFlow(BuildContext context, WidgetRef ref, {String? toDevic
     return;
   }
   if (path == null) return;
+  refreshScans(ref);
   if (toDevice != null) {
     await ref.read(iletiProvider.notifier).sendFiles(toDevice, [path]);
     return;
@@ -33,7 +34,10 @@ Future<void> scanToPdfFlow(BuildContext context, WidgetRef ref, {String? toDevic
     ..showSnackBar(SnackBar(
       duration: const Duration(seconds: 8),
       content: GestureDetector(
-        onTap: () => openAnyFile(path!),
+        onTap: () {
+          messenger.hideCurrentSnackBar();
+          if (context.mounted) openScan(context, path!);
+        },
         child: Text(S.get('scanSaved', locale, {'name': name})),
       ),
       action: SnackBarAction(
