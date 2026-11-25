@@ -16,10 +16,10 @@ Future<void> showUpdateSheet(BuildContext context) {
   if (wide) {
     return showDialog<void>(
       context: context,
-      builder: (_) => const Dialog(
+      builder: (_) => Dialog(
         clipBehavior: Clip.antiAlias,
-        insetPadding: EdgeInsets.all(24),
-        child: ConstrainedBox(constraints: BoxConstraints(maxWidth: 480), child: UpdatePanel()),
+        insetPadding: const EdgeInsets.all(24),
+        child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 480), child: const UpdatePanel()),
       ),
     );
   }
