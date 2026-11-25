@@ -658,7 +658,8 @@ Both sides send `HELLO = b"LIFEOS-ILETI-DOSYA-1 " + session + b"\n"` and require
 ### 6.4 Relay fallback (`by_server`, `delik.py:293-346`; server `araci.py:688-760`)
 
 - **When it is used**: only when punching failed **after** a `bulus-yanit`.
-- **Limits**: `RELAY_LARGEST = 20 MiB` per file; `RELAY_DAY = 100 MiB` per sending box per UTC day, counted on both
+- **Limits** (since 26.11.2026: 150 MiB per file, 300 MiB a day; AnyWhere `IletiPosta.relayLargest/relayDay`, the server's
+  `araci.py` the same; LifeOS's `delik.py` still has the old values below until it is updated): `RELAY_LARGEST = 20 MiB` per file; `RELAY_DAY = 100 MiB` per sending box per UTC day, counted on both
   client and server. The server compares the `<bytes>` argument (= size + pieces*20) with 20 MiB. So a file of
   exactly 20 MiB passes the client's check but fails the server's ("buyuk") **[inferred]**.
 - **Sender**:
