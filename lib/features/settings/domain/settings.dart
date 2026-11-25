@@ -20,6 +20,12 @@ class AppSettings {
   /// app is in the background (a silent notification, no wake lock).
   final bool stayReachable;
 
+  /// A notification for each message or file that comes in while the app is
+  /// not on screen; with a sound and/or vibration.
+  final bool notifyMessages;
+  final bool notifySound;
+  final bool notifyVibrate;
+
   /// Custom folder for incoming sync files. Empty means default
   /// `<downloadPath>/Sync/<senderName>/`.
   final String syncReceiveFolder;
@@ -38,6 +44,9 @@ class AppSettings {
     this.maxUploadSpeedKBps = 0,
     this.autoSyncOnLan = false,
     this.stayReachable = true,
+    this.notifyMessages = true,
+    this.notifySound = true,
+    this.notifyVibrate = true,
     this.syncReceiveFolder = '',
   });
 
@@ -74,6 +83,9 @@ class AppSettings {
       maxUploadSpeedKBps: json['maxUploadSpeedKBps'] as int? ?? 0,
       autoSyncOnLan: json['autoSyncOnLan'] as bool? ?? false,
       stayReachable: json['stayReachable'] as bool? ?? true,
+      notifyMessages: json['notifyMessages'] as bool? ?? true,
+      notifySound: json['notifySound'] as bool? ?? true,
+      notifyVibrate: json['notifyVibrate'] as bool? ?? true,
       syncReceiveFolder: json['syncReceiveFolder'] as String? ?? '',
     );
   }
@@ -93,6 +105,9 @@ class AppSettings {
       'maxUploadSpeedKBps': maxUploadSpeedKBps,
       'autoSyncOnLan': autoSyncOnLan,
       'stayReachable': stayReachable,
+      'notifyMessages': notifyMessages,
+      'notifySound': notifySound,
+      'notifyVibrate': notifyVibrate,
       'syncReceiveFolder': syncReceiveFolder,
     };
   }
@@ -111,6 +126,9 @@ class AppSettings {
     int? maxUploadSpeedKBps,
     bool? autoSyncOnLan,
     bool? stayReachable,
+    bool? notifyMessages,
+    bool? notifySound,
+    bool? notifyVibrate,
     String? syncReceiveFolder,
   }) {
     return AppSettings(
@@ -127,6 +145,9 @@ class AppSettings {
       maxUploadSpeedKBps: maxUploadSpeedKBps ?? this.maxUploadSpeedKBps,
       autoSyncOnLan: autoSyncOnLan ?? this.autoSyncOnLan,
       stayReachable: stayReachable ?? this.stayReachable,
+      notifyMessages: notifyMessages ?? this.notifyMessages,
+      notifySound: notifySound ?? this.notifySound,
+      notifyVibrate: notifyVibrate ?? this.notifyVibrate,
       syncReceiveFolder: syncReceiveFolder ?? this.syncReceiveFolder,
     );
   }
@@ -162,6 +183,9 @@ class AppSettings {
           maxUploadSpeedKBps == other.maxUploadSpeedKBps &&
           autoSyncOnLan == other.autoSyncOnLan &&
           stayReachable == other.stayReachable &&
+          notifyMessages == other.notifyMessages &&
+          notifySound == other.notifySound &&
+          notifyVibrate == other.notifyVibrate &&
           syncReceiveFolder == other.syncReceiveFolder;
 
   @override
@@ -180,6 +204,7 @@ class AppSettings {
         autoSyncOnLan,
         stayReachable,
         syncReceiveFolder,
+        Object.hash(notifyMessages, notifySound, notifyVibrate),
       );
 
   @override

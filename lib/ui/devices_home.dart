@@ -25,6 +25,8 @@ import 'package:anyware/ui/chat_screen.dart';
 import 'package:anyware/ui/remote_pair_screen.dart';
 import 'package:anyware/ui/ui_kit.dart';
 import 'package:anyware/ui/ui_strings.dart';
+import 'package:anyware/ui/scan_flow.dart';
+import 'package:anyware/features/scan/document_scan.dart';
 
 /// Which paired device the wide (desktop) layout shows on the right.
 final selectedDeviceIdProvider = StateProvider<String?>((ref) => null);
@@ -171,6 +173,7 @@ class _DeviceList extends ConsumerWidget {
               ],
             ),
             const _MeCard(),
+            if (DocumentScan.available) _ScanCard(locale: locale),
             SectionHeader(S.get('pairedDevices', locale)),
             if (rows.isEmpty)
               Padding(
@@ -500,6 +503,53 @@ class _NewDeviceTileState extends ConsumerState<_NewDeviceTile> {
             child: Text(S.get(_busy ? 'pairing' : 'pair', widget.locale)),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Belge tara: camera to PDF, kept on the phone and sent to whoever.
+class _ScanCard extends ConsumerWidget {
+  const _ScanCard({required this.locale});
+  final String locale;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final ui = Ui.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+      child: Material(
+        color: ui.accentSoft,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () => scanToPdfFlow(context, ref),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(color: ui.accent, borderRadius: BorderRadius.circular(14)),
+                  child: const Icon(Icons.document_scanner_outlined, color: Colors.white),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(S.get('scanPdf', locale), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 2),
+                      Text(S.get('scanPdfHint', locale), style: TextStyle(fontSize: 12, color: ui.muted, height: 1.3)),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right_rounded, color: ui.accentText),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

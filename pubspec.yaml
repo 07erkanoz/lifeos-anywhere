@@ -49,6 +49,10 @@ dependencies:
   open_file: ^3.5.7
   url_launcher: ^6.3.1
   pdfrx: ^2.4.7
+  # message notifications (Android); camera photos in a chat; camera to PDF (as LifeOS Folio)
+  flutter_local_notifications: ^22.3.1
+  image_picker: ^1.2.0
+  google_mlkit_document_scanner: ^0.6.1
   video_player: ^2.11.1
 
   # Drag & Drop (Desktop)

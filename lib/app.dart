@@ -57,6 +57,8 @@ import 'package:anyware/ui/sync_home.dart';
 import 'package:anyware/ui/ui_kit.dart';
 import 'package:anyware/ui/ui_strings.dart';
 import 'package:anyware/ui/update_sheet.dart';
+import 'package:anyware/ui/chat_screen.dart';
+import 'package:anyware/features/notifications/message_notifications.dart';
 import 'package:anyware/features/update/presentation/update_providers.dart';
 
 class App extends ConsumerWidget {
@@ -192,6 +194,13 @@ class _MainShellState extends ConsumerState<_MainShell>
     if (_useSidebar) _startVisibilityPoll();
     _listenForShares();
     _scheduleUpdateChecks();
+    MessageNotifications.instance.opened.addListener(_openNotifiedChat);
+    if (!_isTV) {
+      unawaited(MessageNotifications.instance.init().then((_) async {
+        if (ref.read(settingsProvider).notifyMessages) await MessageNotifications.instance.requestPermission();
+        _openNotifiedChat();
+      }));
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initLocaleIfNeeded();
       if (Platform.isAndroid) {
@@ -550,6 +559,23 @@ class _MainShellState extends ConsumerState<_MainShell>
     } catch (_) {}
   }
 
+  /// A message notification was tapped: its conversation.
+  void _openNotifiedChat() {
+    final device = MessageNotifications.instance.opened.value;
+    if (device == null || !mounted || _isTV) return;
+    MessageNotifications.instance.opened.value = null;
+    if (ref.read(trustStoreProvider).byId(device) == null) return;
+    _selectIndex(0);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (MediaQuery.sizeOf(context).width >= 900) {
+        ref.read(selectedDeviceIdProvider.notifier).state = device;
+      } else {
+        Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => ChatScreen(deviceId: device)));
+      }
+    });
+  }
+
   // ── updates (lifeos.com.tr's version.json) ─────────────────────────────
 
   Timer? _updateTimer;
@@ -636,6 +662,7 @@ class _MainShellState extends ConsumerState<_MainShell>
   void dispose() {
     _shareSub?.cancel();
     _updateTimer?.cancel();
+    MessageNotifications.instance.opened.removeListener(_openNotifiedChat);
     _visibilityPoll?.cancel();
     PairingClient.waiting.removeListener(_showOutgoingPairingCode);
     windowManager.removeListener(this);

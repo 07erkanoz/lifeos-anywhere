@@ -165,6 +165,24 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
     await _persist();
   }
 
+  Future<void> toggleNotifyMessages() async {
+    await _initialLoadCompleter.future;
+    state = state.copyWith(notifyMessages: !state.notifyMessages);
+    await _persist();
+  }
+
+  Future<void> toggleNotifySound() async {
+    await _initialLoadCompleter.future;
+    state = state.copyWith(notifySound: !state.notifySound);
+    await _persist();
+  }
+
+  Future<void> toggleNotifyVibrate() async {
+    await _initialLoadCompleter.future;
+    state = state.copyWith(notifyVibrate: !state.notifyVibrate);
+    await _persist();
+  }
+
   /// Toggles staying reachable in the background (Android).
   Future<void> toggleStayReachable() async {
     await _initialLoadCompleter.future;

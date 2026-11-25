@@ -17,6 +17,8 @@ import 'package:anyware/features/settings/presentation/help_screen.dart';
 import 'package:anyware/features/settings/presentation/about_screen.dart';
 import 'package:anyware/i18n/app_localizations.dart';
 import 'package:anyware/ui/ui_kit.dart';
+import 'package:anyware/ui/ui_strings.dart';
+import 'package:anyware/features/notifications/message_notifications.dart';
 import 'package:anyware/ui/update_sheet.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -109,6 +111,38 @@ class SettingsScreen extends ConsumerWidget {
               ],
             ),
           ),
+
+          SectionHeader(S.get('notifications', locale)),
+          Panel(children: [
+            toggle(
+              icon: Icons.notifications_active_outlined,
+              title: S.get('notifyMessages', locale),
+              subtitle: S.get('notifyMessagesDesc', locale),
+              value: settings.notifyMessages,
+              onChanged: () async {
+                await notifier.toggleNotifyMessages();
+                if (ref.read(settingsProvider).notifyMessages) {
+                  await MessageNotifications.instance.requestPermission();
+                }
+              },
+            ),
+            if (settings.notifyMessages && (Platform.isAndroid || Platform.isIOS)) ...[
+              line(),
+              toggle(
+                icon: Icons.volume_up_outlined,
+                title: S.get('notifySound', locale),
+                value: settings.notifySound,
+                onChanged: notifier.toggleNotifySound,
+              ),
+              line(),
+              toggle(
+                icon: Icons.vibration_rounded,
+                title: S.get('notifyVibrate', locale),
+                value: settings.notifyVibrate,
+                onChanged: notifier.toggleNotifyVibrate,
+              ),
+            ],
+          ]),
 
           SectionHeader(AppLocalizations.get('transfer', locale)),
           Panel(children: [

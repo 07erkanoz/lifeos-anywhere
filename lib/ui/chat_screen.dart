@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:anyware/core/open_any_file.dart';
@@ -12,6 +13,8 @@ import 'package:anyware/ui/devices_home.dart';
 import 'package:anyware/ui/files_screen.dart';
 import 'package:anyware/ui/ui_kit.dart';
 import 'package:anyware/ui/ui_strings.dart';
+import 'package:anyware/ui/scan_flow.dart';
+import 'package:anyware/features/scan/document_scan.dart';
 
 /// Sohbet: the conversation with one paired device. Text, files and photos;
 /// each message says how it went (on this network, over the internet, or
@@ -55,12 +58,60 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   Future<void> _attach({bool images = false}) async {
-    final picked = await FilePickerHelper.pickFiles(allowMultiple: true);
+    // "Photo" picks images (and videos), not any file
+    final picked = await FilePickerHelper.pickFiles(allowMultiple: true, type: images ? FileType.media : FileType.any);
     final paths =
         picked?.files.map((f) => f.path).whereType<String>().toList() ??
         const [];
     if (paths.isEmpty) return;
     await ref.read(iletiProvider.notifier).sendFiles(widget.deviceId, paths);
+  }
+
+  /// Phones: a file, a photo from the gallery or the camera, or a scanned PDF.
+  Future<void> _attachMenu(String locale) async {
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheet) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.insert_drive_file_outlined),
+              title: Text(S.get('attach', locale)),
+              onTap: () => Navigator.pop(sheet, 'file'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.image_outlined),
+              title: Text(S.get('photo', locale)),
+              onTap: () => Navigator.pop(sheet, 'photo'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: Text(S.get('camera', locale)),
+              onTap: () => Navigator.pop(sheet, 'camera'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.document_scanner_outlined),
+              title: Text(S.get('scanPdf', locale)),
+              subtitle: Text(S.get('scanPdfHint', locale)),
+              onTap: () => Navigator.pop(sheet, 'scan'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || choice == null) return;
+    switch (choice) {
+      case 'file':
+        await _attach();
+      case 'photo':
+        await _attach(images: true);
+      case 'camera':
+        await cameraPhotoFlow(ref, widget.deviceId);
+      case 'scan':
+        await scanToPdfFlow(context, ref, toDevice: widget.deviceId);
+    }
   }
 
   @override
@@ -210,7 +261,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     IconButton(
                       tooltip: S.get('attach', locale),
                       icon: Icon(Icons.attach_file_rounded, color: ui.muted),
-                      onPressed: _attach,
+                      onPressed: DocumentScan.available ? () => _attachMenu(locale) : _attach,
                     ),
                     Expanded(
                       child: TextField(
@@ -232,11 +283,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         ),
                       ),
                     ),
-                    IconButton(
-                      tooltip: S.get('photo', locale),
-                      icon: Icon(Icons.image_outlined, color: ui.muted),
-                      onPressed: () => _attach(images: true),
-                    ),
+                    if (Platform.isAndroid || Platform.isIOS)
+                      IconButton(
+                        tooltip: S.get('camera', locale),
+                        icon: Icon(Icons.photo_camera_outlined, color: ui.muted),
+                        onPressed: () => cameraPhotoFlow(ref, widget.deviceId),
+                      )
+                    else
+                      IconButton(
+                        tooltip: S.get('photo', locale),
+                        icon: Icon(Icons.image_outlined, color: ui.muted),
+                        onPressed: () => _attach(images: true),
+                      ),
                   ],
                 ),
               ),

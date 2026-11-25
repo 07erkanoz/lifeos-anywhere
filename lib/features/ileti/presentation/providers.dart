@@ -18,6 +18,8 @@ import 'package:anyware/features/pairing/presentation/providers.dart';
 import 'package:anyware/features/settings/presentation/providers.dart';
 import 'package:anyware/features/ileti/domain/ileti_message.dart';
 import 'package:anyware/ui/ui_kit.dart';
+import 'package:anyware/ui/ui_strings.dart';
+import 'package:anyware/features/notifications/message_notifications.dart';
 
 final _log = AppLogger('Ileti');
 
@@ -200,7 +202,11 @@ class IletiNotifier extends StateNotifier<Map<String, List<IletiMessage>>> {
   Future<void> received(IletiMessage m) async {
     if (state[m.device]?.any((x) => x.id == m.id) ?? false) return;
     await _put(m);
+    onNew?.call(m);
   }
+
+  /// A message that came in, the first time (a notification).
+  void Function(IletiMessage m)? onNew;
 
   IletiMessage? _find(String device, String id) =>
       state[device]?.where((m) => m.id == id).firstOrNull;
@@ -257,6 +263,7 @@ class IletiNotifier extends StateNotifier<Map<String, List<IletiMessage>>> {
       await _put(m.copyWith(status: IletiStatus.seen));
     }
     onSeen?.call(device, unseen.map((m) => m.id).toList());
+    if (unseen.isNotEmpty) unawaited(MessageNotifications.instance.clear(device));
   }
 
   /// Told when messages were seen here (read receipts go back).
@@ -336,6 +343,17 @@ final iletiLanProvider = FutureProvider<IletiLan>((ref) async {
         unawaited(posta.tell(device, 'okundu', ids).catchError((Object _) {}));
       }
     };
+  notifier.onNew = (m) {
+    final s = ref.read(settingsProvider);
+    if (m.outgoing || !s.notifyMessages) return;
+    unawaited(MessageNotifications.instance.show(
+      device: m.device,
+      title: ref.read(trustStoreProvider).byId(m.device)?.name ?? 'LifeOS',
+      body: m.isFile ? S.get('notifyFile', s.locale, {'name': m.fileName ?? ''}) : m.text,
+      sound: s.notifySound,
+      vibrate: s.notifyVibrate,
+    ));
+  };
   posta.start();
   // a paired device on this network learns our box and tells its own
   var exchanging = false;
