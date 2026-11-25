@@ -80,8 +80,25 @@ class IletiPosta implements IletiTransport {
   /// Who is online, by device: (online now, last seen).
   void Function(Map<String, (bool, DateTime?)> presence)? onPresence;
 
-  /// The server passes a file on only up to this (sealed size), 100 MiB a day.
-  static const int relayLargest = 20 * 1024 * 1024;
+  /// The server passes a file on up to this (the file itself; sealed it is
+  /// a little bigger, which the server allows), and [relayDay] a day for
+  /// each sending box (UTC). The server checks the same (araci.py).
+  static const int relayLargest = 150 * 1024 * 1024;
+  static const int relayDay = 300 * 1024 * 1024;
+
+  /// Bytes passed on through the server today (UTC), counted here too so a
+  /// file over the day's limit waits instead of failing there.
+  int _relayedToday() {
+    final day = DateTime.now().toUtc().toIso8601String().substring(0, 10);
+    final row = (_state['aktarilan'] as Map?) ?? const {};
+    return row['gun'] == day ? (row['bayt'] as num? ?? 0).toInt() : 0;
+  }
+
+  void _countRelayed(int bytes) {
+    final day = DateTime.now().toUtc().toIso8601String().substring(0, 10);
+    _state['aktarilan'] = {'gun': day, 'bayt': _relayedToday() + bytes};
+    _save();
+  }
 
   /// Turned off: nothing goes to or comes from the server.
   bool enabled = true;
@@ -391,9 +408,15 @@ class IletiPosta implements IletiTransport {
     final device = '${row['device']}';
     final ek = Map<String, dynamic>.from(row['ek'] as Map);
     try {
-      final sealed = IletiCrypto.streamLength((ek['size'] as num).toInt());
-      if (sealed > relayLargest) {
+      final size = (ek['size'] as num).toInt();
+      final sealed = IletiCrypto.streamLength(size);
+      if (size > relayLargest) {
         onFileWaits?.call(device, id, 'büyük');
+        return;
+      }
+      if (_relayedToday() + size > relayDay) {
+        // today's share is used up: it goes tomorrow, or on the same network
+        _log.info('file $id: the day\'s relay limit is reached; it waits');
         return;
       }
       final to = boxOf(device);
@@ -409,6 +432,7 @@ class IletiPosta implements IletiTransport {
       await tell(device, 'aktarim', {'oturum': session, 'ileti': id}, live: true);
       final done = await sending;
       if (done['durum'] != 'aktarildi') throw StateError('$done');
+      _countRelayed(size);
       // it counts as there when the other side says so (dosya-tamam)
     } catch (e) {
       _log.info('file $id through the server: $e (again when it is online)');
@@ -429,7 +453,7 @@ class IletiPosta implements IletiTransport {
         session.stdin.add(Uint8List.fromList(chunk));
       }
       await session.stdin.close();
-      final text = await out.timeout(const Duration(minutes: 10));
+      final text = await out.timeout(const Duration(minutes: 30)); // up to 150 MiB on a slow uplink
       final last = text.trim().split('\n').where((l) => l.trim().startsWith('{')).lastOrNull;
       if (last == null) throw StateError('sunucu yanıt vermedi');
       final reply = jsonDecode(last) as Map<String, dynamic>;
