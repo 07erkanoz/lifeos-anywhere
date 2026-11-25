@@ -67,6 +67,17 @@ class DiscoveryService {
   bool get quiet => _quiet;
   static const int quietIntervalSeconds = 30;
 
+  /// In a device's announcement: it is a phone in the background (quiet
+  /// mode). Without a wake lock its announcements stop while it sleeps,
+  /// though it still wakes for a packet sent to it.
+  static const String quietCapability = 'sessiz';
+
+  /// How long a quiet device stays listed without being heard (probes keep
+  /// it while it answers).
+  static const int quietDeviceTimeoutSeconds = 15 * 60;
+
+  static bool _isQuiet(Device d) => d.capabilities.contains(quietCapability);
+
   int get _broadcastSeconds => _quiet
       ? quietIntervalSeconds
       : Platform.isAndroid
@@ -495,7 +506,13 @@ class DiscoveryService {
     if (_socket == null) return;
 
     try {
-      final data = utf8.encode(jsonEncode(localDevice.toJson()));
+      // in the background the phone says so ("sessiz"): its timers barely run
+      // while it sleeps, so the others keep it listed longer and wait longer
+      // for it to wake when they ask (see [quietCapability])
+      final me = _quiet && !localDevice.capabilities.contains(quietCapability)
+          ? localDevice.copyWith(capabilities: [...localDevice.capabilities, quietCapability])
+          : localDevice;
+      final data = utf8.encode(jsonEncode(me.toJson()));
 
       // Use the dedicated send socket (bound to real LAN IP) on Windows to
       // avoid Hyper-V / WSL virtual adapter routing. Falls back to the main
@@ -632,7 +649,9 @@ class DiscoveryService {
       final now = DateTime.now();
       final targets = <String, ({String ip, int port})>{};
       for (final d in _devices.values) {
-        if (now.difference(d.lastSeen).inSeconds >= _probeAfterSeconds &&
+        // a phone in the background is asked once a minute, not every few seconds
+        final after = _isQuiet(d) ? 60 : _probeAfterSeconds;
+        if (now.difference(d.lastSeen).inSeconds >= after &&
             d.ip.isNotEmpty) {
           targets[d.id] = (ip: d.ip, port: d.port);
         }
@@ -650,15 +669,15 @@ class DiscoveryService {
   }
 
   Future<void> _probe(String id, String ip, int port) async {
-    final client = HttpClient()
-      ..connectionTimeout = const Duration(milliseconds: 1500);
+    // a sleeping phone's Wi-Fi wakes only at its next beacon: give it time
+    final wasQuiet = _devices[id] != null && _isQuiet(_devices[id]!);
+    final wait = Duration(milliseconds: wasQuiet ? 6000 : 1500);
+    final client = HttpClient()..connectionTimeout = wait;
     try {
       final request = await client
           .getUrl(Uri.http('$ip:$port', '/api/info'))
-          .timeout(const Duration(milliseconds: 1500));
-      final response = await request.close().timeout(
-        const Duration(milliseconds: 1500),
-      );
+          .timeout(wait);
+      final response = await request.close().timeout(wait);
       if (response.statusCode != 200) {
         await response.drain<void>();
         return;
@@ -666,14 +685,24 @@ class DiscoveryService {
       final body = await response.transform(utf8.decoder).join();
       final device = Device.fromJson(jsonDecode(body) as Map<String, dynamic>);
       if (device.id != id || device.id == localDevice.id) return;
-      _devices[id] = device.copyWith(ip: ip, lastSeen: DateTime.now());
+      // /api/info does not say it is in the background; its last announcement did
+      final caps = wasQuiet && !_isQuiet(device) ? [...device.capabilities, quietCapability] : null;
+      _devices[id] = device.copyWith(ip: ip, lastSeen: DateTime.now(), capabilities: caps);
+      _probeMisses.remove(id);
       _emitDevices();
     } catch (_) {
-      // not there: it leaves the list after the usual timeout
+      // not there: it leaves the list after the usual timeout; a quiet phone
+      // that did not answer three times running has really gone
+      if (wasQuiet && (_probeMisses[id] = (_probeMisses[id] ?? 0) + 1) >= 3) {
+        _probeMisses.remove(id);
+        if (_devices.remove(id) != null) _emitDevices();
+      }
     } finally {
       client.close(force: true);
     }
   }
+
+  final Map<String, int> _probeMisses = {};
 
   /// Adds a device manually (e.g., via QR code scan).
   void addManualDevice(Device device) {
@@ -690,7 +719,8 @@ class DiscoveryService {
 
     for (final entry in _devices.entries) {
       final elapsed = now.difference(entry.value.lastSeen).inSeconds;
-      if (elapsed > _timeoutSeconds) {
+      final limit = _isQuiet(entry.value) ? quietDeviceTimeoutSeconds : _timeoutSeconds;
+      if (elapsed > limit) {
         staleIds.add(entry.key);
       }
     }

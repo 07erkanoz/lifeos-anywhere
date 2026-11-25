@@ -17,6 +17,7 @@ import 'package:anyware/features/settings/presentation/help_screen.dart';
 import 'package:anyware/features/settings/presentation/about_screen.dart';
 import 'package:anyware/i18n/app_localizations.dart';
 import 'package:anyware/ui/ui_kit.dart';
+import 'package:anyware/ui/update_sheet.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -286,6 +287,10 @@ class SettingsScreen extends ConsumerWidget {
                 MaterialPageRoute<void>(builder: (_) => HelpScreen(locale: locale)),
               ),
             ),
+            if (Platform.isAndroid || Platform.isWindows) ...[
+              line(),
+              const UpdateTile(),
+            ],
             line(),
             link(
               icon: Icons.info_outline_rounded,

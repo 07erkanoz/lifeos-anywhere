@@ -26,7 +26,10 @@
     <!-- connectedDevice: the paired computers on this Wi-Fi (no 6 h daily cap as dataSync has on Android 15) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
-    <!-- Removed: REQUEST_INSTALL_PACKAGES not needed for file transfer -->
+    <!-- The app's own update (lib/features/update): Android's installer opens the
+         downloaded package; without this, canRequestPackageInstalls() is always false.
+         Also lets a received APK be installed. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
 
     <!-- Required for background sync scheduling after device reboot -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
@@ -50,7 +53,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:launchMode="singleTop"
+            android:launchMode="singleTask"
             android:taskAffinity=""
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"

@@ -41,6 +41,19 @@ class MainActivity : FlutterActivity() {
                 when (call.method) {
                     // Syncthing is run from here (lib/features/esitleme/data/syncthing.dart)
                     "nativeLibraryDir" -> result.success(applicationInfo.nativeLibraryDir)
+                    // where the app was installed from (Google Play updates it itself)
+                    "installerPackage" -> result.success(
+                        try {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                                packageManager.getInstallSourceInfo(packageName).installingPackageName
+                            } else {
+                                @Suppress("DEPRECATION")
+                                packageManager.getInstallerPackageName(packageName)
+                            }
+                        } catch (_: Exception) {
+                            null
+                        }
+                    )
                     "isTV" -> {
                         val uiModeManager = getSystemService(Context.UI_MODE_SERVICE) as UiModeManager
                         val isTV = uiModeManager.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION
@@ -216,7 +229,12 @@ class MainActivity : FlutterActivity() {
                     }
                     "consumeDirectShareTarget" -> {
                         val currentIntent = intent
+                        // Android 10+: a sharing shortcut picked in the share sheet arrives as the
+                        // share intent with its shortcut id ("device_<id>"); the shortcut's own
+                        // extras are not delivered then.
+                        val shortcutId = currentIntent?.getStringExtra(Intent.EXTRA_SHORTCUT_ID)
                         val deviceId = currentIntent?.getStringExtra("directShareDeviceId")
+                            ?: shortcutId?.removePrefix("device_")
                         if (deviceId == null) {
                             result.success(null)
                         } else {
@@ -228,6 +246,7 @@ class MainActivity : FlutterActivity() {
                             currentIntent.removeExtra("directShareDeviceId")
                             currentIntent.removeExtra("directShareDeviceName")
                             currentIntent.removeExtra("directShareDeviceIp")
+                            currentIntent.removeExtra(Intent.EXTRA_SHORTCUT_ID)
                         }
                     }
                     "startHotspot" -> {

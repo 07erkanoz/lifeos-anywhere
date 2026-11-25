@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:isolate';
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -81,30 +82,25 @@ class IletiCrypto {
   /// does). pointycastle's own ChaCha20Poly1305 class gave tags Python
   /// rejected, so it is put together here from its ChaCha20 and Poly1305.
   /// Encrypting returns ciphertext || tag; decrypting takes the same.
+  ///
+  /// No spreads or element-wise copies: a file piece is 1 MiB, and copying
+  /// it through a List<int> cost more than the cipher itself.
   static Uint8List _aead(bool encrypt, Uint8List key, Uint8List nonce, Uint8List data, List<int> aad) {
     final chacha = ChaCha7539Engine()..init(true, ParametersWithIV(KeyParameter(key), nonce));
     // block 0: the one-time Poly1305 key; the message starts at block 1
-    final block0 = chacha.process(Uint8List(64));
-    final otk = block0.sublist(0, 32);
-    final Uint8List ciphertext;
-    final Uint8List out;
-    if (encrypt) {
-      ciphertext = chacha.process(data);
-      out = ciphertext;
-    } else {
-      if (data.length < 16) throw InvalidCipherTextException('short');
-      ciphertext = data.sublist(0, data.length - 16);
-      out = ciphertext;
-    }
-    final mac = Poly1305()..init(KeyParameter(otk));
-    void feed(List<int> bytes) {
-      final b = Uint8List.fromList(bytes);
+    final otk = Uint8List.sublistView(chacha.process(Uint8List(64)), 0, 32);
+    final ctLength = encrypt ? data.length : data.length - 16;
+    if (ctLength < 0) throw InvalidCipherTextException('short');
+    final ciphertext = encrypt ? chacha.process(data) : Uint8List.sublistView(data, 0, ctLength);
+    final mac = Poly1305()..init(KeyParameter(Uint8List.fromList(otk)));
+    final zeros = Uint8List(16);
+    void feed(Uint8List b) {
       mac.update(b, 0, b.length);
       final pad = (16 - b.length % 16) % 16;
-      if (pad > 0) mac.update(Uint8List(pad), 0, pad);
+      if (pad > 0) mac.update(zeros, 0, pad);
     }
 
-    feed(aad);
+    feed(aad is Uint8List ? aad : Uint8List.fromList(aad));
     feed(ciphertext);
     final lens = ByteData(16)
       ..setUint64(0, aad.length, Endian.little)
@@ -112,11 +108,14 @@ class IletiCrypto {
     mac.update(lens.buffer.asUint8List(), 0, 16);
     final tag = Uint8List(16);
     mac.doFinal(tag, 0);
-    if (encrypt) return Uint8List.fromList([...out, ...tag]);
-    final given = data.sublist(data.length - 16);
+    if (encrypt) {
+      return Uint8List(ctLength + 16)
+        ..setRange(0, ctLength, ciphertext)
+        ..setRange(ctLength, ctLength + 16, tag);
+    }
     var diff = 0;
     for (var i = 0; i < 16; i++) {
-      diff |= tag[i] ^ given[i];
+      diff |= tag[i] ^ data[ctLength + i];
     }
     if (diff != 0) throw InvalidCipherTextException('bad tag');
     return chacha.process(ciphertext);
@@ -125,14 +124,17 @@ class IletiCrypto {
   /// nonce(12) || ChaCha20-Poly1305(plain) (§2.3).
   static Uint8List seal(Uint8List key, List<int> plain, List<int> aad) {
     final nonce = random(12);
-    return Uint8List.fromList([...nonce, ..._aead(true, key, nonce, Uint8List.fromList(plain), aad)]);
+    final sealed = _aead(true, key, nonce, plain is Uint8List ? plain : Uint8List.fromList(plain), aad);
+    return Uint8List(12 + sealed.length)
+      ..setRange(0, 12, nonce)
+      ..setRange(12, 12 + sealed.length, sealed);
   }
 
   /// Opens a [seal]ed box; throws when it is not genuine.
   static Uint8List open(Uint8List key, Uint8List box, List<int> aad) {
     if (box.length < 28) throw const FormatException('çözülemedi');
     try {
-      return _aead(false, key, box.sublist(0, 12), box.sublist(12), aad);
+      return _aead(false, key, Uint8List.fromList(box.sublist(0, 12)), Uint8List.sublistView(box, 12), aad);
     } on InvalidCipherTextException {
       throw const FormatException('çözülemedi');
     }
@@ -155,8 +157,25 @@ class IletiCrypto {
   /// One frame: length(4, big-endian) || sealed piece.
   static Uint8List frame(Uint8List key, Uint8List prefix, int n, int total, Uint8List block) {
     final sealed = _aead(true, key, _pieceNonce(prefix, n), block, utf8.encode(n == total - 1 ? 'son' : 'ara'));
-    final head = ByteData(4)..setUint32(0, sealed.length);
-    return Uint8List.fromList([...head.buffer.asUint8List(), ...sealed]);
+    final out = Uint8List(4 + sealed.length)..setRange(4, 4 + sealed.length, sealed);
+    ByteData.sublistView(out, 0, 4).setUint32(0, sealed.length);
+    return out;
+  }
+
+  /// Pieces bigger than this are sealed and opened on another isolate, so a
+  /// file moving does not freeze the screen (and two pieces go at once).
+  static const int _offThread = 64 * 1024;
+
+  /// [frame] off the UI isolate.
+  static Future<Uint8List> frameAsync(Uint8List key, Uint8List prefix, int n, int total, Uint8List block) {
+    if (block.length < _offThread) return Future.value(frame(key, prefix, n, total, block));
+    return Isolate.run(() => frame(key, prefix, n, total, block));
+  }
+
+  /// [openPiece] off the UI isolate.
+  static Future<Uint8List> openPieceAsync(Uint8List key, Uint8List prefix, int n, bool last, Uint8List sealed) {
+    if (sealed.length < _offThread) return Future.value(openPiece(key, prefix, n, last, sealed));
+    return Isolate.run(() => openPiece(key, prefix, n, last, sealed));
   }
 
   static Uint8List openPiece(Uint8List key, Uint8List prefix, int n, bool last, Uint8List sealed) {

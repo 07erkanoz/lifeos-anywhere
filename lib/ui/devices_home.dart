@@ -507,47 +507,96 @@ class _NewDeviceTileState extends ConsumerState<_NewDeviceTile> {
 
 // ── sending ───────────────────────────────────────────────────────────────
 
-/// Gönder: pick files, then the devices (several at once).
+/// Somewhere files can go: a device on this network (a fast transfer), or a
+/// paired device elsewhere, through İleti (over the internet while it is
+/// online, otherwise the message waits for it).
+class SendTarget {
+  const SendTarget.lan(Device this.live) : remote = null;
+  const SendTarget.remote(TrustedDevice this.remote) : live = null;
+  final Device? live;
+  final TrustedDevice? remote;
+  String get id => live?.id ?? remote!.id;
+  String get name => live?.name ?? remote!.name;
+  String get platform => live?.platform ?? remote!.platform;
+}
+
+/// Gönder: pick files (or take the shared ones), then the devices — on this
+/// network or paired ones far away (several at once). [texts]: shared
+/// texts or links, which go as messages to paired devices.
+/// [only] / [onlyRemote]: straight to that device, no sheet.
 Future<void> sendFilesFlow(
   BuildContext context,
   WidgetRef ref, {
   List<String>? paths,
+  List<String> texts = const [],
   Device? only,
+  String? onlyRemote,
 }) async {
   final locale = ref.read(settingsProvider).locale;
   var files = paths;
-  if (files == null) {
+  if (files == null && texts.isEmpty) {
     final picked = await FilePickerHelper.pickFiles(allowMultiple: true);
     files = picked?.files.map((f) => f.path).whereType<String>().toList();
   }
-  if (files == null || files.isEmpty || !context.mounted) return;
-  List<Device> targets;
+  files ??= const [];
+  if ((files.isEmpty && texts.isEmpty) || !context.mounted) return;
+  final store = ref.read(trustStoreProvider);
+  List<SendTarget> targets;
   if (only != null) {
-    targets = [only];
+    targets = [SendTarget.lan(only)];
+  } else if (onlyRemote != null && store.byId(onlyRemote) != null) {
+    targets = [SendTarget.remote(store.byId(onlyRemote)!)];
   } else {
-    final picked = await showModalBottomSheet<List<Device>>(
+    final picked = await showModalBottomSheet<List<SendTarget>>(
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
-      builder: (_) => _TargetSheet(count: files!.length),
+      builder: (_) => _TargetSheet(count: files!.length + texts.length, pairedOnly: files.isEmpty),
     );
     if (picked == null || picked.isEmpty) return;
     targets = picked;
   }
-  final queue = await ref.read(transferQueueProvider.future);
+  final ileti = ref.read(iletiProvider.notifier);
+  var queued = 0;
+  var chat = 0;
   for (final t in targets) {
-    queue.enqueueAll(t, files);
+    final paired = store.byId(t.id) != null;
+    final live = t.live;
+    if (files.isNotEmpty) {
+      if (live != null) {
+        final queue = await ref.read(transferQueueProvider.future);
+        queue.enqueueAll(live, files);
+        queued += files.length;
+      } else {
+        // not on this network: as files in the conversation (İleti)
+        await ileti.sendFiles(t.id, files);
+        chat += files.length;
+      }
+    }
+    if (paired) {
+      for (final text in texts) {
+        await ileti.sendText(t.id, text);
+        chat++;
+      }
+    }
   }
   if (context.mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(S.get('sendQueued', locale, {'n': '${files.length * targets.length}'}))),
-    );
+    final parts = [
+      if (queued > 0) S.get('sendQueued', locale, {'n': '$queued'}),
+      if (chat > 0) S.get('sentToChat', locale, {'n': '$chat'}),
+    ];
+    if (parts.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(parts.join(' · '))));
+    }
   }
 }
 
 class _TargetSheet extends ConsumerStatefulWidget {
-  const _TargetSheet({required this.count});
+  const _TargetSheet({required this.count, this.pairedOnly = false});
   final int count;
+
+  /// Only paired devices (texts go as messages, which needs pairing).
+  final bool pairedOnly;
 
   @override
   ConsumerState<_TargetSheet> createState() => _TargetSheetState();
@@ -562,8 +611,31 @@ class _TargetSheetState extends ConsumerState<_TargetSheet> {
     final locale = ref.watch(settingsProvider).locale;
     final store = ref.watch(trustStoreProvider);
     final live = ref.watch(devicesProvider).valueOrNull ?? const <Device>[];
-    // paired first, then the others on this network
-    final targets = [...live.where((d) => store.byId(d.id) != null), ...live.where((d) => store.byId(d.id) == null)];
+    final presence = ref.watch(iletiPresenceProvider);
+    ref.watch(iletiProvider);
+    final ileti = ref.read(iletiProvider.notifier);
+    final liveIds = {for (final d in live) d.id};
+    // paired on this network, paired elsewhere (online first), then the others on this network
+    final remote = [
+      for (final t in store.devices)
+        if (!liveIds.contains(t.id) && ileti.canMail(t.id)) t,
+    ]..sort((a, b) {
+        final oa = presence[a.id]?.$1 ?? false;
+        final ob = presence[b.id]?.$1 ?? false;
+        if (oa != ob) return oa ? -1 : 1;
+        return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      });
+    final targets = <(SendTarget, Reach, String)>[
+      for (final d in live.where((d) => store.byId(d.id) != null))
+        (SendTarget.lan(d), Reach.lan, _reachLabel(Reach.lan, locale)),
+      for (final t in remote)
+        (presence[t.id]?.$1 ?? false)
+            ? (SendTarget.remote(t), Reach.internet, _reachLabel(Reach.internet, locale))
+            : (SendTarget.remote(t), Reach.off, S.get('targetWaits', locale)),
+      if (!widget.pairedOnly)
+        for (final d in live.where((d) => store.byId(d.id) == null))
+          (SendTarget.lan(d), Reach.lan, _reachLabel(Reach.lan, locale)),
+    ];
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -578,26 +650,35 @@ class _TargetSheetState extends ConsumerState<_TargetSheet> {
                 padding: const EdgeInsets.symmetric(vertical: 24),
                 child: Text(S.get('noTargets', locale), style: TextStyle(color: ui.muted)),
               ),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final d in targets)
-                  _TargetChip(
-                    device: d,
-                    chosen: _chosen.contains(d.id),
-                    label: _reachLabel(Reach.lan, locale),
-                    onTap: () => setState(() {
-                      if (!_chosen.remove(d.id)) _chosen.add(d.id);
-                    }),
-                  ),
-              ],
+            Flexible(
+              child: SingleChildScrollView(
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final (t, reach, label) in targets)
+                      _TargetChip(
+                        name: t.name,
+                        platform: t.platform,
+                        reach: reach,
+                        chosen: _chosen.contains(t.id),
+                        label: label,
+                        onTap: () => setState(() {
+                          if (!_chosen.remove(t.id)) _chosen.add(t.id);
+                        }),
+                      ),
+                  ],
+                ),
+              ),
             ),
             const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: _chosen.isEmpty
                   ? null
-                  : () => Navigator.of(context).pop(targets.where((d) => _chosen.contains(d.id)).toList()),
+                  : () => Navigator.of(context).pop([
+                        for (final (t, _, _) in targets)
+                          if (_chosen.contains(t.id)) t,
+                      ]),
               style: FilledButton.styleFrom(
                 backgroundColor: ui.accent,
                 foregroundColor: Colors.white,
@@ -617,8 +698,17 @@ class _TargetSheetState extends ConsumerState<_TargetSheet> {
 }
 
 class _TargetChip extends StatelessWidget {
-  const _TargetChip({required this.device, required this.chosen, required this.label, required this.onTap});
-  final Device device;
+  const _TargetChip({
+    required this.name,
+    required this.platform,
+    required this.reach,
+    required this.chosen,
+    required this.label,
+    required this.onTap,
+  });
+  final String name;
+  final String platform;
+  final Reach reach;
   final bool chosen;
   final String label;
   final VoidCallback onTap;
@@ -644,11 +734,12 @@ class _TargetChip extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(4, 10, 4, 8),
               child: Column(
                 children: [
-                  DeviceAvatar(platform: device.platform, reach: Reach.lan, size: 44),
+                  DeviceAvatar(platform: platform, reach: reach, size: 44),
                   const SizedBox(height: 6),
-                  Text(device.name, maxLines: 1, overflow: TextOverflow.ellipsis,
+                  Text(name, maxLines: 1, overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                  Text(label, style: TextStyle(fontSize: 10, color: ui.route(Reach.lan).fg)),
+                  Text(label, maxLines: 2, textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 10, color: ui.route(reach).fg)),
                 ],
               ),
             ),
@@ -725,9 +816,12 @@ class DeviceDetail extends ConsumerWidget {
               _Action(
                 icon: Icons.send_rounded,
                 label: S.get('actSend', locale),
-                onTap: row.live == null
-                    ? () => _toast(context, S.get('needOnline', locale, {'name': t.name}))
-                    : () => sendFilesFlow(context, ref, only: row.live),
+                onTap: row.live != null
+                    ? () => sendFilesFlow(context, ref, only: row.live)
+                    : ref.read(iletiProvider.notifier).canMail(t.id)
+                        // elsewhere: the files go in the conversation, over the internet
+                        ? () => sendFilesFlow(context, ref, onlyRemote: t.id)
+                        : () => _toast(context, S.get('needOnline', locale, {'name': t.name})),
               ),
               _Action(
                 icon: Icons.content_paste_rounded,
@@ -810,13 +904,20 @@ class DeviceDetail extends ConsumerWidget {
 
   Future<void> _sendClipboard(BuildContext context, WidgetRef ref, PairedRow row, String locale) async {
     final live = row.live;
-    if (live == null) {
+    final ileti = ref.read(iletiProvider.notifier);
+    if (live == null && !ileti.canMail(row.trusted.id)) {
       _toast(context, S.get('needOnline', locale, {'name': row.trusted.name}));
       return;
     }
     final text = (await Clipboard.getData(Clipboard.kTextPlain))?.text ?? '';
     if (text.isEmpty) {
       if (context.mounted) _toast(context, S.get('clipboardEmpty', locale));
+      return;
+    }
+    if (live == null) {
+      // elsewhere: as a message, over the internet
+      await ileti.sendText(row.trusted.id, text);
+      if (context.mounted) _toast(context, S.get('sentToChat', locale, {'n': '1'}));
       return;
     }
     final me = await ref.read(localDeviceProvider.future);

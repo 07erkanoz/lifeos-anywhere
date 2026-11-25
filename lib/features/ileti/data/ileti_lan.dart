@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart' as crypto;
@@ -145,7 +146,7 @@ class IletiLan implements IletiTransport {
     var cert = _peerCert(peer);
     if (cert != null) return cert;
     // any TLS request meets its certificate (checked against the pin)
-    await PeerTls.instance.shared.get(_uri(peer, '/api/info')).timeout(const Duration(seconds: 10));
+    await PeerTls.instance.shared.get(_uri(peer, '/api/info')).timeout(const Duration(seconds: 6));
     cert = _peerCert(peer);
     if (cert == null) throw StateError('${peer.name}: certificate not met');
     return cert;
@@ -161,7 +162,7 @@ class IletiLan implements IletiTransport {
     final envelope = envelopeFor(m, key, ek);
     final r = await PeerTls.instance.shared
         .post(_uri(peer, '/api/ileti'), headers: _headers(peer.id), body: jsonEncode(envelope))
-        .timeout(const Duration(seconds: 20));
+        .timeout(const Duration(seconds: 10));
     _check(r, peer);
     if (ek != null) await uploadFile(m, ek);
     return m.copyWith(status: IletiStatus.sent, via: IletiVia.lan, clearProgress: true);
@@ -187,24 +188,41 @@ class IletiLan implements IletiTransport {
                   : 'dosya',
       'key': IletiCrypto.b64(IletiCrypto.random(32)),
       'nonce': IletiCrypto.b64(IletiCrypto.random(4)),
-      'sha256': (await crypto.sha256.bind(file.openRead()).first).toString(),
+      // a whole file through sha256: not on the UI isolate
+      'sha256': await _sha256Of(file.path),
     };
   }
 
+  static Future<String> _sha256Of(String path) =>
+      Isolate.run(() async => (await crypto.sha256.bind(File(path).openRead()).first).toString());
+
   /// The file's sealed pieces (§2.4), as one stream; [onProgress] 0..1.
+  /// Each piece is sealed on another isolate while the one before it goes.
   static Stream<List<int>> sealedFrames(String path, Map<String, dynamic> ek, {void Function(double)? onProgress}) async* {
     final key = base64.decode('${ek['key']}');
     final prefix = base64.decode('${ek['nonce']}');
     final file = File(path);
     final total = IletiCrypto.pieces(await file.length());
     final raf = await file.open();
+    Future<Uint8List>? ahead;
     try {
       for (var n = 0; n < total; n++) {
         final block = await raf.read(IletiCrypto.chunk);
-        yield IletiCrypto.frame(key, prefix, n, total, block);
-        onProgress?.call((n + 1) / total);
+        final sealing = IletiCrypto.frameAsync(key, prefix, n, total, block);
+        if (ahead != null) {
+          yield await ahead;
+          onProgress?.call(n / total);
+        }
+        ahead = sealing;
+      }
+      if (ahead != null) {
+        final last = ahead;
+        ahead = null;
+        yield await last;
+        onProgress?.call(1);
       }
     } finally {
+      ahead?.ignore();
       await raf.close();
     }
   }
@@ -352,29 +370,45 @@ class IletiLan implements IletiTransport {
     final sink = part.openWrite();
     final digest = _Sha256Sink();
     final hasher = crypto.sha256.startChunkedConversion(digest);
-    var buffer = BytesBuilder(copy: false);
+    // the bytes not yet taken; joined only once a whole frame is in (joining
+    // on every network chunk copied each 1 MiB piece a dozen times)
+    final buffer = BytesBuilder(copy: false);
+    int? need; // 4 + the next frame's length, once its head is in
     var n = 0;
     var written = 0;
     try {
       await for (final chunk in body) {
-        buffer.add(chunk);
-        var bytes = buffer.takeBytes();
-        var at = 0;
-        while (bytes.length - at >= 4) {
-          final len = ByteData.sublistView(bytes, at, at + 4).getUint32(0);
-          if (len < 16 || len > IletiCrypto.chunk + 16) throw const FormatException('parça boyu yanlış');
-          if (bytes.length - at - 4 < len) break;
+        buffer.add(chunk is Uint8List ? chunk : Uint8List.fromList(chunk));
+        while (true) {
+          if (need == null) {
+            if (buffer.length < 4) break;
+            final bytes = buffer.takeBytes();
+            final len = ByteData.sublistView(bytes, 0, 4).getUint32(0);
+            if (len < 16 || len > IletiCrypto.chunk + 16) throw const FormatException('parça boyu yanlış');
+            need = 4 + len;
+            buffer.add(bytes);
+          }
+          final frameLength = need!;
+          if (buffer.length < frameLength) break;
           if (n >= total) throw const FormatException('fazla parça');
-          final plain = IletiCrypto.openPiece(key, prefix, n, n == total - 1, bytes.sublist(at + 4, at + 4 + len));
+          final bytes = buffer.takeBytes();
+          if (bytes.length > frameLength) buffer.add(Uint8List.sublistView(bytes, frameLength));
+          need = null;
+          final plain = await IletiCrypto.openPieceAsync(
+            key,
+            prefix,
+            n,
+            n == total - 1,
+            Uint8List.sublistView(bytes, 4, frameLength),
+          );
           sink.add(plain);
           hasher.add(plain);
           written += plain.length;
           n++;
-          at += 4 + len;
           progress?.call(peer.id, id, n / total);
         }
-        buffer = BytesBuilder(copy: false)..add(bytes.sublist(at));
       }
+      if (buffer.isNotEmpty || need != null) throw const FormatException('eksik parça');
       await sink.close();
       hasher.close();
       if (n != total || written != size) throw const FormatException('eksik dosya');

@@ -51,14 +51,16 @@ object DirectShareService {
                 putExtra("directShareDeviceIp", deviceIp)
             }
 
-            ShortcutInfo.Builder(context, "device_$deviceId")
+            val builder = ShortcutInfo.Builder(context, "device_$deviceId")
                 .setShortLabel(deviceName)
-                .setLongLabel("$deviceName ($deviceIp)")
+                .setLongLabel(if (deviceIp.isEmpty()) deviceName else "$deviceName ($deviceIp)")
                 .setIcon(icon)
                 .setIntent(intent)
                 .setCategories(setOf(CATEGORY))
                 .setRank(devices.indexOf(device))
-                .build()
+            // sharing shortcuts (res/xml/share_targets.xml) are shown in the share sheet only when long-lived
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) builder.setLongLived(true)
+            builder.build()
         }.filterNotNull()
 
         try {

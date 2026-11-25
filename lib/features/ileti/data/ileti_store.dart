@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -83,8 +84,15 @@ class IletiStore {
   Future<void> save(String device, List<IletiMessage> messages, Iterable<String> allDevices) async {
     await dir.create(recursive: true);
     final key = await _getKey();
-    await _write(_fileFor(device), _seal(key, utf8.encode(jsonEncode([for (final m in messages) m.toJson()]))));
-    await _write(File('${dir.path}/index.ileti'), _seal(key, utf8.encode(jsonEncode(allDevices.toList()))));
+    final rows = [for (final m in messages) m.toJson()];
+    final ids = allDevices.toList();
+    // JSON and AES-GCM of a whole conversation: on another isolate, not the screen's
+    final (conversation, index) = await Isolate.run(() => (
+          _seal(key, utf8.encode(jsonEncode(rows))),
+          _seal(key, utf8.encode(jsonEncode(ids))),
+        ));
+    await _write(_fileFor(device), conversation);
+    await _write(File('${dir.path}/index.ileti'), index);
   }
 
   Future<void> forget(String device) async {
@@ -103,7 +111,10 @@ class IletiStore {
     final nonce = Uint8List.fromList(List.generate(12, (_) => r.nextInt(256)));
     final gcm = GCMBlockCipher(AESEngine())
       ..init(true, AEADParameters(KeyParameter(key), 128, nonce, Uint8List(0)));
-    return Uint8List.fromList([...nonce, ...gcm.process(Uint8List.fromList(plain))]);
+    final sealed = gcm.process(plain is Uint8List ? plain : Uint8List.fromList(plain));
+    return Uint8List(12 + sealed.length)
+      ..setRange(0, 12, nonce)
+      ..setRange(12, 12 + sealed.length, sealed);
   }
 
   static Uint8List _open(Uint8List key, Uint8List sealed) {

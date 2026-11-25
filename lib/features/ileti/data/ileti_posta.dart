@@ -18,6 +18,12 @@ import 'package:anyware/features/pairing/data/trust_store.dart';
 
 final _log = AppLogger('IletiPosta');
 
+/// The server closed the command without its JSON answer.
+class _NoAnswer implements Exception {
+  @override
+  String toString() => 'sunucu yanıt vermedi';
+}
+
 /// The LifeOS support server's İleti mailbox (docs/ileti-protokol.md §4).
 class IletiServer {
   const IletiServer({
@@ -188,6 +194,11 @@ class IletiPosta implements IletiTransport {
 
   /// One command on the server as [user]: [words], [input] on stdin; the
   /// JSON object it answers (its last line). Throws on `{"hata": …}`.
+  ///
+  /// Short commands as `lifeos-ileti` share one connection: a new SSH
+  /// handshake per message cost seconds on a phone. A connection found dead
+  /// is dropped and the command tried once more on a fresh one (the other
+  /// side drops a letter it already has, by its id).
   Future<Map<String, dynamic>> _run(
     String user,
     String words, {
@@ -195,16 +206,83 @@ class IletiPosta implements IletiTransport {
     Duration timeout = const Duration(seconds: 40),
   }) async {
     await _ensureKey();
+    // other users, and long waits (davet-bekle), on a connection of their own
+    if (user != 'lifeos-ileti' || timeout > const Duration(seconds: 40)) {
+      final client = await _connect(user);
+      try {
+        return await _exec(client, words, input, timeout);
+      } finally {
+        client.close();
+      }
+    }
+    final reused = _shared != null && !_shared!.isClosed;
+    final client = await _sharedClient();
+    try {
+      return await _exec(client, words, input, reused ? _reusedTimeout(timeout) : timeout);
+    } on StateError {
+      rethrow; // the server answered (an error of its own): the connection is fine
+    } catch (e) {
+      _dropShared(client);
+      if (!reused) rethrow;
+      _log.debug('shared connection gone ($e): again on a new one');
+      final fresh = await _sharedClient();
+      try {
+        return await _exec(fresh, words, input, timeout);
+      } catch (e) {
+        if (e is! StateError) _dropShared(fresh);
+        rethrow;
+      }
+    }
+  }
+
+  /// On a connection already open a short command answers at once; a long
+  /// wait there means it died (the phone slept, the network changed).
+  static Duration _reusedTimeout(Duration t) => t > const Duration(seconds: 15) ? const Duration(seconds: 15) : t;
+
+  SSHClient? _shared;
+  Future<SSHClient>? _opening;
+
+  Future<SSHClient> _sharedClient() async {
+    final open = _shared;
+    if (open != null && !open.isClosed) return open;
+    final pending = _opening ??= _connect('lifeos-ileti').then((c) {
+      _shared = c;
+      unawaited(c.done.catchError((Object _) {}).whenComplete(() {
+        if (identical(_shared, c)) _shared = null;
+      }));
+      return c;
+    }).whenComplete(() => _opening = null);
+    return pending;
+  }
+
+  void _dropShared(SSHClient client) {
+    if (identical(_shared, client)) _shared = null;
+    try {
+      client.close();
+    } catch (_) {}
+  }
+
+  Future<SSHClient> _connect(String user) async {
     final socket = await SSHSocket.connect(server.host, server.port, timeout: const Duration(seconds: 15));
     final client = SSHClient(
       socket,
       username: user,
       identities: [_key!],
       onVerifyHostKey: _hostOk,
-      keepAliveInterval: const Duration(seconds: 30),
+      keepAliveInterval: const Duration(seconds: 20),
     );
     try {
-      final session = await client.execute(words).timeout(timeout);
+      await client.authenticated.timeout(const Duration(seconds: 20));
+    } catch (e) {
+      client.close();
+      rethrow;
+    }
+    return client;
+  }
+
+  Future<Map<String, dynamic>> _exec(SSHClient client, String words, String input, Duration timeout) async {
+    final session = await client.execute(words).timeout(timeout);
+    try {
       session.stdin.add(utf8.encode(input));
       await session.stdin.close();
       final out = await session.stdout
@@ -213,12 +291,13 @@ class IletiPosta implements IletiTransport {
           .join()
           .timeout(timeout);
       final last = out.trim().split('\n').where((l) => l.trim().startsWith('{')).lastOrNull;
-      if (last == null) throw StateError('sunucu yanıt vermedi');
+      if (last == null) throw _NoAnswer();
       final reply = jsonDecode(last) as Map<String, dynamic>;
       if (reply['hata'] != null) throw StateError('${reply['hata']}');
       return reply;
-    } finally {
-      client.close();
+    } catch (_) {
+      session.close();
+      rethrow;
     }
   }
 
@@ -407,6 +486,7 @@ class IletiPosta implements IletiTransport {
   void stop() {
     _running = false;
     _presence?.cancel();
+    wake();
   }
 
   Timer? _presence;
@@ -450,44 +530,98 @@ class IletiPosta implements IletiTransport {
     }
   }
 
+  Completer<void>? _nap;
+  SSHClient? _fetching;
+
+  /// Waits [d], or less if [wake] is called.
+  Future<void> _sleep(Duration d) async {
+    final nap = _nap = Completer<void>();
+    final timer = Timer(d, () {
+      if (!nap.isCompleted) nap.complete();
+    });
+    await nap.future;
+    timer.cancel();
+    if (identical(_nap, nap)) _nap = null;
+  }
+
+  /// The app came back, or the network changed: the waiting fetch may hang
+  /// on a connection that died meanwhile (Android froze the app), so it is
+  /// cut and a new one starts now, without the backoff.
+  void wake() {
+    _failures = 0;
+    final nap = _nap;
+    if (nap != null && !nap.isCompleted) nap.complete();
+    final f = _fetching;
+    if (f != null) {
+      _fetching = null;
+      try {
+        f.close();
+      } catch (_) {}
+    }
+    final shared = _shared;
+    if (shared != null) _dropShared(shared);
+    if (_running) unawaited(checkPresence());
+  }
+
+  /// How long after the [n]th failure in a row the mailbox is tried again:
+  /// quick at first (a dropped connection), then up to two minutes.
+  static Duration backoff(int n) => Duration(
+        seconds: const [2, 5, 15, 30, 60, 120][(n < 1 ? 1 : n > 6 ? 6 : n) - 1],
+      );
+
   Future<void> _loop() async {
     var done = <String>[];
     while (_running) {
       // nobody to hear from (no device paired with encryption): no server, no battery
       if (!enabled || !trustStore.devices.any((d) => d.isPinned)) {
-        await Future<void>.delayed(const Duration(seconds: 15));
+        await _sleep(const Duration(seconds: 15));
         continue;
       }
       try {
+        final hadBox = myBox != null;
         await _ensureBox();
+        if (!hadBox) onBoxOpened?.call();
         await _syncAllowed();
-        final got = await _run(
-          'lifeos-ileti',
-          'al 45',
-          input: jsonEncode({'sil': done}),
-          timeout: const Duration(seconds: 135),
-        );
+        // the long wait on a connection of its own, so messages sent meanwhile do not queue behind it
+        await _ensureKey();
+        final client = _fetching = await _connect('lifeos-ileti');
+        final Map<String, dynamic> got;
+        try {
+          got = await _exec(client, 'al 45', jsonEncode({'sil': done}), const Duration(seconds: 70));
+        } finally {
+          if (identical(_fetching, client)) _fetching = null;
+          client.close();
+        }
         done = [];
+        final delivered = <String, List<String>>{};
         for (final env in (got['zarflar'] as List? ?? const [])) {
           final e = env as Map<String, dynamic>;
           done.add('${e['id']}');
           try {
-            await _take(e);
+            await _take(e, delivered);
           } catch (err) {
             _log.info('letter not taken: $err'); // acknowledged anyway: never fetched twice
           }
         }
+        // "arrived" goes back without holding up the next fetch, one letter per device
+        for (final MapEntry(key: device, value: ids) in delivered.entries) {
+          unawaited(tell(device, 'iletildi', ids).catchError((Object e) => _log.debug('iletildi: $e')));
+        }
         _failures = 0;
       } catch (e) {
+        if (!_running) break;
         _failures++;
-        final wait = Duration(seconds: (15 * (1 << (_failures > 5 ? 5 : _failures))).clamp(15, 300));
+        final wait = backoff(_failures);
         _log.info('mailbox: $e (again in ${wait.inSeconds}s)');
-        await Future<void>.delayed(wait);
+        await _sleep(wait);
       }
     }
   }
 
-  Future<void> _take(Map<String, dynamic> env) async {
+  /// This device's box opened (the first time): what waited can go now.
+  void Function()? onBoxOpened;
+
+  Future<void> _take(Map<String, dynamic> env, Map<String, List<String>> delivered) async {
     final device = deviceOf('${env['kimden'] ?? ''}');
     final peer = device == null ? null : trustStore.byId(device);
     if (peer == null || !peer.isPinned) return; // an unknown box: dropped
@@ -497,7 +631,7 @@ class IletiPosta implements IletiTransport {
       final zarf = letter['zarf'] as Map<String, dynamic>;
       if ('${zarf['box'] ?? ''}'.length > 200000) return;
       final (status, _) = await lan.receiveEnvelope(peer, zarf, via: IletiVia.internet);
-      if (status == 200) await tell(peer.id, 'iletildi', [zarf['id']]);
+      if (status == 200) (delivered[peer.id] ??= []).add('${zarf['id']}');
       return;
     }
     if (letter['from'] != peer.id) return;

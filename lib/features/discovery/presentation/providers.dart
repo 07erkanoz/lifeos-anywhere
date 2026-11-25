@@ -10,6 +10,7 @@ import 'package:anyware/features/discovery/data/latency_service.dart';
 import 'package:anyware/features/discovery/domain/device.dart';
 import 'package:anyware/core/android_platform_service.dart';
 import 'package:anyware/core/background_service.dart';
+import 'package:anyware/features/pairing/data/trust_store.dart';
 import 'package:anyware/features/pairing/presentation/providers.dart';
 import 'package:anyware/features/platform/android/direct_share_service.dart';
 import 'package:anyware/features/settings/data/settings_repository.dart';
@@ -510,11 +511,28 @@ final directShareProvider = Provider<DirectShareService>((ref) {
   final service = DirectShareService();
 
   if (Platform.isAndroid) {
-    ref.listen<AsyncValue<List<Device>>>(devicesProvider, (_, next) {
-      next.whenData((devices) {
-        service.updateTargets(devices);
-      });
-    }, fireImmediately: true);
+    // the devices on this network first, then the paired ones elsewhere (they
+    // get files through İleti); published again only when the list changes
+    var published = '';
+    void publish() {
+      final live = ref.read(devicesProvider).valueOrNull ?? const <Device>[];
+      final store = ref.read(trustStoreProvider);
+      final liveIds = {for (final d in live) d.id};
+      final targets = [
+        ...live.where((d) => store.byId(d.id) != null),
+        for (final t in store.devices)
+          if (!liveIds.contains(t.id))
+            Device(id: t.id, name: t.name, ip: '', port: 0, platform: t.platform, version: '', lastSeen: t.pairedAt),
+        ...live.where((d) => store.byId(d.id) == null),
+      ].take(4).toList();
+      final key = targets.map((d) => '${d.id}|${d.name}|${d.ip}').join(',');
+      if (key == published) return;
+      published = key;
+      service.updateTargets(targets);
+    }
+
+    ref.listen<AsyncValue<List<Device>>>(devicesProvider, (_, _) => publish(), fireImmediately: true);
+    ref.listen<TrustStore>(trustStoreProvider, (_, _) => publish());
 
     ref.onDispose(() {
       service.clearTargets();

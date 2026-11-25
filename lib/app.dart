@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:desktop_drop/desktop_drop.dart';
+import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
@@ -41,6 +42,9 @@ import 'package:anyware/features/sync/domain/sync_state.dart';
 import 'package:anyware/features/server_sync/data/server_sync_service.dart';
 import 'package:anyware/features/sharing/presentation/share_target_picker.dart';
 import 'package:anyware/features/sharing/data/dropped_file_expander.dart';
+import 'package:anyware/features/sharing/data/sharing_service.dart';
+import 'package:anyware/features/discovery/presentation/device_list_screen.dart' show pendingShareProvider;
+import 'package:anyware/features/discovery/domain/device.dart';
 import 'package:anyware/features/platform/tray_service.dart';
 import 'package:anyware/features/platform/linux/linux_firewall_service.dart';
 import 'package:anyware/features/settings/data/settings_repository.dart';
@@ -52,6 +56,8 @@ import 'package:anyware/ui/files_screen.dart';
 import 'package:anyware/ui/sync_home.dart';
 import 'package:anyware/ui/ui_kit.dart';
 import 'package:anyware/ui/ui_strings.dart';
+import 'package:anyware/ui/update_sheet.dart';
+import 'package:anyware/features/update/presentation/update_providers.dart';
 
 class App extends ConsumerWidget {
   const App({super.key});
@@ -184,6 +190,8 @@ class _MainShellState extends ConsumerState<_MainShell>
     WidgetsBinding.instance.addObserver(this);
     PairingClient.waiting.addListener(_showOutgoingPairingCode);
     if (_useSidebar) _startVisibilityPoll();
+    _listenForShares();
+    _scheduleUpdateChecks();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initLocaleIfNeeded();
       if (Platform.isAndroid) {
@@ -228,6 +236,8 @@ class _MainShellState extends ConsumerState<_MainShell>
       case AppLifecycleState.resumed:
         _setUiVisible(true, 'lifecycle.resumed');
         if (Platform.isAndroid) unawaited(_resumeAndroidNetwork());
+        // the mailbox's waiting fetch may have died while in the background
+        iletiResumed(ref);
         return;
       case AppLifecycleState.hidden:
       case AppLifecycleState.paused:
@@ -540,8 +550,92 @@ class _MainShellState extends ConsumerState<_MainShell>
     } catch (_) {}
   }
 
+  // ── updates (lifeos.com.tr's version.json) ─────────────────────────────
+
+  Timer? _updateTimer;
+  bool _updateShown = false;
+
+  /// A while after start, then every six hours: a newer release opens the
+  /// update sheet once per run (not for a version the user skipped).
+  void _scheduleUpdateChecks() {
+    if (_isTV || !ref.read(updateProvider.notifier).supported) return;
+    Future<void> run() async {
+      if (!mounted || _updateShown) return;
+      final release = await ref.read(updateProvider.notifier).check(quiet: true);
+      if (release == null || !mounted || _updateShown) return;
+      _updateShown = true;
+      await showUpdateSheet(context);
+    }
+
+    _updateTimer = Timer(const Duration(seconds: 8), () {
+      unawaited(run());
+      _updateTimer = Timer.periodic(const Duration(hours: 6), (_) => unawaited(run()));
+    });
+  }
+
+  // ── shared from other apps (Android's share sheet) ─────────────────────
+
+  StreamSubscription<List<SharedMediaFile>>? _shareSub;
+
+  /// The 2.0 screens have no share listener of their own (the old
+  /// Dashboard had, and the TV still uses it): shared files and texts come
+  /// here and go to the device picker — this network or far away.
+  void _listenForShares() {
+    if (!(Platform.isAndroid || Platform.isIOS) || _isTV) return;
+    try {
+      final service = ref.read(sharingServiceProvider);
+      _shareSub = service.getMediaStream().listen(
+        (items) => unawaited(_takeShared(items)),
+        onError: (Object e) => AppLogger('Share').warning('share stream: $e'),
+      );
+      service.getInitialMedia().then((items) {
+        if (items.isEmpty) return;
+        service.reset();
+        // after the first frame: the picker needs the shell on screen
+        WidgetsBinding.instance.addPostFrameCallback((_) => unawaited(_takeShared(items)));
+      });
+    } catch (e) {
+      AppLogger('Share').error('share intent: $e', error: e);
+    }
+  }
+
+  Future<void> _takeShared(List<SharedMediaFile> items) async {
+    if (items.isEmpty || !mounted) return;
+    final service = ref.read(sharingServiceProvider);
+    final direct = await service.consumeDirectShareTarget();
+    bool isText(SharedMediaFile f) => f.type == SharedMediaType.text || f.type == SharedMediaType.url;
+    final files = [
+      for (final f in items)
+        if (!isText(f) && f.path.isNotEmpty) f.path.startsWith('file://') ? Uri.parse(f.path).toFilePath() : f.path,
+    ];
+    final texts = [
+      for (final f in items)
+        if (isText(f) && f.path.trim().isNotEmpty) f.path,
+    ];
+    AppLogger('Share').info('shared: ${files.length} files, ${texts.length} texts, target ${direct?.id ?? '-'}');
+    if (!mounted || (files.isEmpty && texts.isEmpty)) return;
+    _selectIndex(0);
+    // a device chosen in the share sheet itself (Direct Share): straight to it
+    Device? only;
+    String? onlyRemote;
+    if (direct != null && direct.id.isNotEmpty) {
+      final id = direct.id.startsWith('device_') ? direct.id.substring(7) : direct.id;
+      final live = (ref.read(devicesProvider).valueOrNull ?? const <Device>[]).where((d) => d.id == id).firstOrNull;
+      final paired = ref.read(trustStoreProvider).byId(id) != null;
+      if (live != null && texts.isEmpty) {
+        only = live; // files on this network: a transfer
+      } else if (paired && (live != null || ref.read(iletiProvider.notifier).canMail(id))) {
+        onlyRemote = id; // in the conversation (texts, or not on this network)
+      }
+    }
+    if (!mounted) return;
+    await sendFilesFlow(context, ref, paths: files, texts: texts, only: only, onlyRemote: onlyRemote);
+  }
+
   @override
   void dispose() {
+    _shareSub?.cancel();
+    _updateTimer?.cancel();
     _visibilityPoll?.cancel();
     PairingClient.waiting.removeListener(_showOutgoingPairingCode);
     windowManager.removeListener(this);
@@ -774,6 +868,17 @@ class _MainShellState extends ConsumerState<_MainShell>
   Widget build(BuildContext context) {
     final settings = ref.watch(settingsProvider);
     final locale = settings.locale;
+
+    // "Send with LifeOS" from the desktop's file manager (main.dart)
+    if (!_isTV) {
+      ref.listen<List<String>?>(pendingShareProvider, (prev, next) {
+        if (next == null || next.isEmpty) return;
+        ref.read(pendingShareProvider.notifier).state = null;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) unawaited(_shareDroppedPaths(next, locale));
+        });
+      });
+    }
 
     ref.listen<ClipboardEntry?>(clipboardReceivedEventProvider, (prev, next) {
       if (next == null || identical(prev, next)) return;

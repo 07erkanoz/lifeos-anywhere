@@ -1,6 +1,13 @@
 class AppConstants {
   static const String appName = 'LifeOS AnyWhere';
-  static const String appVersion = '2.0.0';
+  /// The release's version and build number: CI passes them from
+  /// pubspec.yaml (--dart-define=APP_VERSION/APP_BUILD), so the update check
+  /// compares with what is really installed.
+  static const String appVersion = String.fromEnvironment('APP_VERSION', defaultValue: '2.0.0');
+  static const int appBuild = int.fromEnvironment('APP_BUILD');
+
+  /// What lifeos.com.tr publishes for each release (tool/release/version_json.sh).
+  static const String updateFeedUrl = 'https://lifeos.com.tr/downloads/anywhere/version.json';
   static const String protocolVersion = '1.1';
   static const String websiteUrl = 'https://lifeos.com.tr';
   static const String githubUrl =

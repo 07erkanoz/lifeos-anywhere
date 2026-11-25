@@ -91,6 +91,9 @@ class PeerTls {
   /// comes to [_check]); the pin decides.
   HttpClient httpClient() =>
       HttpClient(context: SecurityContext(withTrustedRoots: false))
+        // a peer on this network answers in milliseconds; one that left must
+        // not hold a message (or a transfer) for the OS's long TCP timeout
+        ..connectionTimeout = const Duration(seconds: 5)
         ..badCertificateCallback = _check;
 
   /// The same for package:http calls; the caller closes it.
