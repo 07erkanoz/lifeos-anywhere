@@ -1,16 +1,28 @@
-# Builds LifeOS AnyWhere for Windows, Linux and Android. A v tag publishes it: a
+# Builds LifeOS AnyWhere for Windows, Linux and Android and publishes it: a
 # GitHub release with the three packages, and the same packages on
-# lifeos.com.tr/anywhere (tool/release/send_to_site.sh). Run by hand, it only
-# builds, and the packages stay as the run's artifacts.
+# lifeos.com.tr/anywhere (tool/release/send_to_site.sh), where the app's
+# update check finds them.
+#
+# - A push to main whose pubspec.yaml version has no release yet publishes it
+#   (the v tag is made by the release). Other pushes to main only run the tests.
+# - A v tag publishes that version (if it has no release yet).
+# - Run by hand, it only builds; the packages stay as the run's artifacts.
 name: Derle ve yayımla
 
 on:
   push:
+    branches: [main]
     tags: ['v*']
+  pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
+
+# one run per branch or tag at a time (two quick pushes do not publish twice)
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   FLUTTER_VERSION: '3.47.7'
@@ -21,9 +33,13 @@ jobs:
     outputs:
       version: ${{ steps.read.outputs.version }}
       build: ${{ steps.read.outputs.build }}
+      release: ${{ steps.read.outputs.release }}
+      build_all: ${{ steps.read.outputs.build_all }}
     steps:
       - uses: actions/checkout@v7.0.1
       - id: read
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           version="$(sed -nE 's/^version:[[:space:]]*([0-9]+\.[0-9]+\.[0-9]+)\+([0-9]+).*/\1/p' pubspec.yaml)"
           build="$(sed -nE 's/^version:[[:space:]]*[0-9.]+\+([0-9]+).*/\1/p' pubspec.yaml)"
@@ -36,6 +52,22 @@ jobs:
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "build=$build" >> "$GITHUB_OUTPUT"
+          # published once per version: a tag, or main with a version that has no release yet
+          release=false
+          if [ "$GITHUB_EVENT_NAME" = push ] && { [ "$GITHUB_REF_TYPE" = tag ] || [ "$GITHUB_REF" = refs/heads/main ]; }; then
+            if gh release view "v$version" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+              echo "v$version zaten yayımlanmış."
+            else
+              release=true
+              echo "v$version yayımlanacak."
+            fi
+          fi
+          echo "release=$release" >> "$GITHUB_OUTPUT"
+          if [ "$release" = true ] || [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            echo "build_all=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "build_all=false" >> "$GITHUB_OUTPUT"
+          fi
 
   test:
     runs-on: ubuntu-latest
@@ -48,10 +80,13 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
+      # compile errors anywhere in lib/, not only in what the tests import
+      - run: flutter analyze --no-fatal-warnings --no-fatal-infos
       - run: flutter test
 
   windows:
     needs: [version, test]
+    if: needs.version.outputs.build_all == 'true'
     runs-on: windows-2022
     timeout-minutes: 45
     steps:
@@ -80,7 +115,7 @@ jobs:
             printf '%s=%s\n' "$k" "${!k}"
           done > .env
       - run: flutter pub get
-      - run: flutter build windows --release --build-name=${{ needs.version.outputs.version }} --build-number=${{ needs.version.outputs.build }} --dart-define-from-file=.env
+      - run: flutter build windows --release --build-name=${{ needs.version.outputs.version }} --build-number=${{ needs.version.outputs.build }} --dart-define-from-file=.env --dart-define=APP_VERSION=${{ needs.version.outputs.version }} --dart-define=APP_BUILD=${{ needs.version.outputs.build }}
       - name: Syncthing (klasör eşitleme)
         shell: bash
         run: bash tool/syncthing.sh windows
@@ -101,6 +136,7 @@ jobs:
 
   linux:
     needs: [version, test]
+    if: needs.version.outputs.build_all == 'true'
     runs-on: ubuntu-22.04
     timeout-minutes: 30
     steps:
@@ -137,7 +173,7 @@ jobs:
       # Only the libraries a file uses: Ubuntu's appindicator pulls in
       # libayatana-indicator and -ido, which the tray plugin never calls and
       # newer Arch (and so LifeOS) no longer installs with it.
-      - run: flutter build linux --release --build-name=${{ needs.version.outputs.version }} --build-number=${{ needs.version.outputs.build }} --dart-define-from-file=.env
+      - run: flutter build linux --release --build-name=${{ needs.version.outputs.version }} --build-number=${{ needs.version.outputs.build }} --dart-define-from-file=.env --dart-define=APP_VERSION=${{ needs.version.outputs.version }} --dart-define=APP_BUILD=${{ needs.version.outputs.build }}
         env:
           LDFLAGS: -Wl,--as-needed
       - name: Tepsi eklentisi yalnız appindicator'a bağlı
@@ -169,6 +205,7 @@ jobs:
 
   android:
     needs: [version, test]
+    if: needs.version.outputs.build_all == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -214,7 +251,7 @@ jobs:
       - run: flutter pub get
       - name: Syncthing (klasör eşitleme)
         run: bash tool/syncthing.sh android
-      - run: flutter build apk --release --build-name=${{ needs.version.outputs.version }} --build-number=${{ needs.version.outputs.build }} --dart-define-from-file=.env
+      - run: flutter build apk --release --build-name=${{ needs.version.outputs.version }} --build-number=${{ needs.version.outputs.build }} --dart-define-from-file=.env --dart-define=APP_VERSION=${{ needs.version.outputs.version }} --dart-define=APP_BUILD=${{ needs.version.outputs.build }}
       # A package signed with the debug key could not update the one people
       # have: it must be the release key's.
       - name: İmzayı denetle
@@ -237,7 +274,7 @@ jobs:
           if-no-files-found: error
 
   publish:
-    if: github.ref_type == 'tag'
+    if: needs.version.outputs.release == 'true'
     needs: [version, windows, linux, android]
     runs-on: ubuntu-latest
     permissions:
@@ -262,7 +299,8 @@ jobs:
         run: |
           notes="$RUNNER_TEMP/notes.md"
           cat release/notes_tr.md > "$notes" 2>/dev/null || true
-          gh release create "$GITHUB_REF_NAME" --title "LifeOS AnyWhere ${{ needs.version.outputs.version }}" \
+          gh release create "v${{ needs.version.outputs.version }}" --target "$GITHUB_SHA" \
+            --title "LifeOS AnyWhere ${{ needs.version.outputs.version }}" \
             --notes-file "$notes" dist/LifeOS-AnyWhere-*
       - name: lifeos.com.tr'ye gönder
         env:
