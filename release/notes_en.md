@@ -1,6 +1,11 @@
-- Encrypted connection: paired devices keep each other's certificate, and files and the clipboard travel encrypted. While pairing, both screens show the same six-digit code; allow only if they match.
-- Pairs encrypted with LifeOS Linux computers and sends and receives files with them.
-- Reachable in the background: on Android, paired devices on the same Wi-Fi can see the phone and send to it with the app closed. A silent notification stays; it uses little battery (Settings → Stay reachable in the background).
-- A computer stays listed even when its network broadcasts are missed: paired devices are also looked for at their address.
-- A send request sometimes showed as "rejected" on some receivers; fixed.
-- With older versions, files and the clipboard work unencrypted as before. Update both devices.
+- New interface: Devices, Files, Sync and Settings. A bottom bar on phones, a side rail on computers; on wide screens the devices, the conversation and the device side by side.
+- LifeOS İleti: encrypted messages and files with paired devices. Directly on the same network, through the LifeOS server over the internet; online and last-seen status, read receipts.
+- Devices far away: pair over the internet with a 16-letter code. Files go through the server up to 150 MB each, 300 MB a day; bigger ones go on the same network.
+- "Share" from other apps: files and texts come straight to AnyWhere; choose a device on this network or far away and send.
+- Scan a document: photograph the pages and save them as one PDF with straightened edges; preview it in Scans and send it to any device.
+- Camera in the chat: take a photo and send it at once.
+- Notifications: one for every message and file that comes in while the app is closed; sound and vibration in Settings › Notifications.
+- Messages now go much faster, and the screen no longer freezes while files are sent.
+- A phone in the background is reached more reliably from a computer.
+- Updates from within the app: when a new version is out, the app says so, downloads and installs it (Android and Windows).
+- Folder sync works the same way as LifeOS (Syncthing).

@@ -1,6 +1,11 @@
-- Bağlantı şifreli: eşleşen cihazlar birbirinin sertifikasını saklar, dosya ve pano şifreli gider. Eşleşirken iki ekranda aynı altı haneli kod çıkar; kodlar aynıysa izin verin.
-- LifeOS Linux bilgisayarlarla şifreli eşleşir ve dosya alıp verir.
-- Arka planda ulaşılabilir: Android'de uygulama kapalıyken de aynı Wi-Fi'daki eşli cihazlar telefonu görür ve ona gönderebilir. Sessiz bir bildirim durur, pili az kullanır (Ayarlar → Arka planda ulaşılabilir kal).
-- Bilgisayar ağdaki yayınları kaçırsa da listede kalır: eşli cihazlar adresinden de aranır.
-- Gönderme isteği bazı alıcılarda "reddedildi" görünüyordu; düzeltildi.
-- Eski sürümlerle dosya ve pano şifresiz, eskisi gibi çalışır. İki cihazı da güncelleyin.
+- Yeni arayüz: Cihazlar, Dosyalar, Eşitleme ve Ayarlar. Telefonda alt çubuk, bilgisayarda yan menü; geniş ekranda cihazlar, sohbet ve cihaz yan yana.
+- LifeOS İleti: eşli cihazlarla şifreli mesajlaşma ve dosya gönderme. Aynı ağda doğrudan, internetten LifeOS sunucusu üzerinden; çevrimiçi ve son görülme bilgisi, okundu bilgisi.
+- Uzaktaki cihazlar: 16 harfli bir kodla internet üzerinden eşleşin. Sunucu üzerinden dosya başına 150 MB'a kadar, günde 300 MB gönderilir; daha büyüğü aynı ağda gider.
+- Başka uygulamalardan "Paylaş": dosya ve metinler doğrudan AnyWhere'e gelir, aynı ağdaki ya da uzaktaki cihazı seçip gönderirsiniz.
+- Belge tara: kamerayla sayfaları çekin, kenarları düzeltilmiş tek bir PDF olarak kaydedilsin; Taramalar'da önizleyip istediğiniz cihaza gönderin.
+- Sohbette kamera: fotoğrafı doğrudan çekip gönderin.
+- Bildirimler: uygulama kapalıyken gelen her mesaj ve dosya için bildirim; ses ve titreşim Ayarlar › Bildirimler'den açılıp kapanır.
+- Mesajlar artık çok daha hızlı gider, dosyalar gönderilirken ekran donmaz.
+- Arka plandaki telefona bilgisayardan ulaşmak daha güvenilir.
+- Uygulama içinden güncelleme: yeni bir sürüm çıkınca uygulama haber verir, indirip kurar (Android ve Windows).
+- Klasör eşitleme LifeOS ile aynı yolla (Syncthing) çalışır.
